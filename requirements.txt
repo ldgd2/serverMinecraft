@@ -1,0 +1,25 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+jinja2
+python-multipart
+bcrypt
+requests
+python-dotenv
+alembic
+pywin32; sys_platform == 'win32'
+httpx
+typer
+rich
+shellingham
+psutil
+PyJWT
+passlib
+aiofiles
+python-jose[cryptography]
+nbtlib
+aiohttp
+websockets
+bs4
+sqlalchemy
+watchdog

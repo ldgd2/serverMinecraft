@@ -1,0 +1,26 @@
+__pycache__/
+*.py[cod]
+
+# Source (except endpoints)
+source/*
+!source/endpoints/
+!source/png/
+!source/img/
+!source/svg/
+logs/
+
+# Servers
+/servers
+
+# Environment
+.env
+
+# Database
+/database/instance
+
+# Python Virtual Environments
+venv/
+.venv/
+env/
+.env/
+
