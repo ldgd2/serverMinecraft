@@ -24,6 +24,7 @@ def upgrade() -> None:
         sa.Column('username', sa.String(), nullable=True),
         sa.Column('hashed_password', sa.String(), nullable=True),
         sa.Column('is_admin', sa.Boolean(), nullable=True, default=True),
+        sa.Column('is_active', sa.Boolean(), nullable=True, default=True),
         sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_users_id'), 'users', ['id'], unique=False)

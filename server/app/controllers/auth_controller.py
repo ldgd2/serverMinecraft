@@ -15,6 +15,9 @@ class AuthController:
         print(f"DEBUG: User found: {user}")
         
         if user:
+             if not user.is_active:
+                 print(f"DEBUG: User '{username}' is inactive")
+                 return None
              print(f"DEBUG: Verify password for user '{user.username}'")
              is_valid = verify_password(password, user.hashed_password)
              print(f"DEBUG: Password valid: {is_valid}")

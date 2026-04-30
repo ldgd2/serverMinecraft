@@ -14,7 +14,12 @@ def seed_users():
         # Hash the password
         hashed_password = get_password_hash(password)
         
-        user = User(username=username, hashed_password=hashed_password)
+        user = User(
+            username=username, 
+            hashed_password=hashed_password,
+            is_admin=True,
+            is_active=True
+        )
         db.add(user)
         db.commit()
         print(f"Admin user seeded: {username} / {password}")
