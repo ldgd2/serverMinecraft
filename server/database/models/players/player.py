@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Index
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Index, UniqueConstraint
 from sqlalchemy.orm import relationship
 from database.models.base import Base
 import datetime
@@ -12,6 +12,10 @@ class Player(Base):
     name = Column(String, index=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint('id', 'server_id', name='uq_player_id_server'),
+    )
 
     # Relationships
     detail = relationship("PlayerDetail", uselist=False, back_populates="player", cascade="all, delete-orphan")

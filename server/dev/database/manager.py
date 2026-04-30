@@ -159,7 +159,12 @@ def init_db_cmd():
         except Exception as e:
             from dev.utils.core import safe_exception_str
             console.print(f"[bold red]PostgreSQL Error: {safe_exception_str(e)}[/bold red]")
-            console.print("[yellow]Continuing with existing configuration...[/yellow]")
+            retry = Prompt.ask("Do you want to retry the PostgreSQL setup? (y/n)", choices=["y", "n"], default="y")
+            if retry.lower() == 'y':
+                return init_db_cmd() # Recursive retry
+            else:
+                console.print("[yellow]Aborting initialization. Please check your credentials.[/yellow]")
+                return
     
     
     with Progress(SpinnerColumn(), TextColumn("[cyan]Creating tables...[/cyan]"), console=console) as progress:
