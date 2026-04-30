@@ -43,3 +43,13 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Specific build artifacts
+*.apk
+*.ap_
+*.aab
+build/
+android/app/build/
+ios/Flutter/Generated.xcconfig
+ios/Flutter/flutter_export_environment.sh
+ios/Flutter/Flutter.podspec

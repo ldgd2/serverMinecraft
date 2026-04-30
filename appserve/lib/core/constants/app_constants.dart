@@ -2,7 +2,7 @@ class AppConstants {
   AppConstants._();
 
   // API
-  static const String baseUrl = 'http://185.214.134.23:8000/api/v1';
+  static const String baseUrl = 'http://change-to-your-IP:8000/api/v1';
   static const String tokenKey = 'auth_token';
   static const String userKey = 'user_data';
   static const String serverUrlKey = 'server_url';
