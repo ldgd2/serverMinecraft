@@ -2,23 +2,24 @@
 
 # Minecraft Server Manager - Linux/Mac Installer & Runner
 
-# Ensure we are in the project root directory
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-
-# Check if requirements.txt is in SCRIPT_DIR
-if [ -f "$SCRIPT_DIR/requirements.txt" ]; then
-    ROOT_DIR="$SCRIPT_DIR"
-elif [ -f "$SCRIPT_DIR/../../requirements.txt" ]; then
-    ROOT_DIR="$SCRIPT_DIR/../.."
+# Ensure we are in the project root directory (the directory containing the 'server' folder)
+# If this script is inside 'server', the root is one level up.
+CURRENT_DIR="$(cd "$(dirname "$0")" && pwd)"
+if [ -d "$CURRENT_DIR/server" ]; then
+    # We are in the root
+    ROOT_DIR="$CURRENT_DIR"
+    SERVER_DIR="$ROOT_DIR/server"
 else
-    echo "Error: Could not find requirements.txt. Are you running this from the correct directory?"
-    exit 1
+    # We are likely inside 'server'
+    ROOT_DIR="$(cd "$CURRENT_DIR/.." && pwd)"
+    SERVER_DIR="$CURRENT_DIR"
 fi
 
 cd "$ROOT_DIR" || exit 1
 
 echo "========================================================="
-echo "🎮 Minecraft Server Manager - Environment Setup & Runner 🎮"
+echo "🎮 Minecraft Server Manager - Setup & Runner 🎮"
+echo "Project Root: $ROOT_DIR"
 echo "========================================================="
 echo "Detecting Operating System..."
 
@@ -99,10 +100,10 @@ else
     fi
 fi
 
-# Initialize .env if missing
-if [ ! -f ".env" ]; then
-    echo "Creating initial .env file..."
-    cat > .env <<EOL
+# Initialize .env if missing (should be in server folder)
+if [ ! -f "$SERVER_DIR/.env" ]; then
+    echo "Creating initial .env file in $SERVER_DIR..."
+    cat > "$SERVER_DIR/.env" <<EOL
 SECRET_KEY=$(python3 -c 'import secrets; print(secrets.token_hex(32))')
 DB_ENGINE=postgresql
 DB_HOST=127.0.0.1
@@ -115,23 +116,23 @@ API_HOST=0.0.0.0
 EOL
 fi
 
-# Create Venv
-if [ ! -d "venv" ]; then
-    echo "Creating Python Virtual Environment..."
-    python3 -m venv venv
+# Create Venv in ROOT_DIR
+if [ ! -d "$ROOT_DIR/venv" ]; then
+    echo "Creating Python Virtual Environment in $ROOT_DIR/venv..."
+    python3 -m venv "$ROOT_DIR/venv"
 else
     echo "✔ Virtual Environment already exists."
 fi
 
 # Install Dependencies
 echo "Installing Python Dependencies..."
-./venv/bin/pip install --upgrade pip
-./venv/bin/pip install -r requirements.txt
+"$ROOT_DIR/venv/bin/pip" install --upgrade pip
+"$ROOT_DIR/venv/bin/pip" install -r "$SERVER_DIR/requirements.txt"
 
-# Run Setup using explicit python from venv to avoid permission/sourcing issues
+# Run Setup
 echo "Ensuring Database is initialized..."
-# Interaction enabled
-./venv/bin/python mine.py database init-db
+cd "$SERVER_DIR" || exit 1
+"$ROOT_DIR/venv/bin/python" mine.py database init-db
 
 echo ""
 echo "========================================================="
@@ -139,5 +140,5 @@ echo "✅ Everything is ready! Starting the Manager..."
 echo "========================================================="
 
 # Run the CLI
-./venv/bin/python mine.py
+"$ROOT_DIR/venv/bin/python" mine.py
 
