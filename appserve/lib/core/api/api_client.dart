@@ -1,0 +1,71 @@
+import 'package:dio/dio.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../constants/app_constants.dart';
+
+class ApiClient {
+  static ApiClient? _instance;
+  late final Dio _dio;
+
+  ApiClient._() {
+    _dio = Dio(BaseOptions(
+      baseUrl: AppConstants.baseUrl,
+      connectTimeout: const Duration(seconds: 15),
+      receiveTimeout: const Duration(seconds: 30),
+      headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
+    ));
+
+    _dio.interceptors.add(InterceptorsWrapper(
+      onRequest: (options, handler) async {
+        final prefs = await SharedPreferences.getInstance();
+        final token = prefs.getString(AppConstants.tokenKey);
+        if (token != null) {
+          options.headers['Authorization'] = 'Bearer $token';
+        }
+        handler.next(options);
+      },
+      onError: (error, handler) {
+        handler.next(error);
+      },
+    ));
+  }
+
+  static ApiClient get instance => _instance ??= ApiClient._();
+
+  Dio get dio => _dio;
+
+  // Generic GET
+  Future<Response> get(String path, {Map<String, dynamic>? params}) =>
+      _dio.get(path, queryParameters: params);
+
+  // Generic POST
+  Future<Response> post(String path, {dynamic data}) =>
+      _dio.post(path, data: data);
+
+  // Generic PUT
+  Future<Response> put(String path, {dynamic data}) =>
+      _dio.put(path, data: data);
+
+  // Generic DELETE
+  Future<Response> delete(String path) => _dio.delete(path);
+
+  // Update base URL dynamically (for env config)
+  void setBaseUrl(String url) {
+    _dio.options.baseUrl = url;
+  }
+
+  // Update token (after login)
+  Future<void> saveToken(String token) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(AppConstants.tokenKey, token);
+  }
+
+  Future<void> clearToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(AppConstants.tokenKey);
+  }
+
+  Future<String?> getToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(AppConstants.tokenKey);
+  }
+}
