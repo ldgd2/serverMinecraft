@@ -7,7 +7,7 @@ app = typer.Typer(help="Server management commands")
 
 @app.command("run")
 def run_server(
-    host: str = typer.Option("127.0.0.1", help="Host to bind"),
+    host: str = typer.Option("0.0.0.0", help="Host to bind"),
     port: int = typer.Option(8000, help="Port to bind"),
     reload: bool = typer.Option(True, help="Enable auto-reload (Dev mode)"),
     prod: bool = typer.Option(False, "--prod", help="Production mode (disables reload, changes logging)")
