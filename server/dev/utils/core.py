@@ -78,6 +78,8 @@ def create_user_service(username, password):
     from app.services.auth_service import get_password_hash, verify_password
     from sqlalchemy.exc import OperationalError
     import time
+    max_retries = 5
+    retry_delay = 0.5
     
     db = SessionLocal()
 

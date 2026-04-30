@@ -88,26 +88,14 @@ def tail_logs(server_name: str):
         return
 
     try:
-        with open(log_path, "r", encoding="utf-8", errors="replace") as f:
-            # Go to end of file
-            f.seek(0, os.SEEK_END)
+        # Use native OS tools for the most robust real-time tailing
+        if sys.platform == "win32":
+            # Windows PowerShell
+            subprocess.run(["powershell", "-command", f"Get-Content -Path '{log_path}' -Wait -Tail 50"])
+        else:
+            # Linux tail -F (follows name, handles rotation)
+            subprocess.run(["tail", "-F", "-n", "50", log_path])
             
-            while True:
-                content = f.read()
-                if content:
-                    sys.stdout.write(content)
-                    sys.stdout.flush()
-                else:
-                    # Check for rotation/truncation
-                    if os.path.exists(log_path):
-                        if os.path.getsize(log_path) < f.tell():
-                            console.print("\n[yellow]Log file rotated/truncated, reopening...[/yellow]")
-                            f.close()
-                            f = open(log_path, "r", encoding="utf-8", errors="replace")
-                            continue
-                    
-                    time.sleep(0.1)
-                    
     except KeyboardInterrupt:
         console.print("\n[yellow]Stopped watching logs.[/yellow]")
     except Exception as e:

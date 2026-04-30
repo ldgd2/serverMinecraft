@@ -1,4 +1,3 @@
-import 'package:dio/dio.dart';
 import '../api/api_client.dart';
 import '../models/user_model.dart';
 
@@ -10,7 +9,6 @@ class AuthService {
     final res = await _client.dio.post(
       '/auth/login',
       data: {'username': username, 'password': password},
-      options: Options(contentType: 'application/x-www-form-urlencoded'),
     );
     final auth = AuthResponse.fromJson(res.data);
     await _client.saveToken(auth.accessToken);
