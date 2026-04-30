@@ -1,0 +1,18 @@
+.env
+*.pyc
+__pycache__/
+venv/
+data/skin_cache/
+*.log
+launch_command.log
+settings.json
+empaquetar.py
+
+# PyInstaller build artifacts
+build/
+dist/
+
+*.exe
+
+
+
