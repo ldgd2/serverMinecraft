@@ -197,8 +197,7 @@ def init_db_cmd():
                 user = User(
                     username=username,
                     hashed_password=get_password_hash(password),
-                    is_admin=True,
-                    is_active=True
+                    is_admin=True
                 )
                 db.add(user)
                 db.commit()

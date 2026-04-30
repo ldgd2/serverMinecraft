@@ -93,23 +93,21 @@ def tail_logs(server_name: str):
             f.seek(0, os.SEEK_END)
             
             while True:
-                line = f.readline()
-                if not line:
-                    # Check if file was rotated or truncated
+                content = f.read()
+                if content:
+                    sys.stdout.write(content)
+                    sys.stdout.flush()
+                else:
+                    # Check for rotation/truncation
                     if os.path.exists(log_path):
                         if os.path.getsize(log_path) < f.tell():
-                            console.print("[yellow]Log file rotated/truncated, reopening...[/yellow]")
+                            console.print("\n[yellow]Log file rotated/truncated, reopening...[/yellow]")
                             f.close()
                             f = open(log_path, "r", encoding="utf-8", errors="replace")
                             continue
                     
-                    time.sleep(0.1) # Wait for new content
-                    continue
-                
-                # Print the line without extra newline if it already has one
-                sys.stdout.write(line)
-                sys.stdout.flush()
-                
+                    time.sleep(0.1)
+                    
     except KeyboardInterrupt:
         console.print("\n[yellow]Stopped watching logs.[/yellow]")
     except Exception as e:

@@ -17,8 +17,7 @@ def seed_users():
         user = User(
             username=username, 
             hashed_password=hashed_password,
-            is_admin=True,
-            is_active=True
+            is_admin=True
         )
         db.add(user)
         db.commit()

@@ -30,7 +30,7 @@ class _ServerDetailScreenState extends State<ServerDetailScreen>
     _server = widget.server;
     _tabController = TabController(length: 3, vsync: this, initialIndex: widget.initialTab);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<ServerProvider>().selectServer(_server.id);
+      context.read<ServerProvider>().selectServer(_server.name);
     });
   }
 
@@ -213,11 +213,11 @@ class _OverviewTab extends StatelessWidget {
       builder: (_, sp, __) => Row(
         children: [
           if (server.isOffline)
-            Expanded(child: McButton(label: 'Start', icon: Icons.play_arrow, onPressed: () async { await sp.startServer(server.id); }))
+            Expanded(child: McButton(label: 'Start', icon: Icons.play_arrow, onPressed: () async { await sp.startServer(server.name); }))
           else if (server.isOnline) ...[
-            Expanded(child: McButton(label: 'Stop', icon: Icons.stop, isDanger: true, onPressed: () async { await sp.stopServer(server.id); })),
+            Expanded(child: McButton(label: 'Stop', icon: Icons.stop, isDanger: true, onPressed: () async { await sp.stopServer(server.name); })),
             const SizedBox(width: 8),
-            Expanded(child: McButton(label: 'Restart', icon: Icons.refresh, isSecondary: true, onPressed: () async { await sp.restartServer(server.id); })),
+            Expanded(child: McButton(label: 'Restart', icon: Icons.refresh, isSecondary: true, onPressed: () async { await sp.restartServer(server.name); })),
           ] else
             Expanded(child: McButton(label: 'Starting...', isLoading: true, onPressed: null)),
         ],
@@ -314,7 +314,7 @@ class _ConsoleTabState extends State<_ConsoleTab> {
               Row(
                 children: [
                   IconButton(
-                    onPressed: () => context.read<ServerProvider>().loadLogs(widget.server.id),
+                    onPressed: () => context.read<ServerProvider>().loadLogs(widget.server.name),
                     icon: const Icon(Icons.refresh, size: 20, color: AppColors.textMuted),
                     tooltip: 'Refresh logs',
                   ),
@@ -335,7 +335,7 @@ class _ConsoleTabState extends State<_ConsoleTab> {
   void _sendCommand() {
     final cmd = _cmdCtrl.text.trim();
     if (cmd.isEmpty) return;
-    context.read<ServerProvider>().sendCommand(widget.server.id, cmd);
+    context.read<ServerProvider>().sendCommand(widget.server.name, cmd);
     _cmdCtrl.clear();
   }
 }
@@ -388,7 +388,7 @@ class _SettingsTab extends StatelessWidget {
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel', style: TextStyle(color: AppColors.textMuted))),
           TextButton(
             onPressed: () async {
-              await context.read<ServerProvider>().deleteServer(server.id);
+              await context.read<ServerProvider>().deleteServer(server.name);
               if (context.mounted) { Navigator.pop(context); Navigator.pop(context); }
             },
             child: const Text('Delete', style: TextStyle(color: AppColors.offline, fontWeight: FontWeight.bold)),

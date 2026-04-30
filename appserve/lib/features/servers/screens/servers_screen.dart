@@ -160,11 +160,11 @@ class ServerCard extends StatelessWidget {
           Row(
             children: [
               if (server.isOffline)
-                Expanded(child: McButton(label: 'Start', icon: Icons.play_arrow, onPressed: () => context.read<ServerProvider>().startServer(server.id)))
+                Expanded(child: McButton(label: 'Start', icon: Icons.play_arrow, onPressed: () => context.read<ServerProvider>().startServer(server.name)))
               else if (server.isOnline) ...[
-                Expanded(child: McButton(label: 'Stop', icon: Icons.stop, isDanger: true, onPressed: () => context.read<ServerProvider>().stopServer(server.id))),
+                Expanded(child: McButton(label: 'Stop', icon: Icons.stop, isDanger: true, onPressed: () => context.read<ServerProvider>().stopServer(server.name))),
                 const SizedBox(width: 8),
-                Expanded(child: McButton(label: 'Restart', icon: Icons.refresh, isSecondary: true, onPressed: () => context.read<ServerProvider>().restartServer(server.id))),
+                Expanded(child: McButton(label: 'Restart', icon: Icons.refresh, isSecondary: true, onPressed: () => context.read<ServerProvider>().restartServer(server.name))),
               ] else
                 Expanded(child: McButton(label: 'Starting...', isLoading: true, onPressed: null)),
               const SizedBox(width: 8),

@@ -9,7 +9,7 @@ class AuthService {
     // Backend uses OAuth2 form encoding
     final res = await _client.dio.post(
       '/auth/login',
-      data: FormData.fromMap({'username': username, 'password': password}),
+      data: {'username': username, 'password': password},
       options: Options(contentType: 'application/x-www-form-urlencoded'),
     );
     final auth = AuthResponse.fromJson(res.data);

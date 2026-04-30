@@ -98,22 +98,23 @@ class ServerProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> selectServer(int id) async {
+  Future<void> selectServer(String name) async {
     _isLoading = true;
     notifyListeners();
     
-    final server = await _serverService.getServer(id);
+    // Find server in list if possible to avoid extra API call
+    final server = _servers.firstWhere((s) => s.name == name, orElse: () => _selectedServer!);
     _selectedServer = server;
     _consoleLogs = ''; // Clear previous server logs
     
     // Load initial history
     try {
-      _consoleLogs = await _serverService.getLogs(id);
+      _consoleLogs = await _serverService.getLogs(name);
     } catch (_) {}
     
     _closeWebSockets();
-    _connectToConsole(server.name);
-    _connectToStatus(server.name);
+    _connectToConsole(name);
+    _connectToStatus(name);
     
     _isLoading = false;
     notifyListeners();
@@ -162,30 +163,30 @@ class ServerProvider extends ChangeNotifier {
     super.dispose();
   }
 
-  Future<void> startServer(int id) async {
-    await _serverService.startServer(id);
+  Future<void> startServer(String name) async {
+    await _serverService.startServer(name);
     await loadServers();
   }
 
-  Future<void> stopServer(int id) async {
-    await _serverService.stopServer(id);
+  Future<void> stopServer(String name) async {
+    await _serverService.stopServer(name);
     await loadServers();
   }
 
-  Future<void> restartServer(int id) async {
-    await _serverService.restartServer(id);
+  Future<void> restartServer(String name) async {
+    await _serverService.restartServer(name);
     await loadServers();
   }
 
-  Future<void> sendCommand(int id, String cmd) async {
+  Future<void> sendCommand(String name, String cmd) async {
     // Send command via API, output will stream back through WebSocket
-    await _serverService.sendCommand(id, cmd);
+    await _serverService.sendCommand(name, cmd);
     _consoleLogs += '\n> $cmd';
     notifyListeners();
   }
 
-  Future<void> loadLogs(int id) async {
-    _consoleLogs = await _serverService.getLogs(id);
+  Future<void> loadLogs(String name) async {
+    _consoleLogs = await _serverService.getLogs(name);
     notifyListeners();
   }
 
@@ -203,9 +204,9 @@ class ServerProvider extends ChangeNotifier {
     return server;
   }
 
-  Future<void> deleteServer(int id) async {
-    await _serverService.deleteServer(id);
-    _servers.removeWhere((s) => s.id == id);
+  Future<void> deleteServer(String name) async {
+    await _serverService.deleteServer(name);
+    _servers.removeWhere((s) => s.name == name);
     notifyListeners();
   }
 

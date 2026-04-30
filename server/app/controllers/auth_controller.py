@@ -15,18 +15,15 @@ class AuthController:
         print(f"DEBUG: User found: {user}")
         
         if user:
-             if not user.is_active:
-                 print(f"DEBUG: User '{username}' is inactive")
-                 return None
-             print(f"DEBUG: Verify password for user '{user.username}'")
-             is_valid = verify_password(password, user.hashed_password)
-             print(f"DEBUG: Password valid: {is_valid}")
-             if not is_valid:
-                 print(f"DEBUG: Password verification failed for user '{username}'")
-                 return None
+            print(f"DEBUG: Verify password for user '{user.username}'")
+            is_valid = verify_password(password, user.hashed_password)
+            print(f"DEBUG: Password valid: {is_valid}")
+            if not is_valid:
+                print(f"DEBUG: Password verification failed for user '{username}'")
+                return None
         else:
-             print(f"DEBUG: User '{username}' not found in DB")
-             return None
+            print(f"DEBUG: User '{username}' not found in DB")
+            return None
              
         access_token = create_access_token(data={"sub": user.username})
         

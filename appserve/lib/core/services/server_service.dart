@@ -9,8 +9,8 @@ class ServerService {
     return (res.data as List).map((e) => ServerModel.fromJson(e)).toList();
   }
 
-  Future<ServerModel> getServer(int id) async {
-    final res = await _client.get('/servers/$id');
+  Future<ServerModel> getServer(String name) async {
+    final res = await _client.get('/servers/$name');
     return ServerModel.fromJson(res.data);
   }
 
@@ -19,34 +19,34 @@ class ServerService {
     return ServerModel.fromJson(res.data);
   }
 
-  Future<ServerModel> updateServer(int id, Map<String, dynamic> data) async {
-    final res = await _client.put('/servers/$id', data: data);
+  Future<ServerModel> updateServer(String name, Map<String, dynamic> data) async {
+    final res = await _client.put('/servers/$name', data: data);
     return ServerModel.fromJson(res.data);
   }
 
-  Future<void> deleteServer(int id) async {
-    await _client.delete('/servers/$id');
+  Future<void> deleteServer(String name) async {
+    await _client.delete('/servers/$name');
   }
 
-  Future<void> startServer(int id) async {
-    await _client.post('/servers/$id/start');
+  Future<void> startServer(String name) async {
+    await _client.post('/servers/$name/control/start');
   }
 
-  Future<void> stopServer(int id) async {
-    await _client.post('/servers/$id/stop');
+  Future<void> stopServer(String name) async {
+    await _client.post('/servers/$name/control/stop');
   }
 
-  Future<void> restartServer(int id) async {
-    await _client.post('/servers/$id/restart');
+  Future<void> restartServer(String name) async {
+    await _client.post('/servers/$name/control/restart');
   }
 
-  Future<String> sendCommand(int id, String command) async {
-    final res = await _client.post('/servers/$id/command', data: {'command': command});
+  Future<String> sendCommand(String name, String command) async {
+    final res = await _client.post('/servers/$name/command', data: {'command': command});
     return res.data['output'] ?? '';
   }
 
-  Future<String> getLogs(int id) async {
-    final res = await _client.get('/servers/$id/logs');
+  Future<String> getLogs(String name) async {
+    final res = await _client.get('/servers/$name/logs');
     return res.data['logs'] ?? '';
   }
 
