@@ -6,22 +6,22 @@ class ServerService {
 
   Future<List<ServerModel>> getServers() async {
     final res = await _client.get('/servers/');
-    return (res.data as List).map((e) => ServerModel.fromJson(e)).toList();
+    return (res.data['data'] as List).map((e) => ServerModel.fromJson(e)).toList();
   }
 
   Future<ServerModel> getServer(String name) async {
     final res = await _client.get('/servers/$name');
-    return ServerModel.fromJson(res.data);
+    return ServerModel.fromJson(res.data['data']);
   }
 
   Future<ServerModel> createServer(Map<String, dynamic> data) async {
     final res = await _client.post('/servers/', data: data);
-    return ServerModel.fromJson(res.data);
+    return ServerModel.fromJson(res.data['data']);
   }
 
   Future<ServerModel> updateServer(String name, Map<String, dynamic> data) async {
     final res = await _client.put('/servers/$name', data: data);
-    return ServerModel.fromJson(res.data);
+    return ServerModel.fromJson(res.data['data']);
   }
 
   Future<void> deleteServer(String name) async {
@@ -42,16 +42,22 @@ class ServerService {
 
   Future<String> sendCommand(String name, String command) async {
     final res = await _client.post('/servers/$name/command', data: {'command': command});
-    return res.data['output'] ?? '';
+    final data = res.data['data'];
+    return data != null ? (data['output'] ?? '') : '';
   }
 
   Future<String> getLogs(String name) async {
     final res = await _client.get('/servers/$name/logs');
-    return res.data['logs'] ?? '';
+    final data = res.data['data'];
+    return data != null ? (data['logs'] ?? '') : '';
   }
 
   Future<Map<String, dynamic>> getSystemStats() async {
-    final res = await _client.get('/system/stats');
-    return Map<String, dynamic>.from(res.data);
+    try {
+      final res = await _client.get('/system/stats');
+      return Map<String, dynamic>.from(res.data['data']);
+    } catch (_) {
+      return {};
+    }
   }
 }

@@ -10,7 +10,7 @@ class AuthService {
       '/auth/login',
       data: {'username': username, 'password': password},
     );
-    final auth = AuthResponse.fromJson(res.data);
+    final auth = AuthResponse.fromJson(res.data['data']);
     await _client.saveToken(auth.accessToken);
     return auth;
   }
