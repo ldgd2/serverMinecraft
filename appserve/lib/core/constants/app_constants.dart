@@ -1,8 +1,10 @@
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+
 class AppConstants {
   AppConstants._();
 
   // API
-  static const String baseUrl = 'http://change-to-your-IP:8000/api/v1';
+  static String get baseUrl => dotenv.get('API_URL', fallback: 'http://localhost:8000/api/v1');
   static const String tokenKey = 'auth_token';
   static const String userKey = 'user_data';
   static const String serverUrlKey = 'server_url';

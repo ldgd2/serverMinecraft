@@ -61,6 +61,8 @@ def main(ctx: typer.Context):
             try:
                 if action == "1":
                     tail_logs(selected_server)
+                    # Skip the "Press Enter" prompt for logs to make it smoother
+                    continue 
                 elif action == "2":
                     force_kill(selected_server)
             except Exception as e:
@@ -70,24 +72,48 @@ def main(ctx: typer.Context):
 
 @app.command("logs")
 def tail_logs(server_name: str):
-    """Watch the live console logs of a specific server"""
-    console.print(f"[bold cyan]Tailing logs for {server_name}... (Press Ctrl+C to exit)[/bold cyan]")
+    """Watch the live console logs of a specific server with rotation support"""
+    console.print(f"[bold cyan]Watching logs for {server_name}... (Press Ctrl+C to exit)[/bold cyan]")
     log_path = os.path.join(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")), "servers", server_name, "logs", "latest.log")
     
     if not os.path.exists(log_path):
-        console.print(f"[red]No log file found at {log_path}[/red]")
-        time.sleep(2)
+        # Try to wait a bit if server just started
+        console.print("[yellow]Waiting for log file to be created...[/yellow]")
+        for _ in range(5):
+            if os.path.exists(log_path): break
+            time.sleep(1)
+            
+    if not os.path.exists(log_path):
+        console.print(f"[red]Error: Log file not found at {log_path}[/red]")
         return
-        
+
     try:
-        if sys.platform == "win32":
-            subprocess.run(["powershell", "-command", f"Get-Content -Path '{log_path}' -Wait -Tail 50"])
-        else:
-            subprocess.run(["tail", "-f", "-n", "50", log_path])
+        with open(log_path, "r", encoding="utf-8", errors="replace") as f:
+            # Go to end of file
+            f.seek(0, os.SEEK_END)
+            
+            while True:
+                line = f.readline()
+                if not line:
+                    # Check if file was rotated or truncated
+                    if os.path.exists(log_path):
+                        if os.path.getsize(log_path) < f.tell():
+                            console.print("[yellow]Log file rotated/truncated, reopening...[/yellow]")
+                            f.close()
+                            f = open(log_path, "r", encoding="utf-8", errors="replace")
+                            continue
+                    
+                    time.sleep(0.1) # Wait for new content
+                    continue
+                
+                # Print the line without extra newline if it already has one
+                sys.stdout.write(line)
+                sys.stdout.flush()
+                
     except KeyboardInterrupt:
-        console.print("\n[yellow]Stopped tailing.[/yellow]")
+        console.print("\n[yellow]Stopped watching logs.[/yellow]")
     except Exception as e:
-        console.print(f"[red]Error: {e}[/red]")
+        console.print(f"\n[red]Error watching logs: {e}[/red]")
 
 @app.command("kill")
 def force_kill(server_name: str):

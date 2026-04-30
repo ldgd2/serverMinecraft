@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
+import '../constants/app_constants.dart';
 import '../models/user_model.dart';
 import '../models/server_model.dart';
 import '../models/version_model.dart';
@@ -62,6 +64,8 @@ class AuthProvider extends ChangeNotifier {
 /// Server state — handles the list and individual server operations
 class ServerProvider extends ChangeNotifier {
   final _serverService = ServerService();
+  WebSocketChannel? _consoleChannel;
+  WebSocketChannel? _statusChannel;
 
   List<ServerModel> _servers = [];
   ServerModel? _selectedServer;
@@ -95,8 +99,67 @@ class ServerProvider extends ChangeNotifier {
   }
 
   Future<void> selectServer(int id) async {
-    _selectedServer = await _serverService.getServer(id);
+    _isLoading = true;
     notifyListeners();
+    
+    final server = await _serverService.getServer(id);
+    _selectedServer = server;
+    _consoleLogs = ''; // Clear previous server logs
+    
+    // Load initial history
+    try {
+      _consoleLogs = await _serverService.getLogs(id);
+    } catch (_) {}
+    
+    _closeWebSockets();
+    _connectToConsole(server.name);
+    _connectToStatus(server.name);
+    
+    _isLoading = false;
+    notifyListeners();
+  }
+
+  void _closeWebSockets() {
+    _consoleChannel?.sink.close();
+    _statusChannel?.sink.close();
+    _consoleChannel = null;
+    _statusChannel = null;
+  }
+
+  void _connectToConsole(String name) {
+    final wsUrl = AppConstants.baseUrl.replaceFirst('http', 'ws');
+    _consoleChannel = WebSocketChannel.connect(
+      Uri.parse('$wsUrl/servers/$name/console'),
+    );
+
+    _consoleChannel!.stream.listen((message) {
+      _consoleLogs += '\n$message';
+      if (_consoleLogs.length > 15000) {
+        _consoleLogs = _consoleLogs.substring(_consoleLogs.length - 10000);
+      }
+      notifyListeners();
+    }, onError: (e) {
+      debugPrint('Console WS Error: $e');
+    });
+  }
+
+  void _connectToStatus(String name) {
+    final wsUrl = AppConstants.baseUrl.replaceFirst('http', 'ws');
+    _statusChannel = WebSocketChannel.connect(
+      Uri.parse('$wsUrl/servers/$name/status'),
+    );
+
+    _statusChannel!.stream.listen((message) {
+      // Background status updates could be handled here
+    }, onError: (e) {
+      debugPrint('Status WS Error: $e');
+    });
+  }
+
+  @override
+  void dispose() {
+    _closeWebSockets();
+    super.dispose();
   }
 
   Future<void> startServer(int id) async {
@@ -115,8 +178,9 @@ class ServerProvider extends ChangeNotifier {
   }
 
   Future<void> sendCommand(int id, String cmd) async {
-    final output = await _serverService.sendCommand(id, cmd);
-    _consoleLogs += '\n> $cmd\n$output';
+    // Send command via API, output will stream back through WebSocket
+    await _serverService.sendCommand(id, cmd);
+    _consoleLogs += '\n> $cmd';
     notifyListeners();
   }
 

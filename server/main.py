@@ -94,13 +94,15 @@ async def global_exception_handler(request: Request, exc: Exception):
         )
     return JSONResponse(status_code=500, content={"detail": "Internal Server Error"})
 
+from fastapi.encoders import jsonable_encoder
+
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     # Log the exact validation error to the console to help debug Flutter payload
     print(f"❌ VALIDATION ERROR ({request.url.path}): {exc.errors()}")
     return JSONResponse(
         status_code=422,
-        content={"status": "error", "message": "Validation Error", "data": exc.errors()}
+        content=jsonable_encoder({"status": "error", "message": "Validation Error", "data": exc.errors()})
     )
 
 # Include API Routers in V1

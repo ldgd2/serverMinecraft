@@ -35,6 +35,8 @@ dependencies:
   url_launcher: ^6.3.1
   package_info_plus: ^8.1.1
   connectivity_plus: ^6.1.0
+  flutter_dotenv: ^6.0.1
+  web_socket_channel: ^3.0.3
 
 dev_dependencies:
   flutter_test:
@@ -48,6 +50,7 @@ flutter:
     - assets/images/
     - assets/icons/
     - assets/animations/
+    - .env
 
   fonts:
     - family: MinecraftTen

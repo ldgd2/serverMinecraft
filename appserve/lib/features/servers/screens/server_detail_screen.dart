@@ -30,7 +30,7 @@ class _ServerDetailScreenState extends State<ServerDetailScreen>
     _server = widget.server;
     _tabController = TabController(length: 3, vsync: this, initialIndex: widget.initialTab);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<ServerProvider>().loadLogs(_server.id);
+      context.read<ServerProvider>().selectServer(_server.id);
     });
   }
 
