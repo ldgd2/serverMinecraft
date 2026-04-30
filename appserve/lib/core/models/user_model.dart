@@ -12,8 +12,8 @@ class UserModel {
   });
 
   factory UserModel.fromJson(Map<String, dynamic> json) => UserModel(
-        id: json['id'],
-        username: json['username'],
+        id: json['id'] ?? 0,
+        username: json['username'] ?? 'Unknown',
         isAdmin: json['is_admin'] ?? false,
         isActive: json['is_active'] ?? true,
       );

@@ -46,9 +46,16 @@ class ServerStats(BaseModel):
     cpu: float
     ram: float
 
+class UserResponse(BaseModel):
+    id: int
+    username: str
+    is_admin: bool
+    is_active: bool
+
 class Token(BaseModel):
     access_token: str
     token_type: str
+    user: Optional[UserResponse] = None
 
 class UserLogin(BaseModel):
     username: str
