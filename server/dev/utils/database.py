@@ -97,3 +97,39 @@ def bootstrap_postgres_db(host, port, db_name, super_user, super_pass, target_us
             msg = "Unknown PostgreSQL connection error"
             
         raise Exception(msg)
+
+def bootstrap_postgres_db_sudo(db_name, target_user, target_password, host="127.0.0.1", port=5432):
+    """
+    Uses system 'psql' via 'sudo -u postgres' to bootstrap.
+    Ideal for Linux servers where the user is root.
+    """
+    import subprocess
+    import sys
+    
+    # Helper to run psql commands
+    def run_psql(cmd):
+        res = subprocess.run(['sudo', '-u', 'postgres', 'psql', '-c', cmd], capture_output=True, text=True)
+        return res.returncode == 0, res.stderr
+
+    # 1. Create user (Ignore error if already exists)
+    run_psql(f"CREATE USER {target_user} WITH PASSWORD '{target_password}';")
+    
+    # 2. Create database
+    success, err = run_psql(f"CREATE DATABASE {db_name} OWNER {target_user};")
+    if not success and "already exists" not in err:
+        # If it failed for other reasons, try to just grant permissions
+        pass
+
+    # 3. Grant privileges
+    run_psql(f"ALTER DATABASE {db_name} OWNER TO {target_user};")
+    run_psql(f"GRANT ALL PRIVILEGES ON DATABASE {db_name} TO {target_user};")
+
+    # Save to .env immediately
+    update_env_variable("DB_HOST", host)
+    update_env_variable("DB_PORT", str(port))
+    update_env_variable("DB_NAME", db_name)
+    update_env_variable("DB_USER", target_user)
+    update_env_variable("DB_PASSWORD", target_password)
+    update_env_variable("DB_ENGINE", "postgresql")
+    
+    return target_user, target_password

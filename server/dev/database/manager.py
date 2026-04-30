@@ -105,22 +105,44 @@ def init_db_cmd():
         db_port = os.getenv("DB_PORT", "5432")
         db_name = os.getenv("DB_NAME", "mine_db")
         
-        console.print("[dim]Connecting to PostgreSQL as superuser to create the role and database...[/dim]")
-        super_user = Prompt.ask("Enter superuser (e.g. postgres)", default="postgres")
-        super_pass = Prompt.ask(f"Enter password for {super_user}", password=True)
+        console.print("[dim]Connecting to PostgreSQL as superuser...[/dim]")
+        
+        is_linux = sys.platform != 'win32'
+        auth_choices = ["1"]
+        auth_msg = "[1] Password (Standard)"
+        if is_linux:
+            auth_choices.append("2")
+            auth_msg += " | [2] Sudo (Linux/Root - No Password)"
+            
+        console.print(auth_msg)
+        auth_method = Prompt.ask("Select authentication method", choices=auth_choices, default="1")
         
         try:
-            from dev.utils.database import bootstrap_postgres_db
+            from dev.utils.database import bootstrap_postgres_db, bootstrap_postgres_db_sudo
             
-            target_user, target_pass = bootstrap_postgres_db(
-                host=db_host,
-                port=db_port,
-                db_name=db_name,
-                super_user=super_user,
-                super_pass=super_pass,
-                target_user=new_user,
-                target_password=selected_password
-            )
+            if auth_method == "2":
+                # Use Sudo method
+                target_user, target_pass = bootstrap_postgres_db_sudo(
+                    db_name=db_name,
+                    target_user=new_user,
+                    target_password=selected_password,
+                    host=db_host,
+                    port=db_port
+                )
+            else:
+                # Use standard password method
+                super_user = Prompt.ask("Enter superuser (e.g. postgres)", default="postgres")
+                super_pass = Prompt.ask(f"Enter password for {super_user}", password=True)
+                
+                target_user, target_pass = bootstrap_postgres_db(
+                    host=db_host,
+                    port=db_port,
+                    db_name=db_name,
+                    super_user=super_user,
+                    super_pass=super_pass,
+                    target_user=new_user,
+                    target_password=selected_password
+                )
             
             # We must reload env variables in this process so connection.py uses the new credentials
             os.environ["DB_USER"] = target_user
@@ -131,7 +153,8 @@ def init_db_cmd():
             importlib.reload(database.connection)
             
             console.print(f"[bold green][OK] PostgreSQL setup complete. Credentials saved to .env.[/bold green]")
-            console.print(f"[bold green]User: {target_user} | Password: {target_pass}[/bold green]")
+            console.print(f"[bold green]User: {target_user} | Password: {selected_password}[/bold green]")
+
             
         except Exception as e:
             from dev.utils.core import safe_exception_str
