@@ -2,7 +2,7 @@ class AppConstants {
   AppConstants._();
 
   // API
-  static const String baseUrl = 'http://YOUR_VPS_IP:8000';
+  static const String baseUrl = 'http://185.214.134.23:8000';
   static const String tokenKey = 'auth_token';
   static const String userKey = 'user_data';
   static const String serverUrlKey = 'server_url';

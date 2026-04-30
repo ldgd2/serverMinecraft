@@ -7,6 +7,7 @@ class AppTheme {
   static ThemeData get dark => ThemeData(
         useMaterial3: true,
         brightness: Brightness.dark,
+        fontFamily: 'MinecraftTen',
         scaffoldBackgroundColor: AppColors.backgroundDeep,
         colorScheme: const ColorScheme.dark(
           primary: AppColors.grassGreen,
@@ -94,7 +95,7 @@ class AppTheme {
         ),
         chipTheme: ChipThemeData(
           backgroundColor: AppColors.backgroundOverlay,
-          selectedColor: AppColors.grassGreen.withOpacity(0.3),
+          selectedColor: AppColors.grassGreen.withValues(alpha: 0.3),
           labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
           side: const BorderSide(color: AppColors.border),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),

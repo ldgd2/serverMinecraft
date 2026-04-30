@@ -357,7 +357,7 @@ class _VersionDropdown extends StatelessWidget {
         const Text('VERSION', style: TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 0.5)),
         const SizedBox(height: 6),
         DropdownButtonFormField<String>(
-          value: value,
+          initialValue: value,
           dropdownColor: AppColors.backgroundElevated,
           style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
           decoration: const InputDecoration(prefixIcon: Icon(Icons.gamepad_outlined, size: 18)),

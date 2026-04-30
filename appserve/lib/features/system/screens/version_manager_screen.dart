@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
 import 'package:appserve/core/models/version_model.dart';
 import 'package:appserve/core/providers/app_providers.dart';
 import 'package:appserve/core/theme/app_colors.dart';
 import 'package:appserve/shared/widgets/mc_card.dart';
 import 'package:appserve/shared/widgets/mc_button.dart';
-import 'package:appserve/shared/widgets/mc_widgets.dart';
 
 class VersionManagerScreen extends StatefulWidget {
   const VersionManagerScreen({super.key});
@@ -163,7 +161,7 @@ class _ModLoadersTabState extends State<_ModLoadersTab> {
             children: [
               Expanded(
                 child: DropdownButtonFormField<String>(
-                  value: _selectedType,
+                  initialValue: _selectedType,
                   dropdownColor: AppColors.backgroundCard,
                   items: ['paper', 'fabric', 'forge', 'quilt'].map((t) => DropdownMenuItem(value: t, child: Text(t.toUpperCase()))).toList(),
                   onChanged: (v) {
@@ -176,7 +174,7 @@ class _ModLoadersTabState extends State<_ModLoadersTab> {
               const SizedBox(width: 16),
               Expanded(
                 child: DropdownButtonFormField<String>(
-                  value: _selectedMcVersion,
+                  initialValue: _selectedMcVersion,
                   dropdownColor: AppColors.backgroundCard,
                   items: ['1.21', '1.20.4', '1.20.1', '1.19.4'].map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(),
                   onChanged: (v) {
