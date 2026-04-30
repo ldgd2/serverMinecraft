@@ -5,9 +5,10 @@ import 'package:appserve/core/providers/app_providers.dart';
 import 'package:appserve/core/theme/app_colors.dart';
 import 'package:appserve/shared/widgets/mc_card.dart';
 import 'package:appserve/shared/widgets/mc_widgets.dart';
-import '../../servers/screens/servers_screen.dart';
-import '../../system/screens/system_screen.dart';
-import '../../settings/screens/settings_screen.dart';
+import 'package:appserve/features/servers/screens/servers_screen.dart';
+import 'package:appserve/features/system/screens/system_screen.dart';
+import 'package:appserve/features/settings/screens/settings_screen.dart';
+import 'package:appserve/features/system/screens/version_manager_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -45,9 +46,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildBottomNav() {
     return Container(
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         color: AppColors.backgroundCard,
-        border: const Border(top: BorderSide(color: AppColors.border)),
+        border: Border(top: BorderSide(color: AppColors.border)),
       ),
       child: SafeArea(
         child: Padding(
@@ -86,7 +87,7 @@ class _NavItem extends StatelessWidget {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? AppColors.grassGreen.withOpacity(0.15) : Colors.transparent,
+          color: isSelected ? AppColors.grassGreen.withValues(alpha: 0.15) : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
         ),
         child: Column(
@@ -107,8 +108,6 @@ class _NavItem extends StatelessWidget {
     );
   }
 }
-
-// ─── Dashboard Tab ───────────────────────────────────────────────────────────
 
 class _DashboardTab extends StatelessWidget {
   const _DashboardTab();
@@ -201,7 +200,7 @@ class _DashboardTab extends StatelessWidget {
         decoration: BoxDecoration(
           gradient: AppColors.grassGradient,
           borderRadius: BorderRadius.circular(16),
-          boxShadow: [BoxShadow(color: AppColors.grassGreen.withOpacity(0.3), blurRadius: 20)],
+          boxShadow: [BoxShadow(color: AppColors.grassGreen.withValues(alpha: 0.3), blurRadius: 20)],
         ),
         child: Row(
           children: [
@@ -226,7 +225,7 @@ class _DashboardTab extends StatelessWidget {
               width: 56,
               height: 56,
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.15),
+                color: Colors.white.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(14),
               ),
               child: const Icon(Icons.public, size: 32, color: Colors.white),
@@ -259,9 +258,9 @@ class _DashboardTab extends StatelessWidget {
       children: [
         Expanded(child: _QuickActionCard(icon: Icons.add_circle_outline, label: 'New Server', color: AppColors.grassGreen, onTap: () => Navigator.pushNamed(context, '/servers/create'))),
         const SizedBox(width: 10),
-        Expanded(child: _QuickActionCard(icon: Icons.refresh, label: 'Refresh', color: AppColors.diamond, onTap: () => context.read<ServerProvider>().loadServers())),
+        Expanded(child: _QuickActionCard(icon: Icons.download_for_offline_outlined, label: 'Versions', color: AppColors.diamond, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const VersionManagerScreen())))),
         const SizedBox(width: 10),
-        Expanded(child: _QuickActionCard(icon: Icons.monitor_heart_outlined, label: 'System', color: AppColors.gold, onTap: () {})),
+        Expanded(child: _QuickActionCard(icon: Icons.refresh, label: 'Refresh', color: AppColors.lapis, onTap: () => context.read<ServerProvider>().loadServers())),
       ],
     );
   }
@@ -271,8 +270,8 @@ class _DashboardTab extends StatelessWidget {
       builder: (_, sp, __) {
         if (sp.isLoading) return const McShimmer(height: 80);
         if (sp.servers.isEmpty) {
-          return McCard(
-            child: const Center(
+          return const McCard(
+            child: Center(
               child: Padding(
                 padding: EdgeInsets.all(24),
                 child: Column(
@@ -297,9 +296,9 @@ class _DashboardTab extends StatelessWidget {
                     width: 44,
                     height: 44,
                     decoration: BoxDecoration(
-                      color: s.isOnline ? AppColors.grassGreen.withOpacity(0.15) : AppColors.backgroundOverlay,
+                      color: s.isOnline ? AppColors.grassGreen.withValues(alpha: 0.15) : AppColors.backgroundOverlay,
                       borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: s.isOnline ? AppColors.grassGreen.withOpacity(0.3) : AppColors.border),
+                      border: Border.all(color: s.isOnline ? AppColors.grassGreen.withValues(alpha: 0.3) : AppColors.border),
                     ),
                     child: Icon(Icons.dns_rounded, size: 22, color: s.isOnline ? AppColors.grassGreenLight : AppColors.textMuted),
                   ),
@@ -359,7 +358,7 @@ class _StatCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return McCard(
       padding: const EdgeInsets.all(14),
-      borderColor: color.withOpacity(0.2),
+      borderColor: color.withValues(alpha: 0.2),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -393,7 +392,7 @@ class _QuickActionCard extends StatelessWidget {
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: color.withOpacity(0.15),
+              color: color.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(icon, size: 20, color: color),

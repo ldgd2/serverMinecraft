@@ -28,6 +28,7 @@ void main() async {
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => ServerProvider()),
+        ChangeNotifierProvider(create: (_) => VersionProvider()),
       ],
       child: const MinecraftManagerApp(),
     ),

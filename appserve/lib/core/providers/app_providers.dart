@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import '../models/user_model.dart';
 import '../models/server_model.dart';
+import '../models/version_model.dart';
 import '../services/auth_service.dart';
 import '../services/server_service.dart';
+import '../services/version_service.dart';
 
 /// Auth state — handles login/logout/session
 class AuthProvider extends ChangeNotifier {
@@ -148,3 +150,79 @@ class ServerProvider extends ChangeNotifier {
     notifyListeners();
   }
 }
+
+class VersionProvider extends ChangeNotifier {
+  final _versionService = VersionService();
+
+  List<VersionModel> _versions = [];
+  List<VersionModel> _downloadedVersions = [];
+  List<ModLoaderModel> _modLoaders = [];
+  bool _isLoading = false;
+  String? _error;
+
+  List<VersionModel> get versions => _versions;
+  List<VersionModel> get downloadedVersions => _downloadedVersions;
+  List<ModLoaderModel> get modLoaders => _modLoaders;
+  bool get isLoading => _isLoading;
+  String? get error => _error;
+
+  Future<void> loadVersions({String? type}) async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+    try {
+      _versions = await _versionService.getVersions(type: type);
+      _downloadedVersions = await _versionService.getDownloadedVersions();
+    } catch (e) {
+      _error = 'Failed to load versions';
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> downloadVersion(String versionId) async {
+    try {
+      await _versionService.downloadVersion(versionId);
+      await loadVersions();
+    } catch (e) {
+      _error = 'Failed to download version';
+      notifyListeners();
+    }
+  }
+
+  Future<void> loadModLoaders(String type, {String? mcVersion}) async {
+    _isLoading = true;
+    notifyListeners();
+    try {
+      _modLoaders = await _versionService.getModLoaders(type, minecraftVersion: mcVersion);
+    } catch (e) {
+      _error = 'Failed to load mod loaders';
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> installModLoader({
+    required String type,
+    required String loaderVersion,
+    required String minecraftVersion,
+  }) async {
+    _isLoading = true;
+    notifyListeners();
+    try {
+      await _versionService.installModLoader(
+        type: type,
+        loaderVersion: loaderVersion,
+        minecraftVersion: minecraftVersion,
+      );
+    } catch (e) {
+      _error = 'Failed to install mod loader';
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+}
+
