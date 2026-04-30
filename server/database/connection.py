@@ -130,11 +130,26 @@ def create_app_engine():
 
     return engine
 
-# Singleton Engine
-engine = create_app_engine()
+# Internal storage for the engine and session factory
+_engine = None
+_SessionLocal = None
 
-# Thread-local Session Registry (Scoped Session)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+def get_engine():
+    global _engine
+    if _engine is None:
+        _engine = create_app_engine()
+    return _engine
+
+def get_session_factory():
+    global _SessionLocal
+    if _SessionLocal is None:
+        _SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=get_engine())
+    return _SessionLocal
+
+def SessionLocal():
+    """Compatibility wrapper for existing code calling SessionLocal()"""
+    factory = get_session_factory()
+    return factory()
 
 def get_db():
     db = SessionLocal()

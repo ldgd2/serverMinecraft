@@ -14,13 +14,7 @@ custom_theme = Theme({
     "header": "bold white on blue",
 })
 
-# Imports for create_user_service
-from database.connection import SessionLocal
-from database.models.user import User
-from app.services.auth_service import get_password_hash, verify_password
-import time
-from sqlalchemy.exc import OperationalError
-
+# Theme and Console are fine here
 console = Console(theme=custom_theme)
 
 def print_header(text: str):
@@ -79,9 +73,13 @@ def update_env_variable(key: str, value: str):
     print_success(f"Updated .env: {key}={value}")
 
 def create_user_service(username, password):
+    from database.connection import SessionLocal
+    from database.models.user import User
+    from app.services.auth_service import get_password_hash, verify_password
+    from sqlalchemy.exc import OperationalError
+    import time
+    
     db = SessionLocal()
-    max_retries = 3
-    retry_delay = 1
 
     try:
         # Check if user already exists

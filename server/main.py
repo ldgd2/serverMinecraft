@@ -13,7 +13,7 @@ from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from fastapi import Depends, APIRouter
 from sqlalchemy.orm import Session
-from database.connection import engine, SessionLocal, get_db
+from database.connection import SessionLocal, get_db
 from database.models.base import Base
 from database.models.version import Version
 from app.services.minecraft import server_service

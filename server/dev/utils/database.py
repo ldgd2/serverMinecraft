@@ -1,12 +1,12 @@
 import os
 import secrets
 import string
-import psycopg2
-from psycopg2 import sql
-from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 from dev.utils.core import update_env_variable
 
 def bootstrap_postgres_db(host, port, db_name, super_user, super_pass, target_user=None):
+    import psycopg2
+    from psycopg2 import sql
+    from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
     """
     Connects to PostgreSQL as superuser, creates a new role and database if they don't exist.
     Returns (new_user, new_password)

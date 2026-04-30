@@ -11,7 +11,7 @@ import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), '../../'))
 
 # 2. Import the dynamic engine and metadata
-from database.connection import engine as app_engine
+from database.connection import get_engine
 from database.models import Base
 
 config = context.config
@@ -56,7 +56,7 @@ def run_migrations_online() -> None:
 
     """
     # 3. Use the engine already configured in connection.py
-    connectable = app_engine
+    connectable = get_engine()
 
     with connectable.connect() as connection:
         # 4. Detect Dialect

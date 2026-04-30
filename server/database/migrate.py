@@ -20,7 +20,7 @@ def create_database():
     
     try:
         # Import here to avoid early loading issues
-        from database.connection import engine
+        from database.connection import get_engine
         from database.models import Base 
         # Make sure all models are imported so Base knows about them
         from database.models.user import User
@@ -29,7 +29,7 @@ def create_database():
         from database.models.bitacora import Bitacora
         
         print(f"[INIT] Creating tables via SQLAlchemy...")
-        Base.metadata.create_all(bind=engine)
+        Base.metadata.create_all(bind=get_engine())
         print(f"[INIT] Tables created successfully.")
         
         print(f"[INIT] Stamping Alembic header...")
