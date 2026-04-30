@@ -158,28 +158,30 @@ def show_menu():
         console.print("\n")
 
         choice = Prompt.ask("[bold yellow]❯ Select an option[/bold yellow]", choices=["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"], default="1")
-        cmd_prefix = f"{sys.executable} mine.py"
+        import subprocess
+        script_path = os.path.abspath(__file__)
+        python_exe = sys.executable
 
         if choice == "1":
-            os.system(f"{cmd_prefix} server run")
+            subprocess.run([python_exe, script_path, "server", "run"])
             Prompt.ask("\n[dim]Press Enter to continue...[/dim]")
         elif choice == "2":
-            os.system(f"{cmd_prefix} database")
+            subprocess.run([python_exe, script_path, "database"])
         elif choice == "3":
-            os.system(f"{cmd_prefix} vps")
+            subprocess.run([python_exe, script_path, "vps"])
         elif choice == "4":
-            os.system(f"{cmd_prefix} maintenance")
+            subprocess.run([python_exe, script_path, "maintenance"])
         elif choice == "5":
-            os.system(f"{cmd_prefix} properties")
+            subprocess.run([python_exe, script_path, "properties"])
         elif choice == "6":
-            os.system(f"{cmd_prefix} instances")
+            subprocess.run([python_exe, script_path, "instances"])
         elif choice == "7":
-            os.system(f"{cmd_prefix} env")
+            subprocess.run([python_exe, script_path, "env"])
         elif choice == "8":
-            os.system(f"{cmd_prefix} users")
+            subprocess.run([python_exe, script_path, "users"])
         elif choice == "9":
             length = Prompt.ask("Key length (min 32)", default="64")
-            os.system(f"{cmd_prefix} generate-secret --length {length}")
+            subprocess.run([python_exe, script_path, "generate-secret", "--length", length])
             Prompt.ask("\n[dim]Press Enter to continue...[/dim]")
         elif choice == "0":
             console.print("[bold cyan]Goodbye![/bold cyan]")
