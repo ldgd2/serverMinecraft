@@ -27,9 +27,10 @@ def main(ctx: typer.Context):
             console.print("[2] Seeder (Populate dummy data)")
             console.print("[3] Initialize Database (First setup + Admin User)")
             console.print("[4] Reset Database (Wipe & Re-create)")
+            console.print("[5] Manage PostgreSQL Roles (Users)")
             console.print("[0] Return to Main Menu")
             
-            choice = Prompt.ask("Select an option", choices=["1", "2", "3", "4", "0"], default="3")
+            choice = Prompt.ask("Select an option", choices=["1", "2", "3", "4", "5", "0"], default="3")
             
             try:
                 if choice == "1":
@@ -40,6 +41,8 @@ def main(ctx: typer.Context):
                     init_db_cmd()
                 elif choice == "4":
                     reset_cmd()
+                elif choice == "5":
+                    roles_cmd()
                 elif choice == "0":
                     break
             except Exception as e:
@@ -88,6 +91,16 @@ def init_db_cmd():
     if choice == "2":
         new_user = Prompt.ask("Enter new PostgreSQL admin username", default="mine_admin")
         
+        # Password confirmation loop
+        while True:
+            pass1 = Prompt.ask(f"Enter password for PostgreSQL user '{new_user}'", password=True)
+            pass2 = Prompt.ask("Repeat password", password=True)
+            if pass1 == pass2:
+                selected_password = pass1
+                break
+            else:
+                console.print("[bold red]Passwords do not match! Please try again.[/bold red]")
+        
         db_host = os.getenv("DB_HOST", "127.0.0.1")
         db_port = os.getenv("DB_PORT", "5432")
         db_name = os.getenv("DB_NAME", "mine_db")
@@ -105,7 +118,8 @@ def init_db_cmd():
                 db_name=db_name,
                 super_user=super_user,
                 super_pass=super_pass,
-                target_user=new_user
+                target_user=new_user,
+                target_password=selected_password
             )
             
             # We must reload env variables in this process so connection.py uses the new credentials
@@ -185,3 +199,94 @@ def reset_cmd():
             console.print("[bold red][FAIL] Reset failed.[/bold red]")
     else:
         console.print("[yellow]Reset cancelled.[/yellow]")
+
+@app.command("roles")
+def roles_cmd():
+    """Manage PostgreSQL database roles (users)"""
+    console.print(Panel("[bold yellow]PostgreSQL Role Management[/bold yellow]"))
+    
+    import os
+    db_host = os.getenv("DB_HOST", "127.0.0.1")
+    db_port = os.getenv("DB_PORT", "5432")
+    
+    super_user = Prompt.ask("Enter superuser (e.g. postgres)", default="postgres")
+    super_pass = Prompt.ask(f"Enter password for {super_user}", password=True)
+    
+    try:
+        import psycopg2
+        from psycopg2 import sql
+        from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
+        
+        conn = psycopg2.connect(
+            dbname="postgres", 
+            user=super_user, 
+            password=super_pass, 
+            host=db_host, 
+            port=db_port,
+            connect_timeout=5,
+            client_encoding='utf8'
+        )
+        conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
+        cur = conn.cursor()
+        
+        while True:
+            console.print("\n[bold cyan]PostgreSQL Roles (Loggable):[/bold cyan]")
+            cur.execute("SELECT rolname FROM pg_roles WHERE rolcanlogin = true ORDER BY rolname;")
+            roles = [r[0] for r in cur.fetchall()]
+            for r in roles:
+                console.print(f" - {r}")
+                
+            console.print("\n[1] Create Role")
+            console.print("[2] Change Password")
+            console.print("[3] Delete Role")
+            console.print("[0] Return")
+            
+            sub_choice = Prompt.ask("Action", choices=["1", "2", "3", "0"], default="0")
+            
+            if sub_choice == "1":
+                new_role = Prompt.ask("New role name")
+                while True:
+                    p1 = Prompt.ask("Password", password=True)
+                    p2 = Prompt.ask("Repeat password", password=True)
+                    if p1 == p2:
+                        cur.execute(sql.SQL("CREATE USER {} WITH PASSWORD {}").format(
+                            sql.Identifier(new_role), sql.Literal(p1)
+                        ))
+                        console.print(f"[bold green]✔ Role '{new_role}' created successfully.[/bold green]")
+                        break
+                    else:
+                        console.print("[bold red]Passwords do not match! Please try again.[/bold red]")
+            
+            elif sub_choice == "2":
+                role_to_edit = Prompt.ask("Role to change password", choices=roles)
+                while True:
+                    p1 = Prompt.ask("New password", password=True)
+                    p2 = Prompt.ask("Repeat password", password=True)
+                    if p1 == p2:
+                        cur.execute(sql.SQL("ALTER USER {} WITH PASSWORD {}").format(
+                            sql.Identifier(role_to_edit), sql.Literal(p1)
+                        ))
+                        console.print(f"[bold green]✔ Password updated for '{role_to_edit}'.[/bold green]")
+                        break
+                    else:
+                        console.print("[bold red]Passwords do not match! Please try again.[/bold red]")
+            
+            elif sub_choice == "3":
+                role_to_del = Prompt.ask("Role to delete", choices=roles)
+                if role_to_del == super_user:
+                    console.print("[bold red]Cannot delete the superuser you are currently using![/bold red]")
+                    continue
+                confirm = Prompt.ask(f"Are you sure you want to delete role '{role_to_del}'? (y/n)", default="n")
+                if confirm.lower() == 'y':
+                    cur.execute(sql.SQL("DROP USER {}").format(sql.Identifier(role_to_del)))
+                    console.print(f"[bold green]✔ Role '{role_to_del}' deleted.[/bold green]")
+            
+            elif sub_choice == "0":
+                break
+                
+        cur.close()
+        conn.close()
+        
+    except Exception as e:
+        from dev.utils.core import safe_exception_str
+        console.print(f"[bold red]Error: {safe_exception_str(e)}[/bold red]")

@@ -55,6 +55,9 @@ install_deps() {
             # Start and enable PostgreSQL
             sudo systemctl enable postgresql
             sudo systemctl start postgresql
+            
+            # Set default password for 'postgres' user to 'postgres' to simplify first-time setup
+            sudo -u postgres psql -c "ALTER USER postgres PASSWORD 'postgres';"
             ;;
         fedora)
             sudo dnf install -y python3 pip postgresql-server openjdk-21-jre libpq-devel screen

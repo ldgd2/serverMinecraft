@@ -27,7 +27,15 @@ def main(ctx: typer.Context):
     
     while True:
         username = Prompt.ask("[bold cyan]Enter username[/bold cyan]")
-        password = Prompt.ask("[bold cyan]Enter password[/bold cyan]", password=True)
+        
+        while True:
+            password = Prompt.ask("[bold cyan]Enter password[/bold cyan]", password=True)
+            password_confirm = Prompt.ask("[bold cyan]Repeat password[/bold cyan]", password=True)
+            
+            if password == password_confirm:
+                break
+            else:
+                console.print("[bold red]Passwords do not match! Please try again.[/bold red]")
         
         console.print(f"\n[yellow]Creating user: {username}[/yellow]")
         

@@ -3,7 +3,7 @@ import secrets
 import string
 from dev.utils.core import update_env_variable
 
-def bootstrap_postgres_db(host, port, db_name, super_user, super_pass, target_user=None):
+def bootstrap_postgres_db(host, port, db_name, super_user, super_pass, target_user=None, target_password=None):
     import psycopg2
     from psycopg2 import sql
     from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
@@ -17,8 +17,9 @@ def bootstrap_postgres_db(host, port, db_name, super_user, super_pass, target_us
     if not target_user:
         target_user = "mine_admin"
         
-    alphabet = string.ascii_letters + string.digits
-    target_password = ''.join(secrets.choice(alphabet) for _ in range(16))
+    if not target_password:
+        alphabet = string.ascii_letters + string.digits
+        target_password = ''.join(secrets.choice(alphabet) for _ in range(16))
     
     try:
         # Use a very short timeout for bootstrapping
