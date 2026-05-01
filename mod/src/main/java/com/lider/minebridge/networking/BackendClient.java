@@ -143,21 +143,24 @@ public class BackendClient {
         if (baseUrl == null || apiKey == null) return;
         
         try {
+            String jsonBody = data.toString();
+            // MineBridge.LOGGER.debug("Sending POST to " + endpoint + ": " + jsonBody);
+            
             HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(baseUrl + endpoint))
                 .header("Content-Type", "application/json")
                 .header("X-API-Key", apiKey)
-                .POST(HttpRequest.BodyPublishers.ofString(gson.toJson(data)))
+                .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
                 .build();
 
             httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
                 .thenAccept(res -> {
                     if (res.statusCode() >= 400) {
-                        MineBridge.LOGGER.warn("Backend error (" + res.statusCode() + "): " + res.body());
+                        MineBridge.LOGGER.warn("Backend error (" + res.statusCode() + ") on " + endpoint + ": " + res.body());
                     }
                 });
         } catch (Exception e) {
-            MineBridge.LOGGER.error("Failed to send async request: " + e.getMessage());
+            MineBridge.LOGGER.error("Failed to send async request to " + endpoint + ": " + e.getMessage());
         }
     }
 

@@ -74,15 +74,21 @@ class BridgeStat(BaseModel):
     stat: str
     value: str
     amount: int = 1
-    type: Optional[str] = "stat_update" # Added to match mod's field
+    type: Optional[str] = "stat_update"
+    class Config:
+        extra = "allow"
 
 class BridgeChat(BaseModel):
     player: str
     message: str
-    type: Optional[str] = "chat" # Added to match mod's field
+    type: Optional[str] = "chat"
+    class Config:
+        extra = "allow"
 
 class BridgeStatus(BaseModel):
     state: str # STARTED, STOPPING
+    class Config:
+        extra = "allow"
 
 class PlayerState(BaseModel):
     player: str
@@ -92,6 +98,8 @@ class PlayerState(BaseModel):
     pos_y: float
     pos_z: float
     world: str
+    class Config:
+        extra = "allow"
 
 async def log_request(request: Request):
     body = await request.body()
