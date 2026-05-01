@@ -237,7 +237,7 @@ class PlayerProfilePanel(tk.Frame):
         # Header
         header_f = tk.Frame(self._lb_frame, bg=Colors.DARK_BUTTON)
         header_f.pack(fill="x", pady=(0, 2))
-        for col, text, w in [("#", 3), ("Jugador", 16), ("Kills", 7), ("K/D", 7), ("Horas", 7)]:
+        for text, w in [("#", 3), ("Jugador", 16), ("Kills", 7), ("K/D", 7), ("Horas", 7)]:
             tk.Label(header_f, text=text, fg=Colors.YELLOW, bg=Colors.DARK_BUTTON,
                      font=mc_font(8, bold=True), width=w, anchor="w").pack(side="left", padx=2)
 
@@ -261,6 +261,7 @@ class PlayerProfilePanel(tk.Frame):
     # ── Helpers ───────────────────────────────────────────────────────────────
 
     def _close(self):
-        self.pack_forget()
+        self.place_forget()
+        self.destroy()
         if self.on_close:
             self.on_close()

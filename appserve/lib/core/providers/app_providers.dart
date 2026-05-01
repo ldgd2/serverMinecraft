@@ -337,18 +337,22 @@ class ServerProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> kickPlayer(String serverName, String playerName) async {
-    await _serverService.sendCommand(serverName, 'kick $playerName');
+  Future<void> kickPlayer(String serverName, String playerName, {String reason = "Kicked by admin"}) async {
+    await _serverService.kickPlayer(serverName, playerName, reason: reason);
     await loadPlayers(serverName);
   }
 
-  Future<void> banPlayer(String serverName, String playerName, {String reason = 'Banned by admin'}) async {
-    await _serverService.sendCommand(serverName, 'ban $playerName $reason');
+  Future<void> banPlayer(String serverName, String playerName, {
+    String reason = 'Banned by admin',
+    String mode = 'username',
+    String? expires
+  }) async {
+    await _serverService.banPlayer(serverName, playerName, reason: reason, mode: mode, expires: expires);
     await loadPlayers(serverName);
   }
 
   Future<void> unbanPlayer(String serverName, String playerName) async {
-    await _serverService.sendCommand(serverName, 'pardon $playerName');
+    await _serverService.unbanPlayer(serverName, playerName);
     await loadPlayers(serverName);
   }
 

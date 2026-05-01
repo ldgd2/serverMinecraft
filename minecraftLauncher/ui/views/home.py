@@ -306,7 +306,7 @@ class HomeView(tk.Frame):
             return
         self._profile_panel = PlayerProfilePanel(
             self,
-            on_close=lambda: None,
+            on_close=lambda: setattr(self, '_profile_panel', None),
             width=380,
         )
         self._profile_panel.place(relx=0.98, rely=0.02, anchor="ne", width=380, relheight=0.95)

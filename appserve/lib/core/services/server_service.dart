@@ -57,6 +57,26 @@ class ServerService {
     return Map<String, dynamic>.from(res.data['data'] ?? {});
   }
 
+  Future<void> kickPlayer(String serverName, String username, {String reason = "Kicked by admin"}) async {
+    await _client.post('/servers/$serverName/players/$username/kick', data: {'reason': reason});
+  }
+
+  Future<void> banPlayer(String serverName, String username, {
+    String reason = "Banned by admin",
+    String mode = "username",
+    String? expires
+  }) async {
+    await _client.post('/servers/$serverName/players/$username/ban', data: {
+      'reason': reason,
+      'mode': mode,
+      'expires': expires ?? 'forever'
+    });
+  }
+
+  Future<void> unbanPlayer(String serverName, String username) async {
+    await _client.post('/servers/$serverName/players/$username/unban');
+  }
+
   Future<Map<String, dynamic>> getSystemStats() async {
     try {
       final res = await _client.get('/system/stats');

@@ -702,12 +702,17 @@ class _PlayersTabState extends State<_PlayersTab> {
                 child: Text('No players online', style: TextStyle(color: AppColors.textMuted)),
               )))
             else
-              ...sp.onlinePlayers.map((p) => _PlayerListItem(
-                name: p.toString(),
-                isBanned: false,
-                onKick: () => sp.kickPlayer(widget.server.name, p.toString()),
-                onBan: () => sp.banPlayer(widget.server.name, p.toString()),
-              )),
+              ...sp.onlinePlayers.map((p) {
+                final playerData = p is Map ? p : {'username': p.toString()};
+                final username = playerData['username'] ?? p.toString();
+                return _PlayerListItem(
+                  player: playerData,
+                  isBanned: false,
+                  onTap: () => _showPlayerDetail(context, widget.server.name, playerData),
+                  onKick: () => _handleKick(context, sp, widget.server.name, username),
+                  onBan: () => _showBanDialog(context, sp, widget.server.name, username),
+                );
+              }),
 
             const SizedBox(height: 24),
             SectionHeader(title: 'BANNED PLAYERS (${sp.bannedUsers.length})'),
@@ -718,28 +723,187 @@ class _PlayersTabState extends State<_PlayersTab> {
                 child: Text('No banned players', style: TextStyle(color: AppColors.textMuted)),
               )))
             else
-              ...sp.bannedUsers.map((p) => _PlayerListItem(
-                name: p.toString(),
-                isBanned: true,
-                onUnban: () => sp.unbanPlayer(widget.server.name, p.toString()),
-              )),
+              ...sp.bannedUsers.map((p) {
+                final playerData = p is Map ? p : {'username': p.toString()};
+                final username = playerData['username'] ?? playerData['name'] ?? p.toString();
+                return _PlayerListItem(
+                  player: playerData,
+                  isBanned: true,
+                  onUnban: () => sp.unbanPlayer(widget.server.name, username),
+                );
+              }),
           ],
         );
       },
     );
   }
+
+  void _handleKick(BuildContext context, ServerProvider sp, String serverName, String username) async {
+    final confirmed = await McDialogs.showConfirm(
+      context,
+      title: 'Kick Player',
+      message: 'Are you sure you want to kick $username?',
+      confirmLabel: 'Kick',
+      isDanger: true,
+    );
+    if (confirmed) {
+      await sp.kickPlayer(serverName, username);
+    }
+  }
+
+  void _showPlayerDetail(BuildContext context, String serverName, Map<dynamic, dynamic> player) {
+    final username = player['username'] ?? 'Unknown';
+    final uuid = player['uuid'] ?? 'Unknown';
+    final ip = player['ip'] ?? 'Unknown';
+    final joined = player['joined_at'] ?? 'Unknown';
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.backgroundCard,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: AppColors.border)),
+        title: Row(
+          children: [
+            const Icon(Icons.person, color: AppColors.grassGreenLight),
+            const SizedBox(width: 10),
+            Text(username, style: const TextStyle(color: AppColors.textPrimary)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _DetailRow(label: 'UUID', value: uuid),
+            _DetailRow(label: 'IP Address', value: ip),
+            _DetailRow(label: 'Joined At', value: joined),
+            const SizedBox(height: 16),
+            const Text('History', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 14)),
+            const SizedBox(height: 8),
+            Container(
+              height: 100,
+              width: double.maxFinite,
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(color: AppColors.backgroundDeep, borderRadius: BorderRadius.circular(8)),
+              child: const Center(child: Text('Audit history loading...', style: TextStyle(color: AppColors.textMuted, fontSize: 12))),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close', style: TextStyle(color: AppColors.textMuted))),
+        ],
+      ),
+    );
+  }
+
+  void _showBanDialog(BuildContext context, ServerProvider sp, String serverName, String username) {
+    String reason = 'Banned by admin';
+    bool isPermanent = true;
+    DateTime? selectedDate;
+    TimeOfDay? selectedTime;
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          backgroundColor: AppColors.backgroundCard,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: AppColors.offline)),
+          title: Text('Ban $username', style: const TextStyle(color: AppColors.offline)),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  style: const TextStyle(color: AppColors.textPrimary),
+                  decoration: const InputDecoration(labelText: 'Reason', labelStyle: TextStyle(color: AppColors.textMuted)),
+                  onChanged: (v) => reason = v,
+                ),
+                const SizedBox(height: 16),
+                SwitchListTile(
+                  title: const Text('Permanent Ban', style: TextStyle(color: AppColors.textPrimary)),
+                  value: isPermanent,
+                  activeColor: AppColors.offline,
+                  onChanged: (v) => setState(() => isPermanent = v),
+                ),
+                if (!isPermanent) ...[
+                  const SizedBox(height: 8),
+                  ListTile(
+                    title: Text(selectedDate == null ? 'Select Expiry Date' : 'Expires: ${selectedDate!.toString().split(' ')[0]}'),
+                    trailing: const Icon(Icons.calendar_today, color: AppColors.gold),
+                    onTap: () async {
+                      final date = await showDatePicker(
+                        context: context,
+                        initialDate: DateTime.now().add(const Duration(days: 1)),
+                        firstDate: DateTime.now(),
+                        lastDate: DateTime.now().add(const Duration(days: 3650)),
+                      );
+                      if (date != null) setState(() => selectedDate = date);
+                    },
+                  ),
+                  ListTile(
+                    title: Text(selectedTime == null ? 'Select Expiry Time' : 'Time: ${selectedTime!.format(context)}'),
+                    trailing: const Icon(Icons.access_time, color: AppColors.gold),
+                    onTap: () async {
+                      final time = await showTimePicker(context: context, initialTime: const TimeOfDay(hour: 0, minute: 0));
+                      if (time != null) setState(() => selectedTime = time);
+                    },
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+            McButton(
+              label: 'Confirm Ban',
+              isDanger: true,
+              onPressed: () {
+                String? expires;
+                if (!isPermanent && selectedDate != null) {
+                  final hr = selectedTime?.hour ?? 0;
+                  final mn = selectedTime?.minute ?? 0;
+                  final dt = DateTime(selectedDate!.year, selectedDate!.month, selectedDate!.day, hr, mn);
+                  // Format: 2026-05-01 16:30:00 +0000
+                  expires = "${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')} "
+                            "${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}:00 +0000";
+                }
+                sp.banPlayer(serverName, username, reason: reason, expires: expires);
+                Navigator.pop(context);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DetailRow extends StatelessWidget {
+  final String label, value;
+  const _DetailRow({required this.label, required this.value});
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(label, style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
+        Text(value, style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontFamily: 'monospace')),
+      ]),
+    );
+  }
 }
 
 class _PlayerListItem extends StatelessWidget {
-  final String name;
+  final Map<dynamic, dynamic> player;
   final bool isBanned;
+  final VoidCallback? onTap;
   final VoidCallback? onKick;
   final VoidCallback? onBan;
   final VoidCallback? onUnban;
 
   const _PlayerListItem({
-    required this.name,
+    required this.player,
     this.isBanned = false,
+    this.onTap,
     this.onKick,
     this.onBan,
     this.onUnban,
@@ -747,45 +911,57 @@ class _PlayerListItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final name = player['username'] ?? player['name'] ?? 'Unknown';
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
-      child: McCard(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: Row(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: AppColors.backgroundOverlay,
-                borderRadius: BorderRadius.circular(8),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: McCard(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: AppColors.backgroundOverlay,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.person, color: AppColors.textSecondary),
               ),
-              child: const Icon(Icons.person, color: AppColors.textSecondary),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(name, style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
-            ),
-            if (isBanned)
-              McButton(
-                label: 'Unban',
-                icon: Icons.undo,
-                isSecondary: true,
-                onPressed: onUnban,
-              )
-            else ...[
-              IconButton(
-                icon: const Icon(Icons.logout, color: AppColors.gold, size: 20),
-                onPressed: onKick,
-                tooltip: 'Kick',
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(name, style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
+                    if (!isBanned && player['ip'] != null)
+                      Text(player['ip'], style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
+                  ],
+                ),
               ),
-              IconButton(
-                icon: const Icon(Icons.gavel, color: AppColors.offline, size: 20),
-                onPressed: onBan,
-                tooltip: 'Ban',
-              ),
-            ]
-          ],
+              if (isBanned)
+                McButton(
+                  label: 'Unban',
+                  icon: Icons.undo,
+                  isSecondary: true,
+                  onPressed: onUnban,
+                )
+              else ...[
+                IconButton(
+                  icon: const Icon(Icons.logout, color: AppColors.gold, size: 20),
+                  onPressed: onKick,
+                  tooltip: 'Kick',
+                ),
+                IconButton(
+                  icon: const Icon(Icons.gavel, color: AppColors.offline, size: 20),
+                  onPressed: onBan,
+                  tooltip: 'Ban',
+                ),
+              ]
+            ],
+          ),
         ),
       ),
     );

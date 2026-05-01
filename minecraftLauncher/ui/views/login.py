@@ -98,6 +98,17 @@ class LoginView(tk.Frame):
             sep_img = Image.open(Assets.HEADER_SEP).convert("RGBA")
             sep_img = sep_img.resize((420, max(sep_img.height, 2)), Image.NEAREST)
             self._tk_sep = ImageTk.PhotoImage(sep_img)
+            tk.Label(center, image=self._tk_sep, bg=Colors.PANEL_DARK,
+                     bd=0).pack(pady=(4, 12))
+
+        # ── Settings Gear ──
+        if os.path.exists(Assets.ICON_SETTINGS):
+            img = Image.open(Assets.ICON_SETTINGS).convert("RGBA").resize((24, 24), Image.NEAREST)
+            self._gear_tk = ImageTk.PhotoImage(img)
+            self._gear_btn = tk.Button(self.panorama, image=self._gear_tk, bg="#000000", bd=0, 
+                                        activebackground="#333333", cursor="hand2",
+                                        command=self._open_api_settings)
+            self._gear_btn.place(relx=1.0, x=-15, y=15, anchor="ne")
             tk.Label(center, image=self._tk_sep, bg=Colors.PANEL_DARK, bd=0).pack(pady=(4, 0))
         else:
             tk.Frame(center, bg=Colors.PANEL_BORDER, height=2).pack(fill="x", padx=12, pady=4)
@@ -178,25 +189,9 @@ class LoginView(tk.Frame):
         f = tk.Frame(self._panel, bg=Colors.PANEL_DARK)
         self._srv_frame = f
 
-        # Server row
-        srv_row = tk.Frame(f, bg=Colors.PANEL_DARK)
-        srv_row.pack(fill="x", pady=(0, 6))
-        tk.Label(srv_row, text="Servidor:", fg=Colors.WHITE,
-                 bg=Colors.PANEL_DARK, font=mc_font(9), width=9, anchor="w").pack(side="left")
-        self._srv_ip   = MinecraftInput(srv_row, placeholder="IP del servidor",
-                                         width=220, height=28, font_size=10)
-        self._srv_ip.pack(side="left", padx=4)
-        if config.get("server_ip"):
-            self._srv_ip.set(config.get("server_ip"))
-
-        tk.Label(srv_row, text=":", fg=Colors.WHITE,
-                 bg=Colors.PANEL_DARK, font=mc_font(10)).pack(side="left")
-
-        self._srv_port = MinecraftInput(srv_row, placeholder="25565",
-                                         width=68, height=28, font_size=10)
-        self._srv_port.pack(side="left", padx=2)
-        if config.get("server_port"):
-            self._srv_port.set(str(config.get("server_port")))
+        info = tk.Label(f, text="Inicia sesion con tu cuenta del servidor.", 
+                        fg=Colors.GRAY_TEXT, bg=Colors.PANEL_DARK, font=mc_font(9))
+        info.pack(pady=(0, 10))
 
         # Credentials
         usr_row = tk.Frame(f, bg=Colors.PANEL_DARK)
@@ -337,16 +332,6 @@ class LoginView(tk.Frame):
             self._set_status("Introduce usuario y contrasena.", Colors.NOPREMIUM_RED)
             return
 
-        ip   = self._srv_ip.get().strip()   or config.get("server_ip")   or "127.0.0.1"
-        port_s = self._srv_port.get().strip()
-        try:
-            port = int(port_s) if port_s else config.get("server_port") or 25565
-        except ValueError:
-            port = 25565
-
-        config.set("server_ip",   ip)
-        config.set("server_port", port)
-
         self._set_status("Conectando...", Colors.GRAY_TEXT)
         self._srv_login_btn.configure_state(True)
 
@@ -383,14 +368,6 @@ class LoginView(tk.Frame):
         if not username or not password:
             self._set_status("Introduce usuario y contrasena para registrarte.", Colors.NOPREMIUM_RED)
             return
-
-        ip = self._srv_ip.get().strip() or config.get("server_ip") or "127.0.0.1"
-        try:
-            port = int(self._srv_port.get().strip() or "25565")
-        except ValueError:
-            port = 25565
-        config.set("server_ip", ip)
-        config.set("server_port", port)
 
         self._set_status("Registrando...", Colors.GRAY_TEXT)
         self._srv_reg_btn.configure_state(True)
@@ -454,3 +431,56 @@ class LoginView(tk.Frame):
     def _fire_success(self):
         if self.on_login_success:
             self.on_login_success()
+
+    # ── API Settings Overlay ──
+    def _open_api_settings(self):
+        """Open a simple overlay to configure the API URL."""
+        overlay = tk.Toplevel(self)
+        overlay.title("Configuracion de API")
+        overlay.geometry("450x200")
+        overlay.resizable(False, False)
+        overlay.configure(bg=Colors.PANEL_DARK)
+        overlay.transient(self)
+        overlay.grab_set()
+
+        # Center on parent
+        x = self.winfo_rootx() + (self.winfo_width() // 2) - 225
+        y = self.winfo_rooty() + (self.winfo_height() // 2) - 100
+        overlay.geometry(f"+{x}+{y}")
+
+        tk.Label(overlay, text="URL del Servidor / API", fg=Colors.WHITE, 
+                 bg=Colors.PANEL_DARK, font=mc_font(12, bold=True)).pack(pady=(20, 5))
+        
+        tk.Label(overlay, text="Ej: http://mi-servidor.com o http://localhost:8000", 
+                 fg=Colors.GRAY_TEXT, bg=Colors.PANEL_DARK, font=mc_font(8)).pack(pady=(0, 10))
+
+        api_input = MinecraftInput(overlay, width=400, height=36)
+        api_input.pack(pady=5)
+        
+        current_api = config.get("api_url") or "http://localhost:8000/api/v1"
+        # Strip /api/v1 for easier editing if present
+        display_api = current_api.replace("/api/v1", "")
+        api_input.set(display_api)
+
+        def save_api():
+            new_url = api_input.get().strip()
+            if new_url:
+                if not new_url.startswith("http"):
+                    new_url = "http://" + new_url
+                # Ensure it ends with /api/v1 for AuthController
+                if not new_url.endswith("/api/v1"):
+                    new_url = new_url.rstrip("/") + "/api/v1"
+                
+                config.set("api_url", new_url)
+                # Also set server_ip for auto-join if it looks like an IP
+                try:
+                    parts = new_url.replace("http://", "").replace("https://", "").split("/")[0].split(":")
+                    config.set("server_ip", parts[0])
+                except:
+                    pass
+                
+                # Re-init auth controller with new URL
+                self._auth = AuthController()
+                overlay.destroy()
+
+        MinecraftButton(overlay, text="Guardar", width=150, height=36, command=save_api).pack(pady=15)

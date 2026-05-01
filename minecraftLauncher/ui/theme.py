@@ -49,6 +49,7 @@ class Colors:
 
     # Overlay
     BLACK_OVERLAY = "#000000cc"
+    DARK_BUTTON   = "#222222"
 
 # ── Asset Paths ────────────────────────────────────────────────────────────────
 class Assets:
@@ -85,6 +86,7 @@ class Assets:
     ICON_PLAY    = _g("sprites", "world_list", "join.png")
     ICON_WARN    = _g("sprites", "world_list", "warning.png")
     ICON_SEARCH  = _g("sprites", "icon", "search.png")
+    ICON_SETTINGS = _g("sprites", "icon", "accessibility.png")
 
     # Separator
     HEADER_SEP  = _g("header_separator.png")

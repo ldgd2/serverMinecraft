@@ -276,11 +276,14 @@ class MinecraftButton(tk.Canvas):
         self._draw()
 
     def _on_release(self, e):
-        if self._pressed and self._hover:
-            if self.command:
-                self.command()
+        was_pressed = self._pressed and self._hover
         self._pressed = False
-        self._draw()
+        
+        if self.winfo_exists():
+            self._draw()
+            
+        if was_pressed and self.command:
+            self.command()
 
     def configure_state(self, disabled: bool):
         self._disabled = disabled

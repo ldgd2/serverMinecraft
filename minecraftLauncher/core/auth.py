@@ -30,6 +30,7 @@ class AuthController:
         try:
             print(f"[Auth] Intentando Login No-Premium en {url}...")
             respuesta = requests.post(url, json=payload, timeout=10)
+            print(f"[Auth] Respuesta del servidor: {respuesta.status_code}")
             
             if respuesta.status_code == 200:
                 datos = respuesta.json()
@@ -40,12 +41,15 @@ class AuthController:
                     "token": data.get("access_token"),
                     "account_type": data.get("account_type"),
                 }}
-                
+            
+            print(f"[Auth] Error del servidor: {respuesta.text}")
             return {"status": "ERROR", "message": respuesta.json().get("detail", "Credenciales inválidas.")}
 
-        except requests.exceptions.ConnectionError:
+        except requests.exceptions.ConnectionError as e:
+            print(f"[Auth] Error de conexión: {str(e)}")
             return {"status": "ERROR", "message": "No se pudo conectar al servidor de autenticación."}
         except Exception as e:
+            print(f"[Auth] Error inesperado: {str(e)}")
             return {"status": "ERROR", "message": f"Error inesperado: {str(e)}"}
 
     def register_no_premium(self, username, password):

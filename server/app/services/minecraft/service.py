@@ -31,6 +31,7 @@ class ServerService:
                 ram_mb=record.ram_mb,
                 jar_path=jar_path,
                 working_dir=working_dir,
+                server_id=record.id,
                 masterbridge_config=masterbridge_config
             )
             
@@ -206,6 +207,7 @@ class ServerService:
             ram_mb=server_db.ram_mb,
             jar_path=os.path.join(self.base_dir, server_db.name, "server.jar"),
             working_dir=os.path.join(self.base_dir, server_db.name),
+            server_id=server_db.id,
             masterbridge_config=masterbridge_config
         )
         

@@ -8,10 +8,13 @@ from typing import Dict, Optional, List
 from datetime import datetime
 from asyncio import subprocess as async_subprocess
 from app.services.minecraft.player_manager import PlayerManager
+from app.services.minecraft.player_stats_syncer import PlayerStatsSyncer
+from database.connection import SessionLocal
 
 class MinecraftProcess:
-    def __init__(self, name: str, ram_mb: int, jar_path: str, working_dir: str, masterbridge_config: Dict = None):
+    def __init__(self, name: str, ram_mb: int, jar_path: str, working_dir: str, server_id: int = None, masterbridge_config: Dict = None):
         self.name = name
+        self.server_id = server_id
         self.ram_mb = ram_mb
         self.jar_path = jar_path
         self.working_dir = working_dir
@@ -290,7 +293,11 @@ class MinecraftProcess:
             self.process.stdin.write(f"{command}\n".encode())
             await self.process.stdin.drain()
         else:
-            print(f"WARNING: Cannot write to {self.name} (Recovered process has no stdin access)")
+            msg = f"WARNING: Cannot write to {self.name} (Recovered process has no stdin access). Please restart the server from the manager to regain control."
+            print(msg)
+            # Add to console subscribers so user sees it
+            for q in self.log_subscribers:
+                await q.put(f"[MANAGER] {msg}")
 
     def _add_activity(self, type: str, user: str, reason: str = None, timestamp: str = None):
          if not hasattr(self, 'recent_activity'): self.recent_activity = []
@@ -672,6 +679,21 @@ class MinecraftProcess:
                     event = self._parse_line_event(cleaned_line)
                     if event:
                         self._add_activity(event['type'], event['user'], event.get('reason'), event.get('timestamp'))
+                        
+                        # Sync stats if player leaves or is kicked
+                        if event['type'] in ['leave', 'kick'] and self.server_id:
+                            username = event['user']
+                            # Get UUID from player manager if possible
+                            uuid = self.player_manager.get_uuid(username)
+                            if uuid and uuid != 'unknown':
+                                try:
+                                    db = SessionLocal()
+                                    syncer = PlayerStatsSyncer(self.working_dir, self.server_id)
+                                    syncer.sync_player_stats(db, uuid)
+                                    db.close()
+                                    print(f"INFO: Synced stats for {username} ({uuid}) on {self.name}")
+                                except Exception as e:
+                                    print(f"ERROR: Failed to sync stats for {username}: {e}")
 
                     for queue in self.log_subscribers:
                         await queue.put(cleaned_line)

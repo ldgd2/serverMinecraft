@@ -181,8 +181,8 @@ def launch_minecraft(version_id, callback_dict=None):
         from core.security import decrypt_data
         selected_loader = config.get("selected_type", "Vanilla")
         version_to_launch = resolve_version_id_for_loader(version_id, selected_loader)
-        if version_to_launch != version_id and callback_dict and 'log' in callback_dict:
-            callback_dict['log'](f"Detected {selected_loader} profile: {version_to_launch}")
+        if callback_dict and 'log' in callback_dict:
+            callback_dict['log'](f"[Launch] Version a lanzar: {version_to_launch} (Base: {version_id}, Loader: {selected_loader})")
 
         # Generate offline UUID if none exists
         uid = config.get("uuid")
@@ -220,9 +220,25 @@ def launch_minecraft(version_id, callback_dict=None):
         # Emit log message via callback if available
         if callback_dict and 'log' in callback_dict:
             callback_dict['log'](f"Generating launch command for {version_id}...")
+            
+            # --- Java Version Diagnostics ---
+            try:
+                java_ver = subprocess.check_output(["java", "-version"], stderr=subprocess.STDOUT, text=True)
+                callback_dict['log'](f"[Launch] Java Detectada:\n{java_ver.strip()}")
+            except Exception as je:
+                callback_dict['log'](f"[Launch] WARN: No se pudo verificar versión de Java: {je}")
 
         try:
-            command = minecraft_launcher_lib.command.get_minecraft_command(version_to_launch, minecraft_directory, options)
+            try:
+                if callback_dict and 'log' in callback_dict:
+                    callback_dict['log']("[Launch] Solicitando comando a minecraft_launcher_lib...")
+                command = minecraft_launcher_lib.command.get_minecraft_command(version_to_launch, minecraft_directory, options)
+                if callback_dict and 'log' in callback_dict:
+                    callback_dict['log'](f"[Launch] Comando generado correctamente ({len(command)} argumentos).")
+            except Exception as e:
+                if callback_dict and 'log' in callback_dict:
+                    callback_dict['log'](f"[Launch] ERROR GENERANDO COMANDO: {e}")
+                raise e
             
             # Inject auto-join parameters
             acc_type = config.get("account_type", "guest")
@@ -240,33 +256,40 @@ def launch_minecraft(version_id, callback_dict=None):
                 command.append("--fullscreen")
             
             # Log the exact command for debugging
-            log_path = os.path.join(os.path.abspath("."), "launch_command.log")
-            with open(log_path, "w", encoding="utf-8") as lf:
-                lf.write(f"--- Launch Command Debug ---\n")
-                lf.write(f"Options passed: {options}\n\n")
-                lf.write(f"Command array:\n")
-                for arg in command:
-                    lf.write(f"{arg}\n")
+            try:
+                log_path = os.path.join(os.path.abspath("."), "launch_command.log")
+                with open(log_path, "w", encoding="utf-8") as lf:
+                    lf.write(f"--- Launch Command Debug ---\n")
+                    lf.write(f"Options passed: {options}\n\n")
+                    lf.write(f"Command array:\n")
+                    for arg in command:
+                        lf.write(f"{arg}\n")
+            except: pass
             
-            if callback_dict and 'log' in callback_dict:
-                callback_dict['log']("Starting process...")
-                
             # Execute process
-            
-            # Use specific startup info to hide console window on windows if possible
             startupinfo = None
             if os.name == 'nt':
                 startupinfo = subprocess.STARTUPINFO()
                 startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
             
-            process = subprocess.Popen(
-                command,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                stdin=subprocess.PIPE,
-                startupinfo=startupinfo,
-                text=True # Decode stdout/stderr
-            )
+            if callback_dict and 'log' in callback_dict:
+                callback_dict['log'](f"[Launch] Iniciando Popen con snippet: {' '.join(command[:5])}...")
+
+            try:
+                process = subprocess.Popen(
+                    command,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    stdin=subprocess.PIPE,
+                    startupinfo=startupinfo,
+                    text=True
+                )
+                if callback_dict and 'log' in callback_dict:
+                    callback_dict['log'](f"[Launch] PROCESO INICIADO (PID: {process.pid})")
+            except OSError as e:
+                if callback_dict and 'log' in callback_dict:
+                    callback_dict['log'](f"[Launch] ERROR CRITICO AL INICIAR PROCESO: {e}")
+                raise e
 
             # Skin Sync Monitor
             if config.get("enable_skin_sync") and config.get("server_ip") and config.get("api_url"):
@@ -284,16 +307,27 @@ def launch_minecraft(version_id, callback_dict=None):
             if callback_dict and 'started' in callback_dict:
                 callback_dict['started']()
 
-            # Read stdout line by line
-            while True:
-                output = process.stdout.readline()
-                if output == "" and process.poll() is not None:
-                    break
-                if output:
-                    if callback_dict and 'log' in callback_dict:
-                        callback_dict['log'](output.strip())
-                        
+            # Read logs in a way that doesn't block and captures stderr
+            def read_pipe(pipe, name):
+                try:
+                    for line in iter(pipe.readline, ''):
+                        if line and callback_dict and 'log' in callback_dict:
+                            callback_dict['log'](line.strip())
+                except Exception: pass
+
+            t_out = threading.Thread(target=read_pipe, args=(process.stdout, "STDOUT"), daemon=True)
+            t_err = threading.Thread(target=read_pipe, args=(process.stderr, "STDERR"), daemon=True)
+            t_out.start()
+            t_err.start()
+
             # Wait for process to finish
+            process.wait()
+            if callback_dict and 'log' in callback_dict:
+                callback_dict['log'](f"[Launch] Proceso finalizado con codigo: {process.poll()}")
+            
+            t_out.join(timeout=1)
+            t_err.join(timeout=1)
+            
             rc = process.poll()
             
             # Stop local skin server if running
