@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, WebSocke
 from sqlalchemy.orm import Session
 from typing import List, Dict, Optional
 import uuid
-import jwt
+import jwt as pyjwt
 from database.connection import get_db, SessionLocal
 from database.models.user import User
 from database.models.version import Version
@@ -23,7 +23,7 @@ def verify_ws_token(token: str) -> Optional[User]:
         SECRET_KEY = os.getenv("SECRET_KEY", "fallback_secret")
         ALGORITHM = os.getenv("ALGORITHM", "HS256")
         
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = pyjwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         username: str = payload.get("sub")
         
         if username is None:
@@ -35,9 +35,9 @@ def verify_ws_token(token: str) -> Optional[User]:
             return user
         finally:
             db.close()
-    except jwt.ExpiredSignatureError:
+    except pyjwt.ExpiredSignatureError:
         return None
-    except jwt.InvalidTokenError:
+    except pyjwt.InvalidTokenError:
         return None
     except Exception:
         return None

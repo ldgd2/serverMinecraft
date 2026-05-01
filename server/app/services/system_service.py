@@ -2,6 +2,7 @@ import os
 import sys
 import platform
 import subprocess
+import getpass
 
 # But need path to python and run.py
 
@@ -55,7 +56,7 @@ Description=Minecraft Server Dashboard
 After=network.target
 
 [Service]
-User={os.getlogin()}
+User={getpass.getuser()}
 WorkingDirectory={self.app_dir}
 ExecStart={self.python_exec} {self.run_script}
 Restart=always

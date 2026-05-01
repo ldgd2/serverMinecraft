@@ -152,12 +152,14 @@ def show_menu():
         table.add_row("7", "System", "Environment", "Configure .env file dynamically")
         table.add_row("8", "Auth", "Create User", "Create administrator users")
         table.add_row("9", "Security", "Generate JWT", "Generate new secret key")
+        table.add_row("10", "System", "Restart", "Restart Backend Service")
+        table.add_row("11", "System", "Status", "Check Service Status")
         table.add_row("0", "Exit", "Quit", "Close the CLI")
         
         console.print(table)
         console.print("\n")
 
-        choice = Prompt.ask("[bold yellow]❯ Select an option[/bold yellow]", choices=["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"], default="1")
+        choice = Prompt.ask("[bold yellow]❯ Select an option[/bold yellow]", choices=["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "0"], default="1")
         import subprocess
         script_path = os.path.abspath(__file__)
         python_exe = sys.executable
@@ -182,6 +184,12 @@ def show_menu():
         elif choice == "9":
             length = Prompt.ask("Key length (min 32)", default="64")
             subprocess.run([python_exe, script_path, "generate-secret", "--length", length])
+            Prompt.ask("\n[dim]Press Enter to continue...[/dim]")
+        elif choice == "10":
+            subprocess.run([python_exe, script_path, "vps", "restart"])
+            Prompt.ask("\n[dim]Press Enter to continue...[/dim]")
+        elif choice == "11":
+            subprocess.run([python_exe, script_path, "vps", "status"])
             Prompt.ask("\n[dim]Press Enter to continue...[/dim]")
         elif choice == "0":
             console.print("[bold cyan]Goodbye![/bold cyan]")

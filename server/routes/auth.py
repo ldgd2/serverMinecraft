@@ -10,6 +10,7 @@ from app.services.auth_service import verify_password, create_access_token, get_
 from app.services.audit_service import AuditService
 from core.responses import APIResponse
 from app.services.auth_suspend_manager import challenge_manager
+import jwt as pyjwt
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 

@@ -25,6 +25,7 @@ def main(ctx: typer.Context):
             console.print("[6] Firewall Setup (UFW)")
             console.print("[7] Network Ports (Listening)")
             console.print("[8] Top Processes (RAM usage)")
+            console.print("[9] Service Status (Systemd)")
             console.print("[0] Return to Main Menu")
             
             choice = Prompt.ask("Select an option", choices=["1", "2", "3", "4", "5", "6", "7", "8", "0"], default="1")
@@ -46,6 +47,8 @@ def main(ctx: typer.Context):
                     check_ports()
                 elif choice == "8":
                     top_processes()
+                elif choice == "9":
+                    check_service_status()
                 elif choice == "0":
                     break
             except Exception as e:
@@ -104,7 +107,7 @@ WantedBy=multi-user.target
     except Exception as e:
         console.print(f"[bold red]Failed to setup service: {e}[/bold red]")
 
-@app.command("status")
+@app.command("vps-status")
 def check_vps_status():
     """View overall VPS RAM and CPU status"""
     import psutil
@@ -124,6 +127,18 @@ def check_vps_status():
     table.add_row("Disk", f"{disk.percent}%", f"{disk.total // (1024*1024*1024)} GB")
     
     console.print(table)
+    
+@app.command("status")
+def check_service_status():
+    """View systemd status for the manager"""
+    if sys.platform == "win32":
+        console.print("[red]Not available on Windows.[/red]")
+        return
+        
+    try:
+        subprocess.run(["sudo", "systemctl", "status", "mine-manager.service"])
+    except Exception as e:
+        console.print(f"[red]Failed to check service status: {e}[/red]")
 
 @app.command("logs")
 def view_logs():

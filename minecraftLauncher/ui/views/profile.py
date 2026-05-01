@@ -5,6 +5,7 @@ Se muestra como panel deslizante desde la pantalla de inicio.
 import tkinter as tk
 import threading
 from PIL import Image, ImageTk
+from config.manager import config
 from ui.theme import Colors, Assets, mc_font
 from core.auth import AuthController
 
