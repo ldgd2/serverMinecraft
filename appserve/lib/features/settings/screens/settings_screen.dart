@@ -119,10 +119,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
             // === App Info ===
             const SectionHeader(title: 'ABOUT'),
             const SizedBox(height: 12),
-            McCard(
+            const McCard(
               child: Column(children: [
                 McInfoRow(icon: Icons.info_outline, label: 'Version', value: AppConstants.appVersion),
-                const Divider(color: AppColors.border, height: 16),
+                Divider(color: AppColors.border, height: 16),
                 McInfoRow(icon: Icons.dns_outlined, label: 'App', value: AppConstants.appName),
               ]),
             ),

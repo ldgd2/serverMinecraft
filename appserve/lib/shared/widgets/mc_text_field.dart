@@ -108,7 +108,7 @@ class McDropdownField<T> extends StatelessWidget {
         ),
         const SizedBox(height: 6),
         DropdownButtonFormField<T>(
-          value: value,
+          initialValue: value,
           items: items,
           onChanged: onChanged,
           dropdownColor: AppColors.backgroundElevated,

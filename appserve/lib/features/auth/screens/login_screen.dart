@@ -61,7 +61,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 32),
 
                   // === FOOTER ===
-                  Text(
+                  const Text(
                     'Minecraft Server Manager v1.0',
                     style: TextStyle(color: AppColors.textMuted, fontSize: 11),
                   ),
@@ -96,9 +96,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
         const SizedBox(height: 20),
 
-        Text(
+        const Text(
           'MINECRAFT MANAGER',
-          style: const TextStyle(
+          style: TextStyle(
             color: AppColors.textPrimary,
             fontSize: 22,
             fontWeight: FontWeight.bold,
@@ -108,9 +108,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
         const SizedBox(height: 8),
 
-        Text(
+        const Text(
           'Server Administration Console',
-          style: const TextStyle(color: AppColors.textMuted, fontSize: 13, letterSpacing: 0.5),
+          style: TextStyle(color: AppColors.textMuted, fontSize: 13, letterSpacing: 0.5),
         ).animate().fadeIn(delay: 350.ms, duration: 500.ms),
       ],
     );

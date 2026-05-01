@@ -166,7 +166,7 @@ class ServerCard extends StatelessWidget {
                 const SizedBox(width: 8),
                 Expanded(child: McButton(label: 'Restart', icon: Icons.refresh, isSecondary: true, onPressed: () => context.read<ServerProvider>().restartServer(server.name))),
               ] else
-                Expanded(child: McButton(label: 'Starting...', isLoading: true, onPressed: null)),
+                const Expanded(child: McButton(label: 'Starting...', isLoading: true, onPressed: null)),
               const SizedBox(width: 8),
               McButton(
                 label: 'Console',

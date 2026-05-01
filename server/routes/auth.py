@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from database.connection import get_db
 from database.models.user import User
 from app.controllers.auth_controller import AuthController
-from database.schemas import Token, UserLogin
+from database.schemas import Token, UserLogin, UserResponse
 from pydantic import BaseModel
 from fastapi.security import OAuth2PasswordBearer
 from app.services.auth_service import verify_password, create_access_token, get_password_hash
@@ -74,6 +74,13 @@ def login(user_data: UserLogin, request: Request, db: Session = Depends(get_db))
     user = auth_controller.get_user_by_username(db, user_data.username)
     if user:
         AuditService.log_action(db, user, "LOGIN", request.client.host, "User logged in")
+        user_response = UserResponse(
+            id=user.id,
+            username=user.username,
+            is_admin=user.is_admin,
+            is_active=True
+        )
+        return APIResponse(status="success", message="Login successful", data=Token(access_token=token, token_type="bearer", user=user_response))
     return APIResponse(status="success", message="Login successful", data=Token(access_token=token, token_type="bearer"))
 
 @router.post("/register")
@@ -88,6 +95,15 @@ def register(user_data: RegisterRequest, request: Request, db: Session = Depends
     
     AuditService.log_action(db, user, "REGISTER", request.client.host, f"Registered user {user.username}")
     return APIResponse(status="success", message="User created successfully", data=None)
+
+@router.get("/me", response_model=UserResponse)
+def get_me(current_user: User = Depends(get_current_user)):
+    return UserResponse(
+        id=current_user.id,
+        username=current_user.username,
+        is_admin=current_user.is_admin,
+        is_active=True
+    )
 
 class AuthResponse(BaseModel):
     challenge_id: str
@@ -111,11 +127,19 @@ def respond_auth(data: AuthResponse, request: Request, db: Session = Depends(get
         if not token:
              raise HTTPException(status_code=401, detail="Incorrect credentials")
              
+        user_obj = auth_controller.get_user_by_username(db, data.username)
+        user_response = UserResponse(
+            id=user_obj.id,
+            username=user_obj.username,
+            is_admin=user_obj.is_admin,
+            is_active=True
+        ) if user_obj else None
+        
         # 4. Devolver Token para que el cliente reintente
         return APIResponse(
              status="success", 
              message="Authenticated", 
-             data=Token(access_token=token, token_type="bearer")
+             data=Token(access_token=token, token_type="bearer", user=user_response)
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

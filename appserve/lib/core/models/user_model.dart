@@ -37,9 +37,12 @@ class AuthResponse {
     required this.user,
   });
 
-  factory AuthResponse.fromJson(Map<String, dynamic> json) => AuthResponse(
-        accessToken: json['access_token'],
-        tokenType: json['token_type'] ?? 'bearer',
-        user: UserModel.fromJson(json['user'] ?? {}),
-      );
+  factory AuthResponse.fromJson(Map<String, dynamic> json) {
+    final userMap = json['user'];
+    return AuthResponse(
+      accessToken: json['access_token'] ?? '',
+      tokenType: json['token_type'] ?? 'bearer',
+      user: UserModel.fromJson(userMap is Map<String, dynamic> ? userMap : <String, dynamic>{}),
+    );
+  }
 }

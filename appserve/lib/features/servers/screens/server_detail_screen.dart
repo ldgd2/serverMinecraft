@@ -219,7 +219,7 @@ class _OverviewTab extends StatelessWidget {
             const SizedBox(width: 8),
             Expanded(child: McButton(label: 'Restart', icon: Icons.refresh, isSecondary: true, onPressed: () async { await sp.restartServer(server.name); })),
           ] else
-            Expanded(child: McButton(label: 'Starting...', isLoading: true, onPressed: null)),
+            const Expanded(child: McButton(label: 'Starting...', isLoading: true, onPressed: null)),
         ],
       ),
     );

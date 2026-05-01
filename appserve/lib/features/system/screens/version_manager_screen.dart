@@ -48,9 +48,9 @@ class _VersionManagerScreenState extends State<VersionManagerScreen> with Single
       ),
       body: TabBarView(
         controller: _tabController,
-        children: [
-          const _MinecraftVersionsTab(),
-          const _ModLoadersTab(),
+        children: const [
+          _MinecraftVersionsTab(),
+          _ModLoadersTab(),
         ],
       ),
     );
@@ -238,7 +238,7 @@ class _ModLoadersTabState extends State<_ModLoadersTab> {
       builder: (_) => AlertDialog(
         backgroundColor: AppColors.backgroundCard,
         title: const Text('Install Mod Loader?'),
-        content: Text('This will install ${loader.type.toUpperCase()} ${loader.version} for Minecraft ${_selectedMcVersion}.'),
+        content: Text('This will install ${loader.type.toUpperCase()} ${loader.version} for Minecraft $_selectedMcVersion.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
           TextButton(
