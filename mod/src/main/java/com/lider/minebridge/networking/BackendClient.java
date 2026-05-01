@@ -21,7 +21,12 @@ public class BackendClient {
     public BackendClient(String baseUrl, String apiKey) {
         this.baseUrl = (baseUrl == null || baseUrl.isEmpty() || baseUrl.equals("PENDING")) ? null : (baseUrl.endsWith("/") ? baseUrl : baseUrl + "/");
         this.apiKey = (apiKey == null || apiKey.isEmpty() || apiKey.equals("PENDING")) ? null : apiKey;
-        this.httpClient = HttpClient.newBuilder().build();
+        
+        // Force HTTP/1.1 to avoid "Unsupported upgrade request" issues with some proxies/backends
+        this.httpClient = HttpClient.newBuilder()
+            .version(HttpClient.Version.HTTP_1_1)
+            .build();
+            
         this.gson = new Gson();
         
         if (this.baseUrl != null && this.apiKey != null) {
@@ -144,7 +149,7 @@ public class BackendClient {
         
         try {
             String jsonBody = data.toString();
-            // MineBridge.LOGGER.debug("Sending POST to " + endpoint + ": " + jsonBody);
+            MineBridge.LOGGER.info("DEBUG: Sending POST to " + endpoint + ": " + jsonBody);
             
             HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(baseUrl + endpoint))

@@ -45,6 +45,18 @@ class MinecraftProcess:
             return
 
         print(f"DEBUG: Starting server {self.name}")
+        
+        # --- CLEANUP SESSION LOCK ---
+        # Minecraft creates a session.lock file in the world folder. 
+        # If the server crashes, this file might remain and prevent restart.
+        lock_file = os.path.join(self.working_dir, "world", "session.lock")
+        if os.path.exists(lock_file):
+            try:
+                print(f"INFO: Found stale session.lock for {self.name}, removing...")
+                os.remove(lock_file)
+            except Exception as e:
+                print(f"WARN: Could not remove session.lock: {e}")
+
         print(f"DEBUG: Working dir: {self.working_dir}")
         print(f"DEBUG: Jar path: {self.jar_path}")
         self._status = "STARTING"

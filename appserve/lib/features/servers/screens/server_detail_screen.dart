@@ -275,10 +275,35 @@ class _OverviewTab extends StatelessWidget {
             const Expanded(
                 child: McButton(
                     label: 'Stopping...', isLoading: true, onPressed: null)),
+          ] else if (server.isStarting) ...[
+             Expanded(
+                child: McButton(
+                    label: 'Starting...', isLoading: true, onPressed: null)),
+             const SizedBox(width: 8),
+             IconButton(
+               onPressed: () async {
+                 final confirm = await showDialog<bool>(
+                   context: context,
+                   builder: (context) => AlertDialog(
+                     title: const Text('Force Stop?'),
+                     content: const Text('The server is stuck starting. Do you want to force kill it?'),
+                     actions: [
+                       TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+                       TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Force Kill')),
+                     ],
+                   ),
+                 );
+                 if (confirm == true) {
+                   await sp.stopServer(server.name);
+                 }
+               },
+               icon: Icon(Icons.cancel_outlined, color: Colors.redAccent),
+               tooltip: 'Force Stop',
+             ),
           ] else
             const Expanded(
                 child: McButton(
-                    label: 'Starting...', isLoading: true, onPressed: null)),
+                    label: 'Processing...', isLoading: true, onPressed: null)),
         ],
       ),
     );
@@ -348,6 +373,36 @@ class _ConsoleTab extends StatefulWidget {
 class _ConsoleTabState extends State<_ConsoleTab> {
   final _cmdCtrl = TextEditingController();
   final _scrollCtrl = ScrollController();
+  bool _isAtBottom = true;
+  bool _showScrollFab = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollCtrl.addListener(_scrollListener);
+  }
+
+  void _scrollListener() {
+    if (!_scrollCtrl.hasClients) return;
+    
+    // Check if we are near the bottom (within 50 pixels)
+    final atBottom = _scrollCtrl.position.pixels >= 
+                     (_scrollCtrl.position.maxScrollExtent - 50);
+    
+    if (atBottom != _isAtBottom) {
+      setState(() {
+        _isAtBottom = atBottom;
+        if (_isAtBottom) _showScrollFab = false;
+      });
+    }
+
+    // Show FAB if we are not at bottom and there's space to scroll
+    final showFab = _scrollCtrl.position.pixels < 
+                   (_scrollCtrl.position.maxScrollExtent - 100);
+    if (showFab != _showScrollFab) {
+      setState(() => _showScrollFab = showFab);
+    }
+  }
 
   @override
   void dispose() {
@@ -356,11 +411,23 @@ class _ConsoleTabState extends State<_ConsoleTab> {
     super.dispose();
   }
 
-  void _scrollToBottom() {
-    if (_scrollCtrl.hasClients) {
+  void _scrollToBottom({bool force = false}) {
+    if (_scrollCtrl.hasClients && (_isAtBottom || force)) {
       _scrollCtrl.animateTo(_scrollCtrl.position.maxScrollExtent,
           duration: 200.ms, curve: Curves.easeOut);
     }
+  }
+
+  void _copyAllLogs(String logs) {
+    if (logs.isEmpty) return;
+    Clipboard.setData(ClipboardData(text: logs));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Logs copied to clipboard'),
+        duration: Duration(seconds: 1),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   @override
@@ -371,30 +438,47 @@ class _ConsoleTabState extends State<_ConsoleTab> {
         Expanded(
           child: Consumer<ServerProvider>(
             builder: (_, sp, __) {
-              WidgetsBinding.instance
-                  .addPostFrameCallback((_) => _scrollToBottom());
-              return Container(
-                margin: const EdgeInsets.all(12),
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF0A0E14),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: AppColors.border),
-                ),
-                child: SingleChildScrollView(
-                  controller: _scrollCtrl,
-                  child: SelectableText(
-                    sp.consoleLogs.isEmpty
-                        ? 'No logs available.'
-                        : sp.consoleLogs,
-                    style: const TextStyle(
-                      color: Color(0xFF4ADE80),
-                      fontFamily: 'monospace',
-                      fontSize: 11,
-                      height: 1.6,
+              // Only auto-scroll if user was already at the bottom
+              WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+              
+              return Stack(
+                children: [
+                  Container(
+                    margin: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.all(12),
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0A0E14),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: AppColors.border),
+                    ),
+                    child: SingleChildScrollView(
+                      controller: _scrollCtrl,
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      child: SelectableText(
+                        sp.consoleLogs.isEmpty
+                            ? 'No logs available.'
+                            : sp.consoleLogs,
+                        style: const TextStyle(
+                          color: Color(0xFF4ADE80),
+                          fontFamily: 'monospace',
+                          fontSize: 11,
+                          height: 1.6,
+                        ),
+                      ),
                     ),
                   ),
-                ),
+                  if (_showScrollFab)
+                    Positioned(
+                      right: 25,
+                      bottom: 25,
+                      child: FloatingActionButton.small(
+                        onPressed: () => _scrollToBottom(force: true),
+                        backgroundColor: AppColors.grassGreenLight.withOpacity(0.8),
+                        child: const Icon(Icons.arrow_downward, color: Colors.white),
+                      ).animate().fadeIn().scale(),
+                    ),
+                ],
               );
             },
           ),
@@ -434,6 +518,12 @@ class _ConsoleTabState extends State<_ConsoleTab> {
               ),
               Row(
                 children: [
+                  IconButton(
+                    onPressed: () => _copyAllLogs(context.read<ServerProvider>().consoleLogs),
+                    icon: const Icon(Icons.copy_all,
+                        size: 20, color: AppColors.textMuted),
+                    tooltip: 'Copy all logs',
+                  ),
                   IconButton(
                     onPressed: () => context
                         .read<ServerProvider>()
