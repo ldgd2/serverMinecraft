@@ -7,6 +7,8 @@ import 'package:appserve/shared/widgets/mc_button.dart';
 import 'package:appserve/shared/widgets/mc_widgets.dart';
 import 'package:appserve/shared/widgets/mc_cards.dart';
 import 'service_log_screen.dart';
+import 'backups_screen.dart';
+import '../../../core/providers/backup_provider.dart';
 
 class SystemScreen extends StatefulWidget {
   const SystemScreen({super.key});
@@ -112,6 +114,13 @@ class _SystemScreenState extends State<SystemScreen> {
                                   ],
                                 ),
                                 const SizedBox(height: 16),
+                                McButton(
+                                  label: 'Backups & Recovery',
+                                  icon: Icons.backup,
+                                  width: double.infinity,
+                                  onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const BackupsScreen())),
+                                ),
+                                const SizedBox(height: 12),
                                 McButton(
                                   label: 'View Live Service Logs',
                                   icon: Icons.terminal,
