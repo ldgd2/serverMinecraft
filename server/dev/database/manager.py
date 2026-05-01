@@ -3,6 +3,7 @@ import sys
 import os
 import time
 import subprocess
+from typing import Optional
 
 # Ensure parent is in sys.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
@@ -13,6 +14,7 @@ from rich.console import Console
 from rich.prompt import Prompt
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.table import Table
 from rich import print as rprint
 from rich import box
 
@@ -35,6 +37,8 @@ def main(ctx: typer.Context):
             console.print(" [4] [cyan]Initialize DB[/cyan] (First setup + Admin User)")
             console.print(" [5] [bold red]WIPE & RESET[/bold red] (Delete everything & Re-create)")
             
+            console.print("\n[bold yellow]DATA & ACCESS[/bold yellow]")
+            console.print(" [6] Populate Seeders (Dummy data)")
             console.print(" [7] Manage PG Roles (Users/Permissions)")
             
             console.print("\n[bold yellow]BACKUPS & RECOVERY[/bold yellow]")
@@ -47,7 +51,7 @@ def main(ctx: typer.Context):
             
             try:
                 if choice == "1":
-                    auto_update_cmd()
+                    auto_update_cmd(None) # Pass None to trigger prompt
                 elif choice == "2":
                     migrate_cmd()
                 elif choice == "3":
@@ -57,7 +61,7 @@ def main(ctx: typer.Context):
                 elif choice == "5":
                     reset_cmd()
                 elif choice == "6":
-                    seed_cmd(name="all")
+                    seed_cmd("all")
                 elif choice == "7":
                     roles_cmd()
                 elif choice == "8":
@@ -72,10 +76,14 @@ def main(ctx: typer.Context):
             Prompt.ask("\n[dim]Press Enter to continue...[/dim]")
 
 @app.command("update")
-def auto_update_cmd(message: str = typer.Option(None, "--message", "-m", help="Migration message")):
+def auto_update_cmd(message: Optional[str] = typer.Option(None, "--message", "-m", help="Migration message")):
     """Auto-detect model changes, generate migration, and apply it."""
     console.print(Panel("[bold green]AUTODETECTING DATABASE CHANGES[/bold green]"))
     
+    # Handle the case where message is passed as a Typer Option object instead of string
+    if not isinstance(message, str):
+        message = None
+
     if not message:
         message = Prompt.ask("Enter a brief description of the changes", default=f"auto_migration_{int(time.time())}")
 
@@ -125,7 +133,6 @@ def init_db_cmd():
     """Initialize database and create an admin user"""
     console.print(Panel("[bold yellow]PostgreSQL & App Database Initialization[/bold yellow]"))
     
-    import os
     import importlib
     
     # Check if we are using PostgreSQL
@@ -228,13 +235,22 @@ def reset_cmd():
     else:
         console.print("[yellow]Reset aborted.[/yellow]")
 
+@app.command("seed")
+def seed_cmd(name: str = "all"):
+    """Populate database with seed data"""
+    if name == "all":
+        run_all_seeders()
+    else:
+        run_specific_seeder(name)
+    console.print("[bold green]✓ Seeding completed.[/bold green]")
+
 @app.command("backup")
 def create_backup_cmd():
-    """Create a new database backup"""
+    """Create a new full system backup"""
     from app.services.backup_service import BackupService
     service = BackupService()
     
-    console.print("[cyan]Generating full system snapshot (DB + Servers)...[/cyan]")
+    console.print("[cyan]Generating full system snapshot (DB + Servers + Loaders)...[/cyan]")
     try:
         filename = service.create_full_backup()
         console.print(f"[bold green]✓ Full backup created: {filename}[/bold green]")
@@ -243,7 +259,7 @@ def create_backup_cmd():
 
 @app.command("restore")
 def restore_backup_cmd():
-    """Restore database from a backup file"""
+    """Restore system from a backup file"""
     from app.services.backup_service import BackupService
     service = BackupService()
     
@@ -270,7 +286,7 @@ def restore_backup_cmd():
     
     try:
         selected = backups[int(idx)-1]
-        console.print(Panel(f"[bold red]DANGER: Restoring will overwrite current database with data from:[/bold red]\n{selected['filename']}", border_style="red"))
+        console.print(Panel(f"[bold red]DANGER: Restoring will overwrite EVERYTHING (DB, Worlds, Mods) with data from:[/bold red]\n{selected['filename']}", border_style="red"))
         confirm = Prompt.ask("Type 'RESTORE' to confirm", default="")
         
         if confirm == "RESTORE":
@@ -284,9 +300,11 @@ def restore_backup_cmd():
         console.print("[red]Invalid selection.[/red]")
     except Exception as e:
         console.print(f"[bold red]✗ Error during restore: {e}[/bold red]")
-    # ... (Keeping your existing roles logic but improved error handling)
+
+@app.command("roles")
+def roles_cmd():
+    """Manage PostgreSQL database roles (users)"""
     console.print(Panel("[bold yellow]PostgreSQL Role Management[/bold yellow]"))
-    import os
     db_host = os.getenv("DB_HOST", "127.0.0.1")
     db_port = os.getenv("DB_PORT", "5432")
     super_user = Prompt.ask("Superuser (postgres)", default="postgres")
@@ -303,17 +321,20 @@ def restore_backup_cmd():
             cur.execute("SELECT rolname FROM pg_roles WHERE rolcanlogin = true ORDER BY rolname;")
             roles = [r[0] for r in cur.fetchall()]
             console.print(f"\n[bold cyan]Roles:[/bold cyan] {', '.join(roles)}")
-            console.print("[1] Create [2] Passwd [3] Drop [0] Back")
+            console.print("[1] Create User [2] Change Password [3] Drop User [0] Back")
             sub = Prompt.ask("Action", choices=["1", "2", "3", "0"], default="0")
             if sub == "1":
-                r = Prompt.ask("Name"); p = Prompt.ask("Pass", password=True)
+                r = Prompt.ask("Username"); p = Prompt.ask("Password", password=True)
                 cur.execute(sql.SQL("CREATE USER {} WITH PASSWORD {}").format(sql.Identifier(r), sql.Literal(p)))
+                console.print(f"[green]User {r} created.[/green]")
             elif sub == "2":
-                r = Prompt.ask("Role", choices=roles); p = Prompt.ask("New Pass", password=True)
+                r = Prompt.ask("Role", choices=roles); p = Prompt.ask("New Password", password=True)
                 cur.execute(sql.SQL("ALTER USER {} WITH PASSWORD {}").format(sql.Identifier(r), sql.Literal(p)))
+                console.print(f"[green]Password changed for {r}.[/green]")
             elif sub == "3":
                 r = Prompt.ask("Role", choices=roles)
                 cur.execute(sql.SQL("DROP USER {}").format(sql.Identifier(r)))
+                console.print(f"[green]User {r} dropped.[/green]")
             elif sub == "0": break
         cur.close(); conn.close()
     except Exception as e:
