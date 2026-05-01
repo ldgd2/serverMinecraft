@@ -383,8 +383,8 @@ class _StatsTab extends StatelessWidget {
         const SizedBox(height: 8),
         McCard(
           child: Column(children: [
-            McInfoRow(
-              icon: Icons.local_fire_department,
+            _McStatIconRow(
+              iconPath: 'assets/gui/sprites/statistics/item_used.png',
               label: 'Mejor racha de kills',
               value: '${stats['best_kill_streak'] ?? 0}',
               valueColor: AppColors.gold,
@@ -397,14 +397,14 @@ class _StatsTab extends StatelessWidget {
         const SizedBox(height: 8),
         McCard(
           child: Column(children: [
-            McInfoRow(
-              icon: Icons.construction,
+            _McStatIconRow(
+              iconPath: 'assets/gui/sprites/statistics/block_mined.png',
               label: 'Bloques rotos',
               value: _fmt(stats['blocks_broken'] ?? 0),
             ),
             const Divider(color: AppColors.border, height: 16),
-            McInfoRow(
-              icon: Icons.view_module,
+            _McStatIconRow(
+              iconPath: 'assets/gui/sprites/statistics/block_mined.png',
               label: 'Bloques colocados',
               value: _fmt(stats['blocks_placed'] ?? 0),
             ),
@@ -416,15 +416,15 @@ class _StatsTab extends StatelessWidget {
         const SizedBox(height: 8),
         McCard(
           child: Column(children: [
-            McInfoRow(
-              icon: Icons.timer_outlined,
+            _McStatIconRow(
+              iconPath: 'assets/gui/sprites/join.png',
               label: 'Tiempo total',
               value: stats['playtime'] ?? '0h 0m',
               valueColor: AppColors.diamond,
             ),
             const Divider(color: AppColors.border, height: 16),
-            McInfoRow(
-              icon: Icons.storage_outlined,
+            _McStatIconRow(
+              iconPath: 'assets/gui/sprites/info.png',
               label: 'Servidores visitados',
               value: '${pp.profile?['servers_played'] ?? 0}',
             ),
@@ -539,7 +539,6 @@ class _AchievementCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final icon = ach['icon'] ?? '🏆';
     final name = ach['name'] ?? 'Logro';
     final desc = ach['description'] ?? '';
     final server = ach['server_name'] ?? '';
@@ -560,11 +559,16 @@ class _AchievementCard extends StatelessWidget {
           Container(
             width: 48,
             height: 48,
+            padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
               color: AppColors.gold.withOpacity(0.15),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: Center(child: Text(icon, style: const TextStyle(fontSize: 24))),
+            child: Image.asset(
+              'assets/gui/sprites/advancements/challenge_frame_obtained.png',
+              filterQuality: FilterQuality.none,
+              fit: BoxFit.contain,
+            ),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -825,6 +829,51 @@ class _AccountBadge extends StatelessWidget {
         border: Border.all(color: bg.withOpacity(0.5)),
       ),
       child: Text(label, style: TextStyle(color: bg, fontSize: 10, fontWeight: FontWeight.bold)),
+    );
+  }
+}
+
+class _McStatIconRow extends StatelessWidget {
+  final String iconPath;
+  final String label;
+  final String value;
+  final Color? valueColor;
+
+  const _McStatIconRow({
+    required this.iconPath,
+    required this.label,
+    required this.value,
+    this.valueColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Image.asset(
+            iconPath,
+            width: 20,
+            height: 20,
+            filterQuality: FilterQuality.none,
+          ),
+          const SizedBox(width: 12),
+          Text(
+            label,
+            style: const TextStyle(color: AppColors.textMuted, fontSize: 13),
+          ),
+          const Spacer(),
+          Text(
+            value,
+            style: TextStyle(
+              color: valueColor ?? AppColors.textPrimary,
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

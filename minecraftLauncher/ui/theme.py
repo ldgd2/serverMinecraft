@@ -91,6 +91,16 @@ class Assets:
     # Separator
     HEADER_SEP  = _g("header_separator.png")
 
+    # Advancement Frames
+    FRAME_TASK    = _g("sprites", "advancements", "task_frame_obtained.png")
+    FRAME_CHALLENGE = _g("sprites", "advancements", "challenge_frame_obtained.png")
+    FRAME_GOAL    = _g("sprites", "advancements", "goal_frame_obtained.png")
+    
+    # Stats Icons
+    ICON_BLOCKS   = _g("sprites", "statistics", "block_mined.png")
+    ICON_ITEMS    = _g("sprites", "statistics", "item_used.png")
+    ICON_KILLS    = _g("sprites", "statistics", "item_broken.png")
+
 
 # ── Font Loader ────────────────────────────────────────────────────────────────
 _font_name = "Minecraft"

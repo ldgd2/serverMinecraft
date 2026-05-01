@@ -26,6 +26,10 @@ class PlayerManager:
             if username in self.online_players:
                 del self.online_players[username]
 
+    def get_uuid(self, username: str) -> Optional[str]:
+        with self._lock:
+            return self.online_players.get(username, {}).get('uuid')
+
     def parse_log_line(self, line: str, update_state: bool = True):
         """
         Parse a log line and update player list.
@@ -45,8 +49,9 @@ class PlayerManager:
 
         # Pattern 1: UUID (Info only, doesn't change online state but useful)
         # "UUID of player Username is uuid-here"
-        if "UUID of player" in cleaned_line:
-            match = re.search(r'UUID of player (\S+) is ([a-f0-9-]+)', cleaned_line)
+        # "UUID of player Username is uuid-here" or "Player Username connected with UUID ..."
+        if "UUID" in cleaned_line:
+            match = re.search(r'(?:UUID of player |connected with UUID )(\S+)(?: is | )([a-f0-9-]+)', cleaned_line)
             if match:
                 username = match.group(1)
                 uuid = match.group(2)
@@ -73,25 +78,27 @@ class PlayerManager:
                     if 'joined_at' not in self.online_players[username]:
                          self.online_players[username]['joined_at'] = datetime.now().isoformat()
             
-            return {'type': 'join', 'user': username, 'reason': 'Joined the game', 'timestamp': timestamp}
+            uuid = self.get_uuid(username)
+            return {'type': 'join', 'user': username, 'uuid': uuid, 'reason': 'Joined the game', 'timestamp': timestamp}
 
         # Pattern 3: Join Message (Visible to players)
         # "Username joined the game"
-        match_join_msg = re.search(r':\s(\S+)\sjoined\sthe\sgame', cleaned_line)
+        match_join_msg = re.search(r'INFO\]: (\S+)\sjoined\sthe\sgame', cleaned_line)
         if match_join_msg:
             username = match_join_msg.group(1)
             if update_state:
                 with self._lock:
                     if username not in self.online_players:
                         self.online_players[username] = {'joined_at': datetime.now().isoformat()}
-            return {'type': 'join', 'user': username, 'reason': 'Joined the game', 'timestamp': timestamp}
+            
+            uuid = self.get_uuid(username)
+            return {'type': 'join', 'user': username, 'uuid': uuid, 'reason': 'Joined the game', 'timestamp': timestamp}
 
         # Pattern 4: Lost Connection (Generic disconnect/timeout/kick)
         # "Username lost connection: Reason"
         match_lost = re.search(r':\s(\S+)\slost\sconnection:\s(.*)', cleaned_line)
         if match_lost:
-            username = match_lost.group(1)
-            reason = match_lost.group(2)
+            uuid = self.get_uuid(username)
             if update_state:
                 with self._lock:
                     if username in self.online_players:
@@ -104,20 +111,21 @@ class PlayerManager:
             elif "Timed out" in reason:
                 event_type = 'leave' # or timeout
                 
-            return {'type': event_type, 'user': username, 'reason': reason, 'timestamp': timestamp}
+            return {'type': event_type, 'user': username, 'uuid': uuid, 'reason': reason, 'timestamp': timestamp}
 
         # Pattern 5: Left the game (Voluntary or consequence of lost connection)
         # "Username left the game"
-        match_left = re.search(r':\s(\S+)\sleft\sthe\sgame', cleaned_line)
+        match_left = re.search(r'INFO\]: (\S+)\sleft\sthe\sgame', cleaned_line)
         if match_left:
             username = match_left.group(1)
+            uuid = self.get_uuid(username)
             if update_state:
                 with self._lock:
                     if username in self.online_players:
                         del self.online_players[username]
-                    return {'type': 'leave', 'user': username, 'reason': 'Left the game', 'timestamp': timestamp}
+                return {'type': 'leave', 'user': username, 'uuid': uuid, 'reason': 'Left the game', 'timestamp': timestamp}
             else:
-                 return {'type': 'leave', 'user': username, 'reason': 'Left the game', 'timestamp': timestamp}
+                 return {'type': 'leave', 'user': username, 'uuid': uuid, 'reason': 'Left the game', 'timestamp': timestamp}
             
             # If not in list (already processed lost connection), we don't return event if scanning history?
             # Actually logic in original file was: if update_state=false, return event.

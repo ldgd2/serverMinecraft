@@ -16,7 +16,7 @@ from database.models.players.player_account_achievement import PlayerAccountAchi
 from database.models.players.player import Player
 from database.models.players.player_stat import PlayerStat
 from database.models.players.player_achievement import PlayerAchievement
-from app.services.auth_service import get_password_hash, verify_password, create_access_token
+from app.services.auth_service import get_password_hash, verify_password, create_access_token, generate_offline_uuid
 from core.responses import APIResponse
 
 router = APIRouter(prefix="/player-auth", tags=["Player Auth"])
@@ -44,7 +44,7 @@ class StatUpdateRequest(BaseModel):
     blocks_broken: Optional[int] = 0
     blocks_placed: Optional[int] = 0
     playtime_seconds: Optional[int] = 0
-    best_kill_streak: Optional[int] = 0
+    kill_streak: Optional[int] = 0
     highlights: Optional[List[str]] = []
 
 class HighlightAddRequest(BaseModel):
@@ -106,7 +106,7 @@ def register_player(data: PlayerRegisterRequest, db: Session = Depends(get_db)):
     account = PlayerAccount(
         username=username,
         hashed_password=get_password_hash(data.password),
-        uuid=str(uuid.uuid4()),  # Offline UUID
+        uuid=generate_offline_uuid(username),  # Correct Minecraft Offline UUID
         account_type="nopremium",
     )
     db.add(account)
@@ -136,6 +136,12 @@ def login_player(data: PlayerLoginRequest, db: Session = Depends(get_db)):
     if not account.is_active:
         raise HTTPException(status_code=403, detail="Account inactive")
 
+    # Migration: Ensure UUID is correct for no-premium players
+    if account.account_type == "nopremium":
+        correct_uuid = generate_offline_uuid(account.username)
+        if account.uuid != correct_uuid:
+            account.uuid = correct_uuid
+            
     account.last_login_at = datetime.datetime.utcnow()
     db.commit()
 

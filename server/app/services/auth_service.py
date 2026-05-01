@@ -1,6 +1,7 @@
-import jwt
 import datetime
 import os
+import hashlib
+import uuid
 from fastapi import HTTPException, Security, status, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import bcrypt
@@ -55,3 +56,16 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Security(securi
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
     return user
+
+def generate_offline_uuid(username: str) -> str:
+    """
+    Generates a Minecraft-compatible offline UUID for a given username.
+    Matches Java's UUID.nameUUIDFromBytes(("OfflinePlayer:" + username).getBytes(UTF_8))
+    """
+    hash = hashlib.md5(f"OfflinePlayer:{username}".encode('utf-8')).digest()
+    hash_bytes = bytearray(hash)
+    # Set version to 3 (MD5)
+    hash_bytes[6] = (hash_bytes[6] & 0x0f) | 0x30
+    # Set variant to RFC 4122
+    hash_bytes[8] = (hash_bytes[8] & 0x3f) | 0x80
+    return str(uuid.UUID(bytes=bytes(hash_bytes)))

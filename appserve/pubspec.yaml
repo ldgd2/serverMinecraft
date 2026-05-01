@@ -50,6 +50,10 @@ flutter:
     - assets/images/
     - assets/icons/
     - assets/animations/
+    - assets/gui/
+    - assets/gui/sprites/
+    - assets/gui/sprites/advancements/
+    - assets/gui/sprites/statistics/
     - .env
 
   fonts:

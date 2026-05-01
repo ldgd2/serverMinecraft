@@ -683,8 +683,8 @@ class MinecraftProcess:
                         # Sync stats if player leaves or is kicked
                         if event['type'] in ['leave', 'kick'] and self.server_id:
                             username = event['user']
-                            # Get UUID from player manager if possible
-                            uuid = self.player_manager.get_uuid(username)
+                            # Get UUID from event
+                            uuid = event.get('uuid')
                             if uuid and uuid != 'unknown':
                                 try:
                                     db = SessionLocal()

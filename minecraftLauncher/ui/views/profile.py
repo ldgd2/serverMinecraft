@@ -4,8 +4,8 @@ Se muestra como panel deslizante desde la pantalla de inicio.
 """
 import tkinter as tk
 import threading
-from ui.theme import Colors, mc_font
-from config.manager import config
+from PIL import Image, ImageTk
+from ui.theme import Colors, Assets, mc_font
 from core.auth import AuthController
 
 
@@ -33,9 +33,20 @@ class PlayerProfilePanel(tk.Frame):
         self._auth = AuthController()
         self._profile = {}
         self._leaderboard = []
+        self._icons = {} # Cache for PhotoImage
 
         self._build_ui()
         self._load_async()
+
+    def _get_icon(self, path, size=(16, 16)):
+        if path in self._icons: return self._icons[path]
+        try:
+            img = Image.open(path).convert("RGBA")
+            img = img.resize(size, Image.NEAREST)
+            tk_img = ImageTk.PhotoImage(img)
+            self._icons[path] = tk_img
+            return tk_img
+        except: return None
 
     # ── UI Build ──────────────────────────────────────────────────────────────
 
@@ -162,22 +173,30 @@ class PlayerProfilePanel(tk.Frame):
 
         stats = profile.get("stats", {})
         stat_rows = [
-            ("⏱  Tiempo de juego", stats.get("playtime", "—")),
-            ("⚔️  Kills",           str(stats.get("kills", 0))),
-            ("💀  Muertes",          str(stats.get("deaths", 0))),
-            ("⚖️  K/D Ratio",        str(stats.get("kd_ratio", 0))),
-            ("🔥  Mejor racha",      str(stats.get("best_kill_streak", 0))),
-            ("⛏️  Bloques rotos",    str(stats.get("blocks_broken", 0))),
-            ("🧱  Bloques puestos",  str(stats.get("blocks_placed", 0))),
-            ("🌐  Servidores",        str(profile.get("servers_played", 0))),
+            (Assets.ICON_PLAY,   "⏱  Tiempo", stats.get("playtime", "—")),
+            (Assets.ICON_KILLS,  "⚔️  Kills",  str(stats.get("kills", 0))),
+            (Assets.ICON_WARN,   "💀  Muertes", str(stats.get("deaths", 0))),
+            (Assets.ICON_KILLS,  "⚖️  K/D",     str(stats.get("kd_ratio", 0))),
+            (Assets.ICON_PLAY,   "🔥  Racha",    str(stats.get("best_kill_streak", 0))),
+            (Assets.ICON_BLOCKS, "⛏️  Bloques",  str(stats.get("blocks_broken", 0))),
+            (Assets.ICON_BLOCKS, "🧱  Puestos",  str(stats.get("blocks_placed", 0))),
+            (Assets.ICON_SEARCH, "🌐  Servers",  str(profile.get("servers_played", 0))),
         ]
 
-        for i, (label, value) in enumerate(stat_rows):
+        for i, (icon_path, label, value) in enumerate(stat_rows):
             row = i // 2
             col = (i % 2) * 2
-            tk.Label(self._stats_frame, text=label, fg=Colors.GRAY_TEXT,
+            
+            f = tk.Frame(self._stats_frame, bg=Colors.PANEL_DARK)
+            f.grid(row=row, column=col, sticky="w", pady=2)
+            
+            icon_img = self._get_icon(icon_path, (14, 14))
+            if icon_img:
+                tk.Label(f, image=icon_img, bg=Colors.PANEL_DARK).pack(side="left")
+            
+            tk.Label(f, text=label, fg=Colors.GRAY_TEXT,
                      bg=Colors.PANEL_DARK, font=mc_font(8),
-                     anchor="w", width=20).grid(row=row, column=col, sticky="w", pady=2)
+                     anchor="w", width=12).pack(side="left", padx=4)
             tk.Label(self._stats_frame, text=value, fg=Colors.WHITE,
                      bg=Colors.PANEL_DARK, font=mc_font(9, bold=True),
                      anchor="w").grid(row=row, column=col + 1, sticky="w", padx=(4, 16), pady=2)
@@ -209,19 +228,28 @@ class PlayerProfilePanel(tk.Frame):
                 row_f = tk.Frame(self._ach_frame, bg=Colors.DARK_BUTTON,
                                  highlightthickness=1, highlightbackground=Colors.PANEL_BORDER)
                 row_f.pack(fill="x", pady=2)
-                icon = ach.get("icon", "🏆")
+                
                 name = ach.get("name", "Logro")
                 desc = ach.get("description", "")
                 server = ach.get("server_name", "")
-                tk.Label(row_f, text=f"  {icon}  {name}", fg=Colors.YELLOW,
+                
+                # Advancement Frame
+                frame_img = self._get_icon(Assets.FRAME_TASK, (26, 26))
+                if frame_img:
+                    tk.Label(row_f, image=frame_img, bg=Colors.DARK_BUTTON).pack(side="left", padx=6, pady=6)
+                
+                info_f = tk.Frame(row_f, bg=Colors.DARK_BUTTON)
+                info_f.pack(side="left", fill="both", expand=True)
+                
+                tk.Label(info_f, text=name, fg=Colors.YELLOW,
                          bg=Colors.DARK_BUTTON, font=mc_font(9, bold=True),
-                         anchor="w").pack(anchor="w", padx=8, pady=(4, 1))
+                         anchor="w").pack(anchor="w", pady=(4, 1))
                 if desc:
-                    tk.Label(row_f, text=f"     {desc}", fg=Colors.GRAY_TEXT,
-                             bg=Colors.DARK_BUTTON, font=mc_font(8)).pack(anchor="w", padx=8, pady=(0, 2))
+                    tk.Label(info_f, text=desc, fg=Colors.GRAY_TEXT,
+                             bg=Colors.DARK_BUTTON, font=mc_font(8)).pack(anchor="w")
                 if server:
-                    tk.Label(row_f, text=f"     📍 {server}", fg="#888888",
-                             bg=Colors.DARK_BUTTON, font=mc_font(7)).pack(anchor="w", padx=8, pady=(0, 4))
+                    tk.Label(info_f, text=f"📍 {server}", fg="#888888",
+                             bg=Colors.DARK_BUTTON, font=mc_font(7)).pack(anchor="w", pady=(0, 4))
 
         self._content.pack(fill="both", expand=True)
 

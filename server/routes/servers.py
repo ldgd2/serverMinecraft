@@ -421,6 +421,7 @@ async def startup_event():
 @router.websocket("/{name}/chat")
 async def websocket_chat(websocket: WebSocket, name: str):
     await websocket.accept()
+    print(f"[WS CHAT] Client connected to chat for server: {name}")
     queue = server_controller.get_console_queue(name)
     
     if not queue:
@@ -428,8 +429,10 @@ async def websocket_chat(websocket: WebSocket, name: str):
         return
         
     import re
-    # Match: [12:34:56] [Server thread/INFO]: <Username> msg
-    chat_pattern = re.compile(r"\[.*INFO\]: <([^>]+)> (.*)")
+    # Match patterns for various server types (Vanilla, Paper, etc)
+    # 1. <Username> msg
+    # 2. [Username] msg (some plugins)
+    chat_pattern = re.compile(r"INFO\]: (?:<|\[)([^>\]]+)(?:>|\]) (.*)")
     
     async def listen_to_client():
         try:
@@ -441,7 +444,7 @@ async def websocket_chat(websocket: WebSocket, name: str):
                     if message:
                         # Send to Minecraft server as a formatted message
                         # We use 'say' or 'tellraw' to make it look official
-                        cmd = f'tellraw @a {{"text": "<${username}> {message}", "color": "yellow"}}'
+                        cmd = f'tellraw @a {{"text": "<{username}> {message}", "color": "yellow"}}'
                         await server_controller.send_command(name, cmd)
         except Exception as e:
             print(f"[WS CHAT] Client listen error: {e}")
