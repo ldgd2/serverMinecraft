@@ -123,13 +123,12 @@ class ServerController:
         return False
 
     async def restart_server(self, name: str):
+        # We trigger this as a sequence but the route will call it in background
         await self.stop_server(name)
         import asyncio
         await asyncio.sleep(2)
         await self.start_server(name)
-        # Restart calls stop and start, so those will log individually. 
-        # But we can add a specific restart log if we want explicit intent
-        BitacoraService.add_log_background("ADMIN", "SERVER_RESTART", f"Triggered restart for {name}")
+        BitacoraService.add_log_background("ADMIN", "SERVER_RESTART", f"Restarted server {name}")
         return True
 
     async def send_command(self, name: str, command: str):

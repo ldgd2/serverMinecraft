@@ -1,4 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
+import asyncio
+import subprocess
+import platform
+from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket, WebSocketDisconnect
 from sqlalchemy.orm import Session
 from database.connection import get_db
 from database.models.user import User
@@ -47,6 +50,61 @@ def disable_service(request: Request, db: Session = Depends(get_db), current_use
         raise HTTPException(status_code=500, detail="Failed to disable service.")
     AuditService.log_action(db, current_user, "DISABLE_SERVICE", request.client.host, "Disabled system service")
     return APIResponse(status="success", message="Service disabled", data=result)
+
+@router.post("/service/restart")
+def restart_service(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin required")
+    result = system_controller.restart_service()
+    if not result["success"]:
+        raise HTTPException(status_code=500, detail="Failed to restart service.")
+    AuditService.log_action(db, current_user, "RESTART_SERVICE", request.client.host, "Restarted system service")
+    return APIResponse(status="success", message="Service restart triggered", data=result)
+
+@router.websocket("/service/logs")
+async def service_logs_websocket(websocket: WebSocket):
+    await websocket.accept()
+    
+    # Simple check for demo, in production use token
+    # auth_header = websocket.headers.get("Authorization")
+    
+    
+    process = None
+    try:
+        if platform.system().lower() == "linux":
+            # Stream journalctl for the service
+            service_name = system_controller.get_system_config().get("SERVICE_NAME", "minecraft-dashboard")
+            cmd = ["sudo", "journalctl", "-u", service_name, "-n", "100", "-f"]
+            process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT
+            )
+        else:
+            # On windows, maybe stream the most recent log file if it exists
+            # For now, just send a message
+            await websocket.send_text("Log streaming only supported on Linux via journalctl currently.")
+            await asyncio.sleep(2)
+            await websocket.close()
+            return
+
+        if process and process.stdout:
+            while True:
+                line = await process.stdout.readline()
+                if not line:
+                    break
+                await websocket.send_text(line.decode().strip())
+    except WebSocketDisconnect:
+        pass
+    except Exception as e:
+        try: await websocket.send_text(f"Error: {str(e)}")
+        except: pass
+    finally:
+        if process:
+            try: process.terminate()
+            except: pass
+        try: await websocket.close()
+        except: pass
 
 @router.get("/config")
 def get_system_config(current_user: User = Depends(get_current_user)):

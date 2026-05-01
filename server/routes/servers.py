@@ -1,3 +1,4 @@
+import asyncio
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, File, UploadFile, Request, BackgroundTasks
 from fastapi.responses import FileResponse
 
@@ -198,15 +199,16 @@ def delete_server(name: str, request: Request, db: Session = Depends(get_db), cu
     return APIResponse(status="success", message="Server deleted", data=None)
 
 @router.post("/{name}/control/{action}")
-async def control_server(name: str, action: str, request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if action == "start":
+async def control_server(name: str, action: str, request: Request, background_tasks: BackgroundTasks, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if action == "restart":
+        background_tasks.add_task(server_controller.restart_server, name)
+        res = True
+    elif action == "start":
         res = await server_controller.start_server(name)
     elif action == "stop":
         res = await server_controller.stop_server(name)
     elif action == "kill":
         res = server_controller.kill_server(name)
-    elif action == "restart":
-        res = await server_controller.restart_server(name)
     else:
         raise HTTPException(status_code=400, detail="Invalid action")
     
@@ -214,7 +216,7 @@ async def control_server(name: str, action: str, request: Request, db: Session =
          raise HTTPException(status_code=404, detail="Server not found or operation failed")
     
     AuditService.log_action(db, current_user, f"{action.upper()}_SERVER", request.client.host, f"Action {action} on {name}")
-    return APIResponse(status="success", message=f"Action {action} executed", data=None)
+    return APIResponse(status="success", message=f"Action {action} started" if action == "restart" else f"Action {action} executed", data=None)
 
 @router.get("/{name}/stats", response_model=APIResponse[ServerStats])
 def get_server_stats(name: str, current_user: User = Depends(get_current_user)):
@@ -265,14 +267,42 @@ async def websocket_endpoint(websocket: WebSocket, name: str):
         return
     
     try:
+        # 1. Send recent history from file (tail)
+        import os
+        log_file = os.path.join("servers", name, "logs", "latest.log")
+        if os.path.exists(log_file):
+            try:
+                with open(log_file, "r", encoding="utf-8", errors="replace") as f:
+                    # Read last 100 lines
+                    f.seek(0, os.SEEK_END)
+                    pos = f.tell()
+                    lines_found = 0
+                    buffer = ""
+                    chunk_size = 1024
+                    
+                    while pos > 0 and lines_found <= 100:
+                        pos = max(0, pos - chunk_size)
+                        f.seek(pos)
+                        chunk = f.read(chunk_size)
+                        lines_found += chunk.count('\n')
+                        buffer = chunk + buffer
+                    
+                    # Take last 100
+                    recent_lines = buffer.split('\n')[-100:]
+                    for line in recent_lines:
+                        if line.strip():
+                            await websocket.send_text(line.strip())
+            except Exception as e:
+                print(f"[WS ERROR] History read error: {e}")
+
+        # 2. Stream new logs
         message_count = 0
         while True:
             log_line = await queue.get()
             message_count += 1
-            print(f"[WS SEND] Console {name} (msg #{message_count}): {log_line[:60]}...")
             await websocket.send_text(log_line)
     except WebSocketDisconnect:
-        print(f"[WS DISCONNECT] Console connection closed for: {name} (sent {message_count} messages)")
+        print(f"[WS DISCONNECT] Console connection closed for: {name}")
     except Exception as e:
         print(f"[WS ERROR] Console error for {name}: {e}")
 

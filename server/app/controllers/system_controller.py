@@ -34,6 +34,9 @@ class SystemController:
     def disable_service(self):
         return {"success": system_manager.disable_service()}
     
+    def restart_service(self):
+        return {"success": system_manager.restart_service()}
+    
     def get_system_info(self):
         """Get system resources information"""
         # CPU info

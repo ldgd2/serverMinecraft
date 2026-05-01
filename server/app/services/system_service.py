@@ -35,6 +35,13 @@ class SystemServiceManager:
             return self._disable_service_windows()
         return False
 
+    def restart_service(self):
+        if self.os_type == "linux":
+            return self._restart_service_linux()
+        elif self.os_type == "windows":
+            return self._restart_service_windows()
+        return False
+
     # --- Linux Implementation (Systemd) ---
     def _get_systemd_path(self):
         return f"/etc/systemd/system/{self.service_name}.service"
@@ -86,6 +93,17 @@ WantedBy=multi-user.target
             print(f"Error disabling linux service: {e}")
             return False
 
+    def _restart_service_linux(self):
+        try:
+            # We use sudo systemctl restart
+            # Note: This will kill the current process! The OS will start a new one.
+            # We should probably run this as a detached process or expect the connection to drop.
+            subprocess.Popen(["sudo", "systemctl", "restart", self.service_name])
+            return True
+        except Exception as e:
+            print(f"Error restarting linux service: {e}")
+            return False
+
     # --- Windows Implementation (SC / Task Scheduler) ---
     def _is_service_enabled_windows(self):
         # Check via sc query and look for RUNNING state
@@ -130,6 +148,15 @@ WantedBy=multi-user.target
             return True
         except Exception as e:
             print(f"Error disabling windows service: {e}")
+            return False
+
+    def _restart_service_windows(self):
+        try:
+            subprocess.run(["sc", "stop", self.service_name], check=True)
+            subprocess.run(["sc", "start", self.service_name], check=True)
+            return True
+        except Exception as e:
+            print(f"Error restarting windows service: {e}")
             return False
 
 system_manager = SystemServiceManager()

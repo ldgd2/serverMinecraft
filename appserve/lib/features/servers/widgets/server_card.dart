@@ -131,6 +131,18 @@ class ServerCard extends StatelessWidget {
                         onPressed: () => context
                             .read<ServerProvider>()
                             .restartServer(server.name))),
+              ] else if (server.isRestarting) ...[
+                const Expanded(
+                    child: McButton(
+                        label: 'Restarting...',
+                        isLoading: true,
+                        onPressed: null)),
+              ] else if (server.isStopping) ...[
+                const Expanded(
+                    child: McButton(
+                        label: 'Stopping...',
+                        isLoading: true,
+                        onPressed: null)),
               ] else if (server.isCreating) ...[
                 Builder(builder: (context) {
                   final creationInfo = context

@@ -69,6 +69,8 @@ class ServerModel {
   bool get isStarting => status == 'STARTING';
   bool get isOffline => status == 'OFFLINE';
   bool get isCreating => status == 'CREATING';
+  bool get isRestarting => status == 'RESTARTING';
+  bool get isStopping => status == 'STOPPING';
 
   double get ramProgress => ramMb > 0 ? (ramUsage / ramMb).clamp(0.0, 1.0) : 0.0;
   double get diskProgress => diskMb > 0 ? (diskUsage / diskMb).clamp(0.0, 1.0) : 0.0;

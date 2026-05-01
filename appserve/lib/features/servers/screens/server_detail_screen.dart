@@ -259,6 +259,14 @@ class _OverviewTab extends StatelessWidget {
                     onPressed: () async {
                       await sp.restartServer(server.name);
                     })),
+          ] else if (server.isRestarting) ...[
+            const Expanded(
+                child: McButton(
+                    label: 'Restarting...', isLoading: true, onPressed: null)),
+          ] else if (server.isStopping) ...[
+            const Expanded(
+                child: McButton(
+                    label: 'Stopping...', isLoading: true, onPressed: null)),
           ] else
             const Expanded(
                 child: McButton(

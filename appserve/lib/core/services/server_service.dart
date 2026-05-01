@@ -69,4 +69,8 @@ class ServerService {
       return {};
     }
   }
+
+  Future<void> restartDashboardService() async {
+    await _client.post('/system/service/restart');
+  }
 }

@@ -68,6 +68,7 @@ class ServerProvider extends ChangeNotifier {
   WebSocketChannel? _consoleChannel;
   WebSocketChannel? _statusChannel;
   WebSocketChannel? _globalStatusChannel;
+  WebSocketChannel? _systemLogsChannel;
 
   List<ServerModel> _servers = [];
   ServerModel? _selectedServer;
@@ -76,6 +77,7 @@ class ServerProvider extends ChangeNotifier {
   String _consoleLogs = '';
   Map<String, dynamic> _systemStats = {};
   Map<String, dynamic> _creationStats = {};
+  String _systemLogs = '';
 
   List<ServerModel> get servers => _servers;
   ServerModel? get selectedServer => _selectedServer;
@@ -84,6 +86,7 @@ class ServerProvider extends ChangeNotifier {
   String get consoleLogs => _consoleLogs;
   Map<String, dynamic> get systemStats => _systemStats;
   Map<String, dynamic> get creationStats => _creationStats;
+  String get systemLogs => _systemLogs;
 
   int get onlineCount => _servers.where((s) => s.isOnline).length;
   int get offlineCount => _servers.where((s) => s.isOffline).length;
@@ -113,11 +116,6 @@ class ServerProvider extends ChangeNotifier {
     _selectedServer = server;
     _consoleLogs = ''; // Clear previous server logs
     
-    // Load initial history
-    try {
-      _consoleLogs = await _serverService.getLogs(name);
-    } catch (_) {}
-    
     _closeWebSockets();
     _connectToConsole(name);
     _connectToStatus(name);
@@ -131,6 +129,8 @@ class ServerProvider extends ChangeNotifier {
     _statusChannel?.sink.close();
     _consoleChannel = null;
     _statusChannel = null;
+    _systemLogsChannel?.sink.close();
+    _systemLogsChannel = null;
   }
 
   void _closeGlobalWebSocket() {
@@ -252,8 +252,24 @@ class ServerProvider extends ChangeNotifier {
   }
 
   Future<void> restartServer(String name) async {
-    await _serverService.restartServer(name);
-    await loadServers();
+    // Set local state to RESTARTING to give immediate feedback
+    final index = _servers.indexWhere((s) => s.name == name);
+    if (index != -1) {
+      _servers[index] = _servers[index].copyWith(status: 'RESTARTING');
+      if (_selectedServer?.name == name) {
+        _selectedServer = _servers[index];
+      }
+      notifyListeners();
+    }
+
+    try {
+      await _serverService.restartServer(name);
+      // We don't need to loadServers here as the Global WS or individual WS will update us
+    } catch (e) {
+      debugPrint('Restart error: $e');
+      _error = 'Failed to restart server';
+      notifyListeners();
+    }
   }
 
   Future<void> sendCommand(String name, String cmd) async {
@@ -298,6 +314,35 @@ class ServerProvider extends ChangeNotifier {
   void clearConsole() {
     _consoleLogs = '';
     notifyListeners();
+  }
+
+  Future<void> restartDashboardService() async {
+    await _serverService.restartDashboardService();
+  }
+
+  void connectToSystemLogs() {
+    _systemLogsChannel?.sink.close();
+    _systemLogs = 'Connecting to service logs...\n';
+    notifyListeners();
+
+    final wsUrl = AppConstants.baseUrl.replaceFirst('http', 'ws');
+    _systemLogsChannel = WebSocketChannel.connect(
+      Uri.parse('$wsUrl/system/service/logs'),
+    );
+
+    _systemLogsChannel!.stream.listen((message) {
+      _systemLogs += '$message\n';
+      if (_systemLogs.length > 20000) {
+        _systemLogs = _systemLogs.substring(_systemLogs.length - 15000);
+      }
+      notifyListeners();
+    }, onError: (e) {
+      _systemLogs += 'Error connecting to logs: $e\n';
+      notifyListeners();
+    }, onDone: () {
+      _systemLogs += 'Log stream closed.\n';
+      notifyListeners();
+    });
   }
 }
 
