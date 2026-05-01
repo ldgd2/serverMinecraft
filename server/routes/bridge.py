@@ -6,7 +6,7 @@ import hashlib
 from sqlalchemy.orm import Session
 from database.connection import get_db
 from database.models.user import User
-from fastapi import WebSocket, WebSocketDisconnect
+from fastapi import WebSocket, WebSocketDisconnect, Request
 from core.broadcaster import broadcaster
 
 router = APIRouter(prefix="/bridge", tags=["Minecraft Bridge"])
@@ -35,7 +35,15 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
-async def verify_api_key(x_api_key: str = Header(...), db: Session = Depends(get_db)):
+async def verify_api_key(request: Request, x_api_key: str = Header(...), db: Session = Depends(get_db)):
+    # Log for debugging
+    body = await request.body()
+    print(f"--- BRIDGE DEBUG ---")
+    print(f"Method: {request.method} | Path: {request.url.path}")
+    print(f"X-API-Key: {x_api_key[:10]}...")
+    print(f"Body: {body.decode(errors='replace')}")
+    print(f"--------------------")
+
     # Sacar hash de la llave recibida
     hashed_received = hashlib.sha256(x_api_key.encode()).hexdigest()
     
@@ -57,16 +65,21 @@ class BridgeEvent(BaseModel):
     uuid: Optional[str] = None
     cause: Optional[str] = None
     killer: Optional[str] = None
+    # Catch-all for extra fields
+    class Config:
+        extra = "allow"
 
 class BridgeStat(BaseModel):
     player: str
     stat: str
     value: str
     amount: int = 1
+    type: Optional[str] = "stat_update" # Added to match mod's field
 
 class BridgeChat(BaseModel):
     player: str
     message: str
+    type: Optional[str] = "chat" # Added to match mod's field
 
 class BridgeStatus(BaseModel):
     state: str # STARTED, STOPPING
@@ -80,7 +93,13 @@ class PlayerState(BaseModel):
     pos_z: float
     world: str
 
-# --- Endpoints ---
+async def log_request(request: Request):
+    body = await request.body()
+    print(f"--- INCOMING BRIDGE REQUEST ---")
+    print(f"URL: {request.url}")
+    print(f"Headers: {dict(request.headers)}")
+    print(f"Body: {body.decode(errors='replace')}")
+    print(f"-------------------------------")
 
 @router.get("/test")
 async def test_connection(user: User = Depends(verify_api_key)):
@@ -88,6 +107,7 @@ async def test_connection(user: User = Depends(verify_api_key)):
 
 @router.post("/events")
 async def receive_event(event: BridgeEvent, user: User = Depends(verify_api_key)):
+    print(f"DEBUG: Received Bridge Event: {event.dict()}")
     logger.info(f"[MineBridge] Evento de {user.username}: {event.player} -> {event.type}")
     
     # Notificar a la App (Chat de sistema)
@@ -100,11 +120,13 @@ async def receive_event(event: BridgeEvent, user: User = Depends(verify_api_key)
 
 @router.post("/stats")
 async def receive_stat(stat: BridgeStat, user: User = Depends(verify_api_key)):
+    print(f"DEBUG: Received Bridge Stat: {stat.dict()}")
     # logger.info(f"[MineBridge] Stats ({user.username}): {stat.player} {stat.stat}")
     return {"status": "ok"}
 
 @router.post("/chat")
 async def receive_chat(chat: BridgeChat, user: User = Depends(verify_api_key)):
+    print(f"DEBUG: Received Bridge Chat: {chat.dict()}")
     logger.info(f"[MineBridge] Chat sync for {user.username}: <{chat.player}> {chat.message}")
     
     # Retransmitir a la App en tiempo real
