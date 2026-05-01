@@ -19,6 +19,8 @@ DEFAULT_CONFIG = {
     "auth_type":    "nopremium",    # "premium" | "nopremium"
     "logged_in":    False,
     "auth_token":   "",             # Always Fernet-encrypted
+    "player_token": "",             # LiderAuth JWT token
+    "guest_username": "",
 
     # ── Launcher ─────────────────────────────────────────────────────────────
     "selected_version": "",

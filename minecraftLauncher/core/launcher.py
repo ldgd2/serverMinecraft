@@ -102,6 +102,9 @@ def launch_minecraft(version_id, callback_dict=None):
     To support both Vanilla and Fabric, pass the appropriate version_id.
     """
     def run_process():
+        import time
+        start_time = time.time()
+        
         minecraft_directory = config.get("minecraft_dir")
         username = config.get("username")
         ram_mb = config.get("ram_mb")
@@ -301,6 +304,37 @@ def launch_minecraft(version_id, callback_dict=None):
 
             if callback_dict and 'finished' in callback_dict:
                 callback_dict['finished'](rc)
+
+            # Sync stats if logged in with a server account
+            player_token = config.get("player_token")
+            if player_token and rc != -1:
+                end_time = time.time()
+                playtime_seconds = int(end_time - start_time)
+                
+                from core.auth import AuthController
+                auth = AuthController()
+                
+                # Update basic playtime
+                server_name = config.get("server_ip") or "Local / Singleplayer"
+                success = auth.update_player_stats(
+                    player_token, 
+                    server_name=server_name,
+                    playtime_seconds=playtime_seconds,
+                    kills=0, deaths=0, blocks_broken=0, blocks_placed=0, kill_streak=0
+                )
+                
+                if success and callback_dict and 'log' in callback_dict:
+                    callback_dict['log'](f"[Auth] Sincronizadas {playtime_seconds}s de juego.")
+                
+                # Auto-highlight if they played a lot
+                if playtime_seconds > 600: # 10 minutes
+                    import requests
+                    url = f"{auth.api_url}/player-auth/highlights/add"
+                    requests.post(url, json={
+                        "description": "Sesión de juego prolongada",
+                        "server_name": server_name,
+                        "icon": "⏳"
+                    }, headers={"Authorization": f"Bearer {player_token}"})
 
         except Exception as e:
             if callback_dict and 'log' in callback_dict:

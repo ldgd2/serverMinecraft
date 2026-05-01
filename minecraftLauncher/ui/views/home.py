@@ -16,6 +16,7 @@ from config.manager import config
 from core.versions import get_installed_versions
 from core.launcher import launch_minecraft, filter_versions
 from core.info import VERSION
+from ui.views.profile import PlayerProfilePanel
 
 
 LOADER_TYPES = ["Vanilla", "Fabric", "Forge"]
@@ -154,6 +155,14 @@ class HomeView(tk.Frame):
 
         self._header_badge = tk.Label(right_info, text="", fg=Colors.PREMIUM_GREEN, bg=Colors.DARK, font=mc_font(10))
         self._header_badge.pack(side="top")
+
+        # Profile button under the skin
+        tk.Button(right_info, text="👤 Ver Perfil", bd=0,
+                  bg=Colors.DARK_BUTTON, fg=Colors.YELLOW,
+                  font=mc_font(9), cursor="hand2",
+                  command=self._show_profile).pack(side="top", pady=(6, 0))
+
+        self._profile_panel = None
         
         # Log area
         self._log_text = tk.Text(
@@ -288,6 +297,19 @@ class HomeView(tk.Frame):
     def _go_downloads(self):
         if self.app:
             self.app.show_downloads_view()
+
+    def _show_profile(self):
+        if self._profile_panel and self._profile_panel.winfo_exists():
+            self._profile_panel.pack_forget()
+            self._profile_panel.destroy()
+            self._profile_panel = None
+            return
+        self._profile_panel = PlayerProfilePanel(
+            self,
+            on_close=lambda: None,
+            width=380,
+        )
+        self._profile_panel.place(relx=0.98, rely=0.02, anchor="ne", width=380, relheight=0.95)
 
     # ── Public update methods ─────────────────────────────────────────────────
 

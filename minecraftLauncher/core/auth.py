@@ -24,7 +24,7 @@ class AuthController:
         Inicia sesión No-Premium contra el backend LiderAuth.
         Retorna un diccionario con el estado y los datos de la respuesta.
         """
-        url = f"{self.api_url}/auth/login"
+        url = f"{self.api_url}/player-auth/login"
         payload = {"username": username, "password": password}
         
         try:
@@ -33,13 +33,14 @@ class AuthController:
             
             if respuesta.status_code == 200:
                 datos = respuesta.json()
-                return {"status": "OK", "data": datos}
+                data = datos.get("data", {})
+                return {"status": "OK", "data": {
+                    "username": data.get("username"),
+                    "uuid": data.get("uuid"),
+                    "token": data.get("access_token"),
+                    "account_type": data.get("account_type"),
+                }}
                 
-            elif respuesta.status_code == 403:
-                datos_error = respuesta.json()
-                if datos_error.get("error") == "rename_required":
-                    return {"status": "RENAME", "data": datos_error}
-                    
             return {"status": "ERROR", "message": respuesta.json().get("detail", "Credenciales inválidas.")}
 
         except requests.exceptions.ConnectionError:
@@ -49,15 +50,15 @@ class AuthController:
 
     def register_no_premium(self, username, password):
         """Registra un nuevo jugador No-Premium."""
-        url = f"{self.api_url}/auth/player/register"
+        url = f"{self.api_url}/player-auth/register"
         payload = {"username": username, "password": password}
         try:
              res = requests.post(url, json=payload, timeout=10)
              if res.status_code == 200:
-                  return {"status": "OK", "message": "Registrado correctamente."}
+                  data = res.json().get("data", {})
+                  return {"status": "OK", "message": "Registrado correctamente.", "data": data}
              try: datos = res.json()
              except: datos = {}
-             # Si detail es una lista o string, deolverlo legible
              detail = datos.get("detail", "Error al registrar.")
              if isinstance(detail, list):
                   detail = detail[0].get("msg", "Error de validación.")
@@ -253,8 +254,8 @@ class AuthController:
             error_callback(f"Error al iniciar WebView: {e}")
 
     def notify_premium_login_backend(self, username, uuid, access_token="", refresh_token=""):
-        """Notifica al backend que un jugador premium ha entrado."""
-        url = f"{self.api_url}/auth/player/login_premium"
+        """Notifica al backend que un jugador premium ha entrado (crea/actualiza su cuenta)."""
+        url = f"{self.api_url}/player-auth/login/premium"
         payload = {
             "username_oficial": username,
             "uuid_oficial": uuid,
@@ -262,9 +263,46 @@ class AuthController:
             "minecraft_access_token": access_token
         }
         try:
-            requests.post(url, json=payload, timeout=5)
+            res = requests.post(url, json=payload, timeout=5)
+            if res.status_code == 200:
+                data = res.json().get("data", {})
+                return data.get("access_token", "")
         except:
-            pass # Falla silenciosa ya que es solo para estadísticas/desalojo no-premium
+            pass
+        return ""
+
+    def get_player_profile(self, player_token: str) -> dict:
+        """Obtiene el perfil completo del jugador autenticado."""
+        url = f"{self.api_url}/player-auth/profile"
+        try:
+            res = requests.get(url, headers={"Authorization": f"Bearer {player_token}"}, timeout=10)
+            if res.status_code == 200:
+                return res.json().get("data", {})
+        except:
+            pass
+        return {}
+
+    def update_player_stats(self, player_token: str, server_name: str, **kwargs) -> bool:
+        """Envía estadísticas acumuladas de una sesión al backend."""
+        url = f"{self.api_url}/player-auth/stats/update"
+        payload = {"server_name": server_name, **kwargs}
+        try:
+            res = requests.post(url, json=payload,
+                                headers={"Authorization": f"Bearer {player_token}"}, timeout=10)
+            return res.status_code == 200
+        except:
+            return False
+
+    def get_leaderboard(self) -> list:
+        """Obtiene el top 20 de jugadores."""
+        url = f"{self.api_url}/player-auth/leaderboard"
+        try:
+            res = requests.get(url, timeout=10)
+            if res.status_code == 200:
+                return res.json().get("data", [])
+        except:
+            pass
+        return []
 
     def upload_skin(self, skin_path, variant="classic"):
         """Sube la skin a los servidores de Mojang para cuentas Premium."""

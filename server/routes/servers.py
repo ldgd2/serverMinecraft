@@ -371,7 +371,7 @@ async def broadcast_server_updates():
     """Background task to broadcast server status/stats changes to all connected clients"""
     from database.connection import SessionLocal
     from database.models.server import Server
-    from app.controllers.server_controller import server_controller
+    # Use the global server_controller instance defined at the top
     
     last_states = {}
     
@@ -420,13 +420,10 @@ async def startup_event():
 
 @router.websocket("/{name}/chat")
 async def websocket_chat(websocket: WebSocket, name: str):
-    print(f"[WS CONNECT] Chat endpoint for server: {name}")
     await websocket.accept()
-    print(f"[WS ACCEPTED] Chat connection established for: {name}")
     queue = server_controller.get_console_queue(name)
     
     if not queue:
-        print(f"[WS ERROR] Server not found for chat: {name}")
         await websocket.close(code=4004, reason="Server not found")
         return
         
@@ -434,26 +431,62 @@ async def websocket_chat(websocket: WebSocket, name: str):
     # Match: [12:34:56] [Server thread/INFO]: <Username> msg
     chat_pattern = re.compile(r"\[.*INFO\]: <([^>]+)> (.*)")
     
+    async def listen_to_client():
+        try:
+            while True:
+                data = await websocket.receive_json()
+                if data.get("type") == "send_chat":
+                    username = data.get("username", "Admin")
+                    message = data.get("message", "")
+                    if message:
+                        # Send to Minecraft server as a formatted message
+                        # We use 'say' or 'tellraw' to make it look official
+                        cmd = f'tellraw @a {{"text": "<${username}> {message}", "color": "yellow"}}'
+                        await server_controller.send_command(name, cmd)
+        except Exception as e:
+            print(f"[WS CHAT] Client listen error: {e}")
+
+    async def broadcast_to_client():
+        try:
+            while True:
+                log_line = await queue.get()
+                match = chat_pattern.search(log_line)
+                if match:
+                    sender = match.group(1)
+                    message = match.group(2)
+                    await websocket.send_json({
+                        "type": "chat",
+                        "sender": sender,
+                        "message": message,
+                        "is_system": False
+                    })
+                elif "joined the game" in log_line:
+                    await websocket.send_json({
+                        "type": "chat",
+                        "sender": "System",
+                        "message": log_line.split("INFO]: ")[1],
+                        "is_system": True
+                    })
+                elif "left the game" in log_line:
+                    await websocket.send_json({
+                        "type": "chat",
+                        "sender": "System",
+                        "message": log_line.split("INFO]: ")[1],
+                        "is_system": True
+                    })
+        except Exception as e:
+            print(f"[WS CHAT] Broadcast error: {e}")
+
+    # Run both tasks concurrently
     try:
-        chat_count = 0
-        while True:
-             log_line = await queue.get()
-             match = chat_pattern.search(log_line)
-             if match:
-                  chat_count += 1
-                  sender = match.group(1)
-                  message = match.group(2)
-                  print(f"[WS SEND] Chat {name} from {sender}: {message[:40]}...")
-                  await websocket.send_json({
-                       "type": "chat",
-                       "sender": sender,
-                       "message": message,
-                       "line": log_line
-                  })
+        await asyncio.gather(listen_to_client(), broadcast_to_client())
     except WebSocketDisconnect:
-        print(f"[WS DISCONNECT] Chat connection closed for: {name} (sent {chat_count} messages)")
+        pass
     except Exception as e:
-        print(f"[WS ERROR] Chat error for {name}: {e}")
+        print(f"[WS CHAT] Fatal error: {e}")
+    finally:
+        try: await websocket.close()
+        except: pass
 
 @router.get("/{name}/export")
 async def export_server(name: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):

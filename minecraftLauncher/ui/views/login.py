@@ -312,13 +312,16 @@ class LoginView(tk.Frame):
             config.set("account_type", "premium")
             config.set("logged_in",  True)
 
-            # Notify backend in background
-            threading.Thread(
-                target=self._auth.notify_premium_login_backend,
-                args=(data["name"], data["uuid"],
-                      data.get("access_token", ""), data.get("refresh_token", "")),
-                daemon=True
-            ).start()
+            # Notify backend and store player token in background
+            def _notify_and_store():
+                player_token = self._auth.notify_premium_login_backend(
+                    data["name"], data["uuid"],
+                    data.get("access_token", ""), data.get("refresh_token", "")
+                )
+                if player_token:
+                    config.set("player_token", player_token)
+
+            threading.Thread(target=_notify_and_store, daemon=True).start()
 
             self._set_status(f"Bienvenido, {data['name']}! (Premium)", Colors.PREMIUM_GREEN)
             self.after(700, self._fire_success)
@@ -359,13 +362,13 @@ class LoginView(tk.Frame):
             data = result["data"]
             # Username is ALWAYS what the server says — read-only after this
             server_username = data.get("username") or data.get("name") or self._srv_user.get()
-            config.set("username",   server_username)
-            config.set("uuid",       data.get("uuid", ""))
-            config.set("auth_token", encrypt_data(data.get("token", "")))
-            config.set("auth_type",  "nopremium")
-            config.set("account_type", "server")
-            config.set("logged_in",  True)
-            # Clear guest username so it doesn't interfere
+            config.set("username",      server_username)
+            config.set("uuid",          data.get("uuid", ""))
+            config.set("auth_token",    encrypt_data(data.get("token", "")))
+            config.set("player_token",  data.get("token", ""))  # JWT del jugador (sin cifrar, para la API)
+            config.set("auth_type",     "nopremium")
+            config.set("account_type",  "server")
+            config.set("logged_in",     True)
             config.set("guest_username", "")
             self._set_status(f"Bienvenido, {server_username}! (Servidor)", Colors.PREMIUM_GREEN)
             self.after(600, self._fire_success)
@@ -401,7 +404,21 @@ class LoginView(tk.Frame):
     def _handle_register_result(self, result):
         self._srv_reg_btn.configure_state(False)
         if result.get("status") == "OK":
-            self._set_status("Cuenta creada. Ya puedes iniciar sesion.", Colors.PREMIUM_GREEN)
+            # Auto-login after successful registration
+            data = result.get("data", {})
+            if data.get("access_token"):
+                server_username = data.get("username") or self._srv_user.get()
+                config.set("username",     server_username)
+                config.set("uuid",         data.get("uuid", ""))
+                config.set("auth_token",   encrypt_data(data.get("access_token", "")))
+                config.set("player_token", data.get("access_token", ""))
+                config.set("auth_type",    "nopremium")
+                config.set("account_type", "server")
+                config.set("logged_in",    True)
+                self._set_status(f"Cuenta creada. Bienvenido, {server_username}!", Colors.PREMIUM_GREEN)
+                self.after(700, self._fire_success)
+            else:
+                self._set_status("Cuenta creada. Ya puedes iniciar sesion.", Colors.PREMIUM_GREEN)
         else:
             self._set_status(result.get("message", "Error al registrar."), Colors.NOPREMIUM_RED)
 

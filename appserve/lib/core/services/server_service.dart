@@ -52,6 +52,11 @@ class ServerService {
     return data != null ? (data['logs'] ?? '') : '';
   }
 
+  Future<Map<String, dynamic>> getPlayers(String name) async {
+    final res = await _client.get('/servers/$name/players');
+    return Map<String, dynamic>.from(res.data['data'] ?? {});
+  }
+
   Future<Map<String, dynamic>> getSystemStats() async {
     try {
       final res = await _client.get('/system/stats');

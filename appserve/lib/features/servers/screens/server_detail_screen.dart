@@ -32,7 +32,7 @@ class _ServerDetailScreenState extends State<ServerDetailScreen>
     super.initState();
     _server = widget.server;
     _tabController =
-        TabController(length: 3, vsync: this, initialIndex: widget.initialTab);
+        TabController(length: 5, vsync: this, initialIndex: widget.initialTab);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<ServerProvider>().selectServer(_server.name);
     });
@@ -102,6 +102,8 @@ class _ServerDetailScreenState extends State<ServerDetailScreen>
         children: [
           _OverviewTab(server: _server),
           _ConsoleTab(server: _server),
+          _ChatTab(server: _server),
+          _PlayersTab(server: _server),
           _SettingsTab(server: _server),
         ],
       ),
@@ -113,6 +115,7 @@ class _ServerDetailScreenState extends State<ServerDetailScreen>
       color: AppColors.backgroundCard,
       child: TabBar(
         controller: _tabController,
+        isScrollable: true,
         indicatorColor: AppColors.grassGreen,
         indicatorWeight: 2,
         labelColor: AppColors.grassGreenLight,
@@ -121,6 +124,8 @@ class _ServerDetailScreenState extends State<ServerDetailScreen>
         tabs: const [
           Tab(icon: Icon(Icons.info_outline, size: 18), text: 'Overview'),
           Tab(icon: Icon(Icons.terminal, size: 18), text: 'Console'),
+          Tab(icon: Icon(Icons.chat_bubble_outline, size: 18), text: 'Chat'),
+          Tab(icon: Icon(Icons.people_outline, size: 18), text: 'Players'),
           Tab(icon: Icon(Icons.settings_outlined, size: 18), text: 'Settings'),
         ],
       ),
@@ -517,5 +522,272 @@ class _SettingsTab extends StatelessWidget {
         Navigator.pop(context);
       }
     }
+  }
+}
+
+// ─── Chat Tab ────────────────────────────────────────────────────────────────
+
+class _ChatTab extends StatefulWidget {
+  final ServerModel server;
+  const _ChatTab({required this.server});
+
+  @override
+  State<_ChatTab> createState() => _ChatTabState();
+}
+
+class _ChatTabState extends State<_ChatTab> {
+  final _msgCtrl = TextEditingController();
+  final _scrollCtrl = ScrollController();
+
+  @override
+  void dispose() {
+    _msgCtrl.dispose();
+    _scrollCtrl.dispose();
+    super.dispose();
+  }
+
+  void _scrollToBottom() {
+    if (_scrollCtrl.hasClients) {
+      _scrollCtrl.animateTo(_scrollCtrl.position.maxScrollExtent,
+          duration: 200.ms, curve: Curves.easeOut);
+    }
+  }
+
+  void _sendMessage() {
+    final msg = _msgCtrl.text.trim();
+    if (msg.isEmpty) return;
+
+    final auth = context.read<AuthProvider>();
+    final username = auth.user?.username ?? 'Admin';
+
+    context.read<ServerProvider>().sendChatMessage(widget.server.name, msg, username);
+    _msgCtrl.clear();
+    HapticFeedback.lightImpact();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Expanded(
+          child: Consumer<ServerProvider>(
+            builder: (_, sp, __) {
+              WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+
+              if (sp.chatMessages.isEmpty) {
+                return const Center(child: Text('No messages yet', style: TextStyle(color: AppColors.textMuted)));
+              }
+
+              return ListView.builder(
+                controller: _scrollCtrl,
+                padding: const EdgeInsets.all(12),
+                itemCount: sp.chatMessages.length,
+                itemBuilder: (context, index) {
+                  final msg = sp.chatMessages[index];
+                  final isSystem = msg['is_system'] == true;
+                  final sender = msg['sender'];
+                  final text = msg['message'];
+
+                  // Check if it's the user's message (formatted as <$Username> by backend)
+                  final auth = context.read<AuthProvider>();
+                  final isMe = sender == '\$${auth.user?.username}';
+
+                  if (isSystem) {
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Center(
+                        child: Text(text, style: const TextStyle(color: AppColors.textMuted, fontSize: 11, fontStyle: FontStyle.italic)),
+                      ),
+                    );
+                  }
+
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    child: RichText(
+                      text: TextSpan(
+                        style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
+                        children: [
+                          TextSpan(
+                            text: '<$sender> ',
+                            style: TextStyle(
+                              color: isMe ? AppColors.gold : AppColors.diamond,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          TextSpan(
+                            text: text,
+                            style: TextStyle(color: isMe ? AppColors.gold : AppColors.textPrimary),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+        Container(
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 16),
+          decoration: const BoxDecoration(
+            color: AppColors.backgroundCard,
+            border: Border(top: BorderSide(color: AppColors.border)),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _msgCtrl,
+                  style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
+                  decoration: const InputDecoration(
+                    hintText: 'Type a message...',
+                    border: InputBorder.none,
+                    isDense: true,
+                  ),
+                  onSubmitted: (_) => _sendMessage(),
+                ),
+              ),
+              IconButton(
+                onPressed: _sendMessage,
+                icon: const Icon(Icons.send, color: AppColors.gold),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─── Players Tab ─────────────────────────────────────────────────────────────
+
+class _PlayersTab extends StatefulWidget {
+  final ServerModel server;
+  const _PlayersTab({required this.server});
+
+  @override
+  State<_PlayersTab> createState() => _PlayersTabState();
+}
+
+class _PlayersTabState extends State<_PlayersTab> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<ServerProvider>().loadPlayers(widget.server.name);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<ServerProvider>(
+      builder: (context, sp, child) {
+        return ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                SectionHeader(title: 'ONLINE PLAYERS (${sp.onlinePlayers.length})'),
+                IconButton(
+                  icon: const Icon(Icons.refresh, size: 20, color: AppColors.textSecondary),
+                  onPressed: () => sp.loadPlayers(widget.server.name),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            if (sp.onlinePlayers.isEmpty)
+              const McCard(child: Center(child: Padding(
+                padding: EdgeInsets.all(20.0),
+                child: Text('No players online', style: TextStyle(color: AppColors.textMuted)),
+              )))
+            else
+              ...sp.onlinePlayers.map((p) => _PlayerListItem(
+                name: p.toString(),
+                isBanned: false,
+                onKick: () => sp.kickPlayer(widget.server.name, p.toString()),
+                onBan: () => sp.banPlayer(widget.server.name, p.toString()),
+              )),
+
+            const SizedBox(height: 24),
+            SectionHeader(title: 'BANNED PLAYERS (${sp.bannedUsers.length})'),
+            const SizedBox(height: 8),
+            if (sp.bannedUsers.isEmpty)
+              const McCard(child: Center(child: Padding(
+                padding: EdgeInsets.all(20.0),
+                child: Text('No banned players', style: TextStyle(color: AppColors.textMuted)),
+              )))
+            else
+              ...sp.bannedUsers.map((p) => _PlayerListItem(
+                name: p.toString(),
+                isBanned: true,
+                onUnban: () => sp.unbanPlayer(widget.server.name, p.toString()),
+              )),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _PlayerListItem extends StatelessWidget {
+  final String name;
+  final bool isBanned;
+  final VoidCallback? onKick;
+  final VoidCallback? onBan;
+  final VoidCallback? onUnban;
+
+  const _PlayerListItem({
+    required this.name,
+    this.isBanned = false,
+    this.onKick,
+    this.onBan,
+    this.onUnban,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: McCard(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: AppColors.backgroundOverlay,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.person, color: AppColors.textSecondary),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(name, style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
+            ),
+            if (isBanned)
+              McButton(
+                label: 'Unban',
+                icon: Icons.undo,
+                isSecondary: true,
+                onPressed: onUnban,
+              )
+            else ...[
+              IconButton(
+                icon: const Icon(Icons.logout, color: AppColors.gold, size: 20),
+                onPressed: onKick,
+                tooltip: 'Kick',
+              ),
+              IconButton(
+                icon: const Icon(Icons.gavel, color: AppColors.offline, size: 20),
+                onPressed: onBan,
+                tooltip: 'Ban',
+              ),
+            ]
+          ],
+        ),
+      ),
+    );
   }
 }

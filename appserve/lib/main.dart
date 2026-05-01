@@ -4,6 +4,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
 import 'core/theme/app_theme.dart';
 import 'core/providers/app_providers.dart';
+import 'core/providers/player_provider.dart';
 import 'features/auth/screens/login_screen.dart';
 import 'features/home/screens/home_screen.dart';
 import 'features/servers/screens/create_server_screen.dart';
@@ -32,6 +33,7 @@ void main() async {
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => ServerProvider()),
         ChangeNotifierProvider(create: (_) => VersionProvider()),
+        ChangeNotifierProvider(create: (_) => PlayerProvider()),
       ],
       child: const MinecraftManagerApp(),
     ),
@@ -86,7 +88,9 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     await Future.delayed(const Duration(milliseconds: 1800));
     if (!mounted) return;
     final auth = context.read<AuthProvider>();
+    final player = context.read<PlayerProvider>();
     final loggedIn = await auth.tryAutoLogin();
+    await player.tryAutoLogin();
     if (!mounted) return;
     Navigator.pushReplacementNamed(context, loggedIn ? '/' : '/login');
   }

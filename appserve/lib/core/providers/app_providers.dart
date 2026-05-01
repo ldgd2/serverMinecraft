@@ -69,6 +69,7 @@ class ServerProvider extends ChangeNotifier {
   WebSocketChannel? _statusChannel;
   WebSocketChannel? _globalStatusChannel;
   WebSocketChannel? _systemLogsChannel;
+  WebSocketChannel? _chatChannel;
 
   List<ServerModel> _servers = [];
   ServerModel? _selectedServer;
@@ -78,6 +79,10 @@ class ServerProvider extends ChangeNotifier {
   Map<String, dynamic> _systemStats = {};
   Map<String, dynamic> _creationStats = {};
   String _systemLogs = '';
+  List<Map<String, dynamic>> _chatMessages = [];
+  List<dynamic> _onlinePlayers = [];
+  List<dynamic> _bannedUsers = [];
+  List<dynamic> _bannedIps = [];
 
   List<ServerModel> get servers => _servers;
   ServerModel? get selectedServer => _selectedServer;
@@ -87,6 +92,10 @@ class ServerProvider extends ChangeNotifier {
   Map<String, dynamic> get systemStats => _systemStats;
   Map<String, dynamic> get creationStats => _creationStats;
   String get systemLogs => _systemLogs;
+  List<Map<String, dynamic>> get chatMessages => _chatMessages;
+  List<dynamic> get onlinePlayers => _onlinePlayers;
+  List<dynamic> get bannedUsers => _bannedUsers;
+  List<dynamic> get bannedIps => _bannedIps;
 
   int get onlineCount => _servers.where((s) => s.isOnline).length;
   int get offlineCount => _servers.where((s) => s.isOffline).length;
@@ -114,11 +123,14 @@ class ServerProvider extends ChangeNotifier {
     // Find server in list if possible to avoid extra API call
     final server = _servers.firstWhere((s) => s.name == name, orElse: () => _selectedServer!);
     _selectedServer = server;
+    _selectedServer = server;
     _consoleLogs = ''; // Clear previous server logs
+    _chatMessages = []; // Clear previous server chat
     
     _closeWebSockets();
     _connectToConsole(name);
     _connectToStatus(name);
+    _connectToChat(name);
     
     _isLoading = false;
     notifyListeners();
@@ -131,6 +143,8 @@ class ServerProvider extends ChangeNotifier {
     _statusChannel = null;
     _systemLogsChannel?.sink.close();
     _systemLogsChannel = null;
+    _chatChannel?.sink.close();
+    _chatChannel = null;
   }
 
   void _closeGlobalWebSocket() {
@@ -311,6 +325,33 @@ class ServerProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> loadPlayers(String name) async {
+    try {
+      final res = await _serverService.getPlayers(name);
+      _onlinePlayers = res['online_players'] ?? [];
+      _bannedUsers = res['banned_users'] ?? [];
+      _bannedIps = res['banned_ips'] ?? [];
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Load Players Error: $e');
+    }
+  }
+
+  Future<void> kickPlayer(String serverName, String playerName) async {
+    await _serverService.sendCommand(serverName, 'kick $playerName');
+    await loadPlayers(serverName);
+  }
+
+  Future<void> banPlayer(String serverName, String playerName, {String reason = 'Banned by admin'}) async {
+    await _serverService.sendCommand(serverName, 'ban $playerName $reason');
+    await loadPlayers(serverName);
+  }
+
+  Future<void> unbanPlayer(String serverName, String playerName) async {
+    await _serverService.sendCommand(serverName, 'pardon $playerName');
+    await loadPlayers(serverName);
+  }
+
   void clearConsole() {
     _consoleLogs = '';
     notifyListeners();
@@ -343,6 +384,43 @@ class ServerProvider extends ChangeNotifier {
       _systemLogs += 'Log stream closed.\n';
       notifyListeners();
     });
+  }
+
+  void _connectToChat(String name) {
+    _chatChannel?.sink.close();
+    final wsUrl = AppConstants.baseUrl.replaceFirst('http', 'ws');
+    _chatChannel = WebSocketChannel.connect(
+      Uri.parse('$wsUrl/servers/$name/chat'),
+    );
+
+    _chatChannel!.stream.listen((message) {
+      try {
+        final data = jsonDecode(message);
+        if (data['type'] == 'chat') {
+          _chatMessages.add({
+            'sender': data['sender'],
+            'message': data['message'],
+            'is_system': data['is_system'] ?? false,
+            'time': DateTime.now().toIso8601String(),
+          });
+          if (_chatMessages.length > 200) _chatMessages.removeAt(0);
+          notifyListeners();
+        }
+      } catch (e) {
+        debugPrint('Chat WS Decode Error: $e');
+      }
+    }, onError: (e) {
+      debugPrint('Chat WS Error: $e');
+    });
+  }
+
+  void sendChatMessage(String name, String message, String username) {
+    if (_chatChannel == null) return;
+    _chatChannel!.sink.add(jsonEncode({
+      'type': 'send_chat',
+      'username': username,
+      'message': message,
+    }));
   }
 }
 
