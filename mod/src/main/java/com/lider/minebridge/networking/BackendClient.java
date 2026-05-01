@@ -19,15 +19,20 @@ public class BackendClient {
     private WebSocket webSocket;
 
     public BackendClient(String baseUrl, String apiKey) {
-        this.baseUrl = baseUrl.endsWith("/") ? baseUrl : baseUrl + "/";
-        this.apiKey = apiKey;
+        this.baseUrl = (baseUrl == null || baseUrl.isEmpty() || baseUrl.equals("PENDING")) ? null : (baseUrl.endsWith("/") ? baseUrl : baseUrl + "/");
+        this.apiKey = (apiKey == null || apiKey.isEmpty() || apiKey.equals("PENDING")) ? null : apiKey;
         this.httpClient = HttpClient.newBuilder().build();
         this.gson = new Gson();
         
-        connectWebSocket();
+        if (this.baseUrl != null && this.apiKey != null) {
+            connectWebSocket();
+        } else {
+            MineBridge.LOGGER.warn("Backend configuration is PENDING. Use /minebridge set-url and set-key to initialize.");
+        }
     }
 
     private void connectWebSocket() {
+        if (baseUrl == null || apiKey == null) return;
         String wsUrl = baseUrl.replace("http", "ws") + "api/v1/ws/bridge";
         httpClient.newWebSocketBuilder()
             .header("X-API-Key", apiKey)
@@ -135,19 +140,25 @@ public class BackendClient {
     }
 
     private void postAsync(String endpoint, JsonObject data) {
-        HttpRequest request = HttpRequest.newBuilder()
-            .uri(URI.create(baseUrl + endpoint))
-            .header("Content-Type", "application/json")
-            .header("X-API-Key", apiKey)
-            .POST(HttpRequest.BodyPublishers.ofString(gson.toJson(data)))
-            .build();
+        if (baseUrl == null || apiKey == null) return;
+        
+        try {
+            HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(baseUrl + endpoint))
+                .header("Content-Type", "application/json")
+                .header("X-API-Key", apiKey)
+                .POST(HttpRequest.BodyPublishers.ofString(gson.toJson(data)))
+                .build();
 
-        httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
-            .thenAccept(res -> {
-                if (res.statusCode() >= 400) {
-                    MineBridge.LOGGER.warn("Backend error (" + res.statusCode() + "): " + res.body());
-                }
-            });
+            httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
+                .thenAccept(res -> {
+                    if (res.statusCode() >= 400) {
+                        MineBridge.LOGGER.warn("Backend error (" + res.statusCode() + "): " + res.body());
+                    }
+                });
+        } catch (Exception e) {
+            MineBridge.LOGGER.error("Failed to send async request: " + e.getMessage());
+        }
     }
 
     public void updateBaseUrl(String newUrl) {

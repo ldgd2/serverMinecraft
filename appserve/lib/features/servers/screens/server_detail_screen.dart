@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:appserve/core/models/server_model.dart';
 import 'package:appserve/core/providers/app_providers.dart';
@@ -459,11 +460,23 @@ class _ConsoleTabState extends State<_ConsoleTab> {
     );
   }
 
-  void _sendCommand() {
+  void _sendCommand() async {
     final cmd = _cmdCtrl.text.trim();
     if (cmd.isEmpty) return;
-    context.read<ServerProvider>().sendCommand(widget.server.name, cmd);
-    _cmdCtrl.clear();
+    
+    try {
+      await context.read<ServerProvider>().sendCommand(widget.server.name, cmd);
+      _cmdCtrl.clear();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to send command: $e'),
+            backgroundColor: AppColors.offline,
+          ),
+        );
+      }
+    }
   }
 }
 
@@ -1046,13 +1059,51 @@ class _ModsTabState extends State<_ModsTab> {
   }
 
   void _pickAndUploadMod(BuildContext context, ServerProvider sp) async {
-    // Note: This would typically use file_picker
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('File selection would happen here. Uploading to server...'),
-        backgroundColor: AppColors.grassGreen,
-      ),
-    );
+    try {
+      // 1. Just call the picker directly. 
+      // Modern Android (11, 12, 13, 14) doesn't need storage permissions for the SYSTEM PICKER.
+      FilePickerResult? result = await FilePicker.platform.pickFiles(
+        type: FileType.any,
+        allowMultiple: false,
+      );
+
+      if (result != null && result.files.single.path != null) {
+        final filePath = result.files.single.path!;
+        final fileName = result.files.single.name;
+        
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Uploading $fileName...'),
+              backgroundColor: AppColors.gold,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+
+        // 2. Perform upload
+        await sp.uploadMod(widget.server.name, filePath);
+
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('✓ $fileName uploaded successfully!'),
+              backgroundColor: AppColors.grassGreen,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (context.mounted) {
+        // If it really was a permission issue, the catch will show it here
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: AppColors.offline,
+          ),
+        );
+      }
+    }
   }
 
   void _confirmDelete(BuildContext context, ServerProvider sp, String filename) async {

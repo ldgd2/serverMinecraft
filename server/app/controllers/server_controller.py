@@ -134,8 +134,10 @@ class ServerController:
     async def send_command(self, name: str, command: str):
         process = server_service.get_process(name)
         if process:
-            await process.write(command)
-            BitacoraService.add_log_background("ADMIN", "SERVER_COMMAND", f"Sent command to {name}: {command}")
+            # Strip leading slash if present (commands via stdin shouldn't have it)
+            clean_cmd = command.lstrip('/')
+            await process.write(clean_cmd)
+            BitacoraService.add_log_background("ADMIN", "SERVER_COMMAND", f"Sent command to {name}: {clean_cmd}")
             return True
         return False
     

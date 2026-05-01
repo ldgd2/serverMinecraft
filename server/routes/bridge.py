@@ -9,7 +9,8 @@ from database.models.user import User
 from fastapi import WebSocket, WebSocketDisconnect
 from core.broadcaster import broadcaster
 
-router = APIRouter(prefix="/api/v1/bridge", tags=["Minecraft Bridge"])
+router = APIRouter(prefix="/bridge", tags=["Minecraft Bridge"])
+ws_router = APIRouter(prefix="/ws", tags=["Minecraft Bridge WS"])
 logger = logging.getLogger("uvicorn")
 
 # --- Gestión de Conexiones Activas ---
@@ -121,7 +122,7 @@ async def receive_player_state(state: PlayerState, user: User = Depends(verify_a
 
 # --- WebSocket Bridge (Comandos en Tiempo Real) ---
 
-@router.websocket("/ws")
+@ws_router.websocket("/bridge")
 async def websocket_bridge(websocket: WebSocket, db: Session = Depends(get_db)):
     # Extraer API Key del Header (en Java Mod se puede enviar)
     api_key = websocket.headers.get("x-api-key")

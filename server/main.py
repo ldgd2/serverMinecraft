@@ -119,6 +119,7 @@ api_v1_router.include_router(versions.router)
 api_v1_router.include_router(players.router)
 api_v1_router.include_router(player_auth.router)
 api_v1_router.include_router(bridge.router)
+api_v1_router.include_router(bridge.ws_router)
 
 app.include_router(api_v1_router)
 

@@ -11,43 +11,44 @@ public class ModCommands {
     
     public static void init() {
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
-            dispatcher.register(CommandManager.literal("bridge")
-                .requires(source -> source.hasPermissionLevel(4))
-                // /bridge url <url>
-                .then(CommandManager.literal("url")
-                    .then(CommandManager.argument("value", StringArgumentType.string())
-                        .executes(context -> {
-                            String newUrl = StringArgumentType.getString(context, "value");
-                            ModConfig.setBackendUrl(newUrl);
-                            if (MineBridge.getBackendClient() != null) {
-                                MineBridge.getBackendClient().updateBaseUrl(newUrl);
-                            }
-                            context.getSource().sendFeedback(() -> Text.literal("§a[MineBridge] URL del Backend actualizada."), true);
-                            return 1;
-                        })
+            
+            // Base command: /minebridge (and alias /bridge)
+            for (String cmdLiteral : new String[]{"minebridge", "bridge"}) {
+                dispatcher.register(CommandManager.literal(cmdLiteral)
+                    .requires(source -> source.hasPermissionLevel(4))
+                    
+                    // Option 1: url <url> or set-url <url>
+                    .then(CommandManager.literal("url")
+                        .then(CommandManager.argument("value", StringArgumentType.greedyString())
+                            .executes(context -> updateUrl(context.getSource(), StringArgumentType.getString(context, "value")))
+                        )
                     )
-                )
-                // /bridge key <key>
-                .then(CommandManager.literal("key")
-                    .then(CommandManager.argument("value", StringArgumentType.string())
-                        .executes(context -> {
-                            String newKey = StringArgumentType.getString(context, "value");
-                            ModConfig.setApiKey(newKey);
-                            if (MineBridge.getBackendClient() != null) {
-                                MineBridge.getBackendClient().updateApiKey(newKey);
-                            }
-                            context.getSource().sendFeedback(() -> Text.literal("§a[MineBridge] API Key actualizada."), true);
-                            return 1;
-                        })
+                    .then(CommandManager.literal("set-url")
+                        .then(CommandManager.argument("value", StringArgumentType.greedyString())
+                            .executes(context -> updateUrl(context.getSource(), StringArgumentType.getString(context, "value")))
+                        )
                     )
-                )
-                // /bridge test (alias de /testconnect)
-                .then(CommandManager.literal("test")
-                    .executes(context -> executeTest(context.getSource()))
-                )
-            );
+                    
+                    // Option 2: key <key> or set-key <key>
+                    .then(CommandManager.literal("key")
+                        .then(CommandManager.argument("value", StringArgumentType.greedyString())
+                            .executes(context -> updateKey(context.getSource(), StringArgumentType.getString(context, "value")))
+                        )
+                    )
+                    .then(CommandManager.literal("set-key")
+                        .then(CommandManager.argument("value", StringArgumentType.greedyString())
+                            .executes(context -> updateKey(context.getSource(), StringArgumentType.getString(context, "value")))
+                        )
+                    )
+                    
+                    // Option 3: test
+                    .then(CommandManager.literal("test")
+                        .executes(context -> executeTest(context.getSource()))
+                    )
+                );
+            }
 
-            // Alias directo: /testconnect
+            // Global direct alias: /testconnect
             dispatcher.register(CommandManager.literal("testconnect")
                 .requires(source -> source.hasPermissionLevel(4))
                 .executes(context -> executeTest(context.getSource()))
@@ -55,30 +56,56 @@ public class ModCommands {
         });
     }
 
+    private static int updateUrl(net.minecraft.server.command.ServerCommandSource source, String newUrl) {
+        ModConfig.setBackendUrl(newUrl);
+        if (MineBridge.getBackendClient() != null) {
+            MineBridge.getBackendClient().updateBaseUrl(newUrl);
+        }
+        source.sendFeedback(() -> Text.literal("§a[MineBridge] URL del Backend actualizada a: §f" + newUrl), true);
+        return 1;
+    }
+
+    private static int updateKey(net.minecraft.server.command.ServerCommandSource source, String newKey) {
+        ModConfig.setApiKey(newKey);
+        if (MineBridge.getBackendClient() != null) {
+            MineBridge.getBackendClient().updateApiKey(newKey);
+        }
+        source.sendFeedback(() -> Text.literal("§a[MineBridge] API Key actualizada correctamente."), true);
+        return 1;
+    }
+
     private static int executeTest(net.minecraft.server.command.ServerCommandSource source) {
-        source.sendFeedback(() -> Text.literal("§e[MineBridge] Probando conexión..."), false);
+        source.sendFeedback(() -> Text.literal("§e[MineBridge] Probando conexión con el Backend..."), false);
         
         if (MineBridge.getBackendClient() == null) {
-            source.sendError(Text.literal("§c[MineBridge] El cliente de red no está inicializado."));
+            source.sendError(Text.literal("§c[MineBridge] ERROR: El cliente de red no está inicializado. Usa /minebridge set-url primero."));
             return 0;
         }
 
-        MineBridge.getBackendClient().testConnection().thenAccept(result -> {
-            switch (result) {
-                case "SUCCESS":
-                    source.sendFeedback(() -> Text.literal("§a[MineBridge] ¡Conexión Exitosa! El backend respondió correctamente."), true);
-                    break;
-                case "CONFIG_ERROR":
-                    source.sendError(Text.literal("§c[MineBridge] Error: Configuración incompleta. Usa /bridge url y /bridge key."));
-                    break;
-                case "UNAUTHORIZED":
-                    source.sendError(Text.literal("§c[MineBridge] Error 401: API Key inválida o rechazada por el backend."));
-                    break;
-                default:
-                    source.sendError(Text.literal("§c[MineBridge] Fallo en la conexión: " + result));
-                    break;
-            }
-        });
+        try {
+            MineBridge.getBackendClient().testConnection().thenAccept(result -> {
+                if (result == null) return;
+                switch (result) {
+                    case "SUCCESS":
+                        source.sendFeedback(() -> Text.literal("§a[MineBridge] ✅ ¡Conexión Exitosa!"), true);
+                        break;
+                    case "CONFIG_ERROR":
+                        source.sendError(Text.literal("§c[MineBridge] ❌ Error: Configuración incompleta."));
+                        break;
+                    case "UNAUTHORIZED":
+                        source.sendError(Text.literal("§c[MineBridge] ❌ Error 401: API Key inválida."));
+                        break;
+                    default:
+                        source.sendError(Text.literal("§c[MineBridge] ❌ Fallo en la conexión: " + result));
+                        break;
+                }
+            }).exceptionally(ex -> {
+                source.sendError(Text.literal("§c[MineBridge] ❌ Error de red: " + ex.getMessage()));
+                return null;
+            });
+        } catch (Exception e) {
+            source.sendError(Text.literal("§c[MineBridge] ❌ Error al iniciar la prueba: " + e.getMessage()));
+        }
         return 1;
     }
 }

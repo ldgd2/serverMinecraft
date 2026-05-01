@@ -18,11 +18,13 @@ public abstract class ServerPlayerEntityMixin {
         String killerName = source.getAttacker() != null ? source.getAttacker().getName().getString() : "environment";
         String cause = source.getName();
         
-        MineBridge.getBackendClient().notifyPlayerDeath(
-            player.getName().getString(),
-            cause,
-            killerName
-        );
+        if (MineBridge.getBackendClient() != null) {
+            MineBridge.getBackendClient().notifyPlayerDeath(
+                player.getName().getString(),
+                cause,
+                killerName
+            );
+        }
     }
 
     @Inject(method = "tick", at = @At("TAIL"))
@@ -31,7 +33,7 @@ public abstract class ServerPlayerEntityMixin {
         
         // Every 5 seconds (100 ticks) send state update to backend
         tickCounter++;
-        if (tickCounter >= 100) {
+        if (tickCounter >= 100 && MineBridge.getBackendClient() != null) {
             tickCounter = 0;
             MineBridge.getBackendClient().notifyPlayerState(
                 player.getName().getString(),

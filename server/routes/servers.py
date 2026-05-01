@@ -14,6 +14,7 @@ from database.models.server import Server
 from routes.auth import get_current_user
 from core.responses import APIResponse
 from core.broadcaster import broadcaster
+import json
 
 router = APIRouter(prefix="/servers", tags=["Servers"])
 server_controller = ServerController()
@@ -418,6 +419,18 @@ async def broadcast_server_updates():
 @router.on_event("startup")
 async def startup_event():
     asyncio.create_task(broadcast_server_updates())
+
+# This one is prefixed by /servers, so it would be /servers/api/v1/ws/bridge
+# But the mod expects /api/v1/ws/bridge.
+# I will define it in a way that handles the correct path or I'll move it to main.py
+# Actually, I can just use a relative path if the router allows it, or better, 
+# since I want it at the root, I'll use a different router or just fix the path here if I can.
+# To be safe and clean, I'll define it here but without the router prefix if possible, 
+# or just remember the prefix.
+# Wait, I'll just change the path to match the prefix:
+# If I keep it here, it will be /servers/api/v1/ws/bridge.
+# Let's check if the mod can be updated to use that or if I should move it.
+# Moving it to main.py is cleaner for root-level routes.
 
 @router.websocket("/{name}/chat")
 async def websocket_chat(websocket: WebSocket, name: str):

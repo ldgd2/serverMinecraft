@@ -22,8 +22,8 @@ public abstract class PlayerEntityMixin {
                 String itemName = stack.getItem().getTranslationKey();
                 int amount = stack.getCount();
                 
-                // Only send to backend if amount > 0
-                if (amount > 0) {
+                // Only send to backend if amount > 0 and client is ready
+                if (amount > 0 && MineBridge.getBackendClient() != null) {
                     MineBridge.getBackendClient().notifyStatUpdate(
                         player.getName().getString(), 
                         "item_pickup", 
