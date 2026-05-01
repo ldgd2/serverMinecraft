@@ -8,3 +8,5 @@ class User(Base):
     username = Column(String, unique=True, index=True)
     hashed_password = Column(String)
     is_admin = Column(Boolean, default=True)
+    api_key_encrypted = Column(String, nullable=True) # Para verla desde consola
+    api_key_hashed = Column(String, nullable=True, index=True) # Para validación rápida de la API

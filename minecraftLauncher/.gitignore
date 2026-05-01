@@ -1,18 +1,35 @@
-.env
-*.pyc
+# Python bytecode
 __pycache__/
-venv/
-data/skin_cache/
-*.log
-launch_command.log
-settings.json
-empaquetar.py
+*.py[cod]
+*$py.class
 
-# PyInstaller build artifacts
+# Virtual environments
+venv/
+.venv/
+env/
+.env
+
+# Builds and Distributions
 build/
 dist/
+*.spec
 
-*.exe
+# Logs
+*.log
+logs/
 
+# Cache
+.skin_cache/
+skin_cache/
+.cache/
 
+# Local configuration & IDEs
+config/settings.json
+.vscode/
+.idea/
+*.swp
+*.swo
 
+# OS files
+.DS_Store
+Thumbs.db

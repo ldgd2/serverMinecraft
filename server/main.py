@@ -35,7 +35,7 @@ class EnvFileHandler(FileSystemEventHandler):
 
 # Router Imports
 # Router Imports
-from routes import auth, servers, system, files, mods, worlds, audit, versions, players, player_auth
+from routes import auth, servers, system, files, mods, worlds, audit, versions, players, player_auth, bridge
 
 app = FastAPI(title="Minecraft Server Manager")
 
@@ -117,6 +117,7 @@ api_v1_router.include_router(audit.router)
 api_v1_router.include_router(versions.router)
 api_v1_router.include_router(players.router)
 api_v1_router.include_router(player_auth.router)
+api_v1_router.include_router(bridge.router)
 
 app.include_router(api_v1_router)
 
