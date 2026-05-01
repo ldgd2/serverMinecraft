@@ -153,6 +153,7 @@ public class BackendClient {
             
             HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(baseUrl + endpoint))
+                .version(HttpClient.Version.HTTP_1_1) // Double check version here
                 .header("Content-Type", "application/json")
                 .header("X-API-Key", apiKey)
                 .POST(HttpRequest.BodyPublishers.ofString(jsonBody))

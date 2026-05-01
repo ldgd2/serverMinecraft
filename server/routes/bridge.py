@@ -35,15 +35,7 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
-async def verify_api_key(request: Request, x_api_key: str = Header(...), db: Session = Depends(get_db)):
-    # Log for debugging
-    body = await request.body()
-    print(f"--- BRIDGE DEBUG ---")
-    print(f"Method: {request.method} | Path: {request.url.path}")
-    print(f"X-API-Key: {x_api_key[:10]}...")
-    print(f"Body: {body.decode(errors='replace')}")
-    print(f"--------------------")
-
+async def verify_api_key(x_api_key: str = Header(...), db: Session = Depends(get_db)):
     # Sacar hash de la llave recibida
     hashed_received = hashlib.sha256(x_api_key.encode()).hexdigest()
     
@@ -114,40 +106,44 @@ async def test_connection(user: User = Depends(verify_api_key)):
     return {"status": "success", "message": f"Conexion exitosa. Vinculado a: {user.username}"}
 
 @router.post("/events")
-async def receive_event(event: BridgeEvent, user: User = Depends(verify_api_key)):
-    print(f"DEBUG: Received Bridge Event: {event.dict()}")
-    logger.info(f"[MineBridge] Evento de {user.username}: {event.player} -> {event.type}")
+async def receive_event(event: dict, user: User = Depends(verify_api_key)):
+    print(f"DEBUG: Received Bridge Event: {event}")
+    player = event.get("player", "Unknown")
+    event_type = event.get("type", "unknown")
+    logger.info(f"[MineBridge] Evento de {user.username}: {player} -> {event_type}")
     
     # Notificar a la App (Chat de sistema)
-    msg = f"{event.player} {event.type.replace('_', ' ')}"
-    if event.type == "death" and event.cause:
-        msg = f"{event.player} murió por {event.cause}"
+    msg = f"{player} {event_type.replace('_', ' ')}"
+    if event_type == "death" and event.get("cause"):
+        msg = f"{player} murió por {event.get('cause')}"
         
     await broadcaster.broadcast_chat(user.username, "System", msg, is_system=True)
     return {"status": "ok"}
 
 @router.post("/stats")
-async def receive_stat(stat: BridgeStat, user: User = Depends(verify_api_key)):
-    print(f"DEBUG: Received Bridge Stat: {stat.dict()}")
-    # logger.info(f"[MineBridge] Stats ({user.username}): {stat.player} {stat.stat}")
+async def receive_stat(stat: dict, user: User = Depends(verify_api_key)):
+    # print(f"DEBUG: Received Bridge Stat: {stat}")
     return {"status": "ok"}
 
 @router.post("/chat")
-async def receive_chat(chat: BridgeChat, user: User = Depends(verify_api_key)):
-    print(f"DEBUG: Received Bridge Chat: {chat.dict()}")
-    logger.info(f"[MineBridge] Chat sync for {user.username}: <{chat.player}> {chat.message}")
+async def receive_chat(chat: dict, user: User = Depends(verify_api_key)):
+    print(f"DEBUG: Received Bridge Chat: {chat}")
+    player = chat.get("player", "Unknown")
+    message = chat.get("message", "")
+    logger.info(f"[MineBridge] Chat sync for {user.username}: <{player}> {message}")
     
     # Retransmitir a la App en tiempo real
-    await broadcaster.broadcast_chat(user.username, chat.player, chat.message)
+    await broadcaster.broadcast_chat(user.username, player, message)
     return {"status": "ok"}
 
 @router.post("/status")
-async def receive_status(status: BridgeStatus, user: User = Depends(verify_api_key)):
-    logger.info(f"[MineBridge] Server {user.username} Status: {status.state}")
+async def receive_status(status: dict, user: User = Depends(verify_api_key)):
+    state = status.get("state", "UNKNOWN")
+    logger.info(f"[MineBridge] Server {user.username} Status: {state}")
     return {"status": "ok"}
 
 @router.post("/status/player")
-async def receive_player_state(state: PlayerState, user: User = Depends(verify_api_key)):
+async def receive_player_state(state: dict, user: User = Depends(verify_api_key)):
     return {"status": "ok"}
 
 # --- WebSocket Bridge (Comandos en Tiempo Real) ---
