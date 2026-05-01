@@ -1,37 +1,36 @@
 class VersionModel {
-  final String id;
+  final int id;
   final String name;
-  final String type; // 'release' | 'snapshot' | 'old_beta'
+  final String loaderType;
+  final String mcVersion;
+  final String loaderVersion;
+  final int fileSize;
   final bool isDownloaded;
-  final DateTime? releaseTime;
+  final String? localPath;
 
   const VersionModel({
     required this.id,
     required this.name,
-    required this.type,
+    required this.loaderType,
+    required this.mcVersion,
+    required this.loaderVersion,
+    required this.fileSize,
     this.isDownloaded = false,
-    this.releaseTime,
+    this.localPath,
   });
 
   factory VersionModel.fromJson(Map<String, dynamic> json) => VersionModel(
-        id: json['id'] ?? json['name'] ?? '',
-        name: json['name'] ?? json['id'] ?? '',
-        type: json['type'] ?? 'release',
-        isDownloaded: json['is_downloaded'] ?? false,
-        releaseTime: json['release_time'] != null ? DateTime.tryParse(json['release_time']) : null,
+        id: json['id'] is int ? json['id'] : int.tryParse(json['id']?.toString() ?? '0') ?? 0,
+        name: json['name'] ?? '',
+        loaderType: json['loader_type'] ?? 'VANILLA',
+        mcVersion: json['mc_version'] ?? '',
+        loaderVersion: json['loader_version'] ?? '',
+        fileSize: json['file_size'] ?? 0,
+        isDownloaded: json['downloaded'] ?? false,
+        localPath: json['local_path'],
       );
 
-  bool get isRelease => type == 'release';
-  bool get isSnapshot => type == 'snapshot';
-
-  String get typeLabel {
-    switch (type) {
-      case 'release': return 'Release';
-      case 'snapshot': return 'Snapshot';
-      case 'old_beta': return 'Beta';
-      default: return type;
-    }
-  }
+  String get typeLabel => loaderType.toUpperCase();
 }
 
 class ModLoaderModel {

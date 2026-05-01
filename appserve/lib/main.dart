@@ -6,6 +6,7 @@ import 'core/theme/app_theme.dart';
 import 'core/providers/app_providers.dart';
 import 'features/auth/screens/login_screen.dart';
 import 'features/home/screens/home_screen.dart';
+import 'features/servers/screens/create_server_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -51,6 +52,7 @@ class MinecraftManagerApp extends StatelessWidget {
         '/splash': (_) => const SplashScreen(),
         '/login': (_) => const LoginScreen(),
         '/': (_) => const HomeScreen(),
+        '/servers/create': (_) => const CreateServerScreen(),
       },
     );
   }

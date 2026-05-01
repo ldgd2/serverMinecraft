@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import '../constants/app_constants.dart';
@@ -66,6 +67,7 @@ class ServerProvider extends ChangeNotifier {
   final _serverService = ServerService();
   WebSocketChannel? _consoleChannel;
   WebSocketChannel? _statusChannel;
+  WebSocketChannel? _globalStatusChannel;
 
   List<ServerModel> _servers = [];
   ServerModel? _selectedServer;
@@ -73,6 +75,7 @@ class ServerProvider extends ChangeNotifier {
   String? _error;
   String _consoleLogs = '';
   Map<String, dynamic> _systemStats = {};
+  Map<String, dynamic> _creationStats = {};
 
   List<ServerModel> get servers => _servers;
   ServerModel? get selectedServer => _selectedServer;
@@ -80,6 +83,7 @@ class ServerProvider extends ChangeNotifier {
   String? get error => _error;
   String get consoleLogs => _consoleLogs;
   Map<String, dynamic> get systemStats => _systemStats;
+  Map<String, dynamic> get creationStats => _creationStats;
 
   int get onlineCount => _servers.where((s) => s.isOnline).length;
   int get offlineCount => _servers.where((s) => s.isOffline).length;
@@ -90,6 +94,8 @@ class ServerProvider extends ChangeNotifier {
     notifyListeners();
     try {
       _servers = await _serverService.getServers();
+      await loadCreationStats();
+      _connectToGlobalStatus();
     } catch (e) {
       _error = 'Failed to load servers';
     } finally {
@@ -127,6 +133,55 @@ class ServerProvider extends ChangeNotifier {
     _statusChannel = null;
   }
 
+  void _closeGlobalWebSocket() {
+    _globalStatusChannel?.sink.close();
+    _globalStatusChannel = null;
+  }
+
+  void _connectToGlobalStatus() {
+    if (_globalStatusChannel != null) return;
+
+    final wsUrl = AppConstants.baseUrl.replaceFirst('http', 'ws');
+    _globalStatusChannel = WebSocketChannel.connect(
+      Uri.parse('$wsUrl/servers/ws/status-updates'),
+    );
+
+    _globalStatusChannel!.stream.listen((message) {
+      try {
+        final data = jsonDecode(message);
+        if (data['type'] == 'server_update') {
+          final List updates = data['servers'];
+          for (var update in updates) {
+            final name = update['name'];
+            final updateData = update['data'];
+            
+            final index = _servers.indexWhere((s) => s.name == name);
+            if (index != -1) {
+              _servers[index] = _servers[index].copyWith(
+                status: updateData['status'],
+                cpuUsage: (updateData['cpu'] ?? 0.0).toDouble(),
+                ramUsage: updateData['ram'] ?? 0,
+                diskUsage: updateData['disk'] ?? 0,
+                currentPlayers: updateData['players'] ?? 0,
+              );
+              
+              if (_selectedServer?.name == name) {
+                _selectedServer = _servers[index];
+              }
+            }
+          }
+          notifyListeners();
+        }
+      } catch (e) {
+        debugPrint('Global Status WS Error: $e');
+      }
+    }, onDone: () {
+      _globalStatusChannel = null;
+    }, onError: (e) {
+      _globalStatusChannel = null;
+    });
+  }
+
   void _connectToConsole(String name) {
     final wsUrl = AppConstants.baseUrl.replaceFirst('http', 'ws');
     _consoleChannel = WebSocketChannel.connect(
@@ -151,7 +206,29 @@ class ServerProvider extends ChangeNotifier {
     );
 
     _statusChannel!.stream.listen((message) {
-      // Background status updates could be handled here
+      try {
+        final data = jsonDecode(message);
+        final stats = data['stats'];
+        
+        if (_selectedServer != null && _selectedServer!.name == name) {
+          _selectedServer = _selectedServer!.copyWith(
+            status: stats['status'] ?? stats['state'], // Backend uses 'status' in some places and 'state' in others
+            cpuUsage: (stats['cpu_usage_percent'] ?? stats['cpu'] ?? 0.0).toDouble(),
+            ramUsage: stats['ram_usage_mb'] ?? stats['ram'] ?? 0,
+            diskUsage: stats['disk_usage_mb'] ?? stats['disk'] ?? 0,
+            currentPlayers: data['count'] ?? stats['players'] ?? 0,
+          );
+          
+          // Also update in main list
+          final index = _servers.indexWhere((s) => s.name == name);
+          if (index != -1) {
+            _servers[index] = _selectedServer!;
+          }
+          notifyListeners();
+        }
+      } catch (e) {
+        debugPrint('Status WS Decode Error: $e');
+      }
     }, onError: (e) {
       debugPrint('Status WS Error: $e');
     });
@@ -160,6 +237,7 @@ class ServerProvider extends ChangeNotifier {
   @override
   void dispose() {
     _closeWebSockets();
+    _closeGlobalWebSocket();
     super.dispose();
   }
 
@@ -197,6 +275,13 @@ class ServerProvider extends ChangeNotifier {
     } catch (_) {}
   }
 
+  Future<void> loadCreationStats() async {
+    try {
+      _creationStats = await _serverService.getActiveCreations();
+      notifyListeners();
+    } catch (_) {}
+  }
+
   Future<ServerModel> createServer(Map<String, dynamic> data) async {
     final server = await _serverService.createServer(data);
     _servers.add(server);
@@ -219,71 +304,62 @@ class ServerProvider extends ChangeNotifier {
 class VersionProvider extends ChangeNotifier {
   final _versionService = VersionService();
 
-  List<VersionModel> _versions = [];
-  List<VersionModel> _downloadedVersions = [];
-  List<ModLoaderModel> _modLoaders = [];
+  List<VersionModel> _installedVersions = [];
+  List<String> _remoteVersions = [];
   bool _isLoading = false;
   String? _error;
 
-  List<VersionModel> get versions => _versions;
-  List<VersionModel> get downloadedVersions => _downloadedVersions;
-  List<ModLoaderModel> get modLoaders => _modLoaders;
+  List<VersionModel> get installedVersions => _installedVersions;
+  List<String> get remoteVersions => _remoteVersions;
   bool get isLoading => _isLoading;
   String? get error => _error;
 
-  Future<void> loadVersions({String? type}) async {
+  Future<void> loadInstalledVersions() async {
     _isLoading = true;
     _error = null;
     notifyListeners();
     try {
-      _versions = await _versionService.getVersions(type: type);
-      _downloadedVersions = await _versionService.getDownloadedVersions();
+      _installedVersions = await _versionService.getInstalledVersions();
     } catch (e) {
-      _error = 'Failed to load versions';
+      _error = 'Failed to load installed versions';
     } finally {
       _isLoading = false;
       notifyListeners();
     }
   }
 
-  Future<void> downloadVersion(String versionId) async {
-    try {
-      await _versionService.downloadVersion(versionId);
-      await loadVersions();
-    } catch (e) {
-      _error = 'Failed to download version';
-      notifyListeners();
-    }
-  }
-
-  Future<void> loadModLoaders(String type, {String? mcVersion}) async {
+  Future<void> loadRemoteVersions(String loaderType) async {
     _isLoading = true;
+    _error = null;
     notifyListeners();
     try {
-      _modLoaders = await _versionService.getModLoaders(type, minecraftVersion: mcVersion);
+      _remoteVersions = await _versionService.getRemoteVersions(loaderType);
     } catch (e) {
-      _error = 'Failed to load mod loaders';
+      _error = 'Failed to load remote versions';
     } finally {
       _isLoading = false;
       notifyListeners();
     }
   }
 
-  Future<void> installModLoader({
-    required String type,
-    required String loaderVersion,
-    required String minecraftVersion,
+  Future<void> downloadVersion({
+    required String loaderType,
+    required String mcVersion,
+    String loaderVersionId = 'latest',
   }) async {
     _isLoading = true;
     notifyListeners();
     try {
-      await _versionService.installModLoader(
-        type: type,
-        loaderVersion: loaderVersion,
-        minecraftVersion: minecraftVersion,
+      await _versionService.downloadVersion(
+        loaderType: loaderType,
+        mcVersion: mcVersion,
+        loaderVersionId: loaderVersionId,
       );
+      // Wait a bit to ensure the backend registers it as downloading
+      await Future.delayed(const Duration(seconds: 1));
+      await loadInstalledVersions();
     } catch (e) {
-      _error = 'Failed to install mod loader';
+      _error = 'Failed to download version: $e';
     } finally {
       _isLoading = false;
       notifyListeners();

@@ -60,4 +60,13 @@ class ServerService {
       return {};
     }
   }
+
+  Future<Map<String, dynamic>> getActiveCreations() async {
+    try {
+      final res = await _client.get('/servers/creations/active');
+      return Map<String, dynamic>.from(res.data['data']);
+    } catch (_) {
+      return {};
+    }
+  }
 }

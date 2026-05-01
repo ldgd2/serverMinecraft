@@ -60,8 +60,7 @@ class ServerService:
         motd: str = "A Minecraft Server",
         progress_callback = None
     ):
-
-        if name in self.servers:
+        if name in self.servers or db.query(Server).filter(Server.name == name).first():
             raise ValueError("Server already exists")
             
         # 0. Port Check & Auto-Assign
@@ -71,17 +70,46 @@ class ServerService:
         retries = 10
         original_port = port
         while port in used_ports or not self.is_port_free(port):
-            print(f"Port {port} in use. Finding new port...")
             port = random.randint(25565, 25600)
             retries -= 1
             if retries <= 0:
                  raise ValueError(f"Could not find a free port. Requested {original_port} was taken.")
                  
-        if port != original_port:
-             print(f"Assigned new port: {port}")
+        # 1. Create DB Record
+        new_server = Server(
+            name=name, 
+            version=version, 
+            ram_mb=ram_mb, 
+            port=port,
+            online_mode=online_mode, 
+            motd=motd,
+            mod_loader=mod_loader,
+            cpu_cores=cpu_cores,
+            disk_mb=disk_mb,
+            max_players=max_players,
+            status="CREATING"
+        )
+        db.add(new_server)
+        db.commit()
+        db.refresh(new_server)
 
-        if progress_callback: progress_callback(10, "Located version components")
+        # 2. Setup Files (Synchronous in this method for backward compatibility)
+        self.setup_server_files(db, new_server, progress_callback=progress_callback)
+        
+        return new_server
 
+    def setup_server_files(self, db: Session, server: Server, progress_callback=None):
+        name = server.name
+        version = server.version
+        mod_loader = server.mod_loader.upper()
+        port = server.port
+        ram_mb = server.ram_mb
+        online_mode = server.online_mode
+        disk_mb = server.disk_mb
+        max_players = server.max_players
+        motd = server.motd
+
+        if progress_callback: progress_callback(10, "Locating version components")
 
         # 1. Locate Source Jar
         versions_root = os.path.abspath("source/versions")
@@ -97,14 +125,14 @@ class ServerService:
                 if files:
                     source_jar = os.path.join(parent_dir, files[0])
                 else:
-                     raise ValueError(f"Version {version} for {mod_loader} not found (No JAR file). Please download it first.")
+                     raise ValueError(f"Version {version} for {mod_loader} not found (No JAR file).")
             else:
-                 raise ValueError(f"Version {version} for {mod_loader} not found. Please download it first.")
+                 raise ValueError(f"Version {version} for {mod_loader} not found.")
 
         # 2. Check Disk Space
         jar_size = os.path.getsize(source_jar)
         if jar_size > (disk_mb * 1024 * 1024):
-             raise ValueError(f"Server JAR ({jar_size/1024/1024:.2f}MB) exceeds allocated disk space ({disk_mb}MB)")
+             raise ValueError(f"Server JAR exceeds allocated disk space")
 
         # 3. Create Server Directory
         server_dir = os.path.join(self.base_dir, name)
@@ -112,107 +140,58 @@ class ServerService:
         
         if progress_callback: progress_callback(30, "Creating server directory structure")
 
-        
         # 4. Copy Jar
         dest_jar = os.path.join(server_dir, "server.jar")
         shutil.copy2(source_jar, dest_jar)
         
         if progress_callback: progress_callback(50, "Copying JAR file into place")
 
-        
         # --- FORGE SPECIFIC INSTALLATION ---
-        if mod_loader.upper() == "FORGE":
-            print(f"INFO: Running Forge Installer for {name}...")
-            
-            # Auto-Download Logic
-            if not os.path.exists(source_jar) and "-" in version:
-                print(f"INFO: Installer not found locally. Attempting download for {version}...")
-                download_url = f"https://maven.minecraftforge.net/net/minecraftforge/forge/{version}/forge-{version}-installer.jar"
-                try:
-                    self._download_file(download_url, dest_jar)
-                    print(f"INFO: Downloaded Forge Installer {version}")
-                except Exception as dl_err:
-                     print(f"WARNING: Automatic download failed: {dl_err}. Assuming existing 'server.jar' is correct or will fail.")
-
+        if mod_loader == "FORGE":
             try:
-                # 3. Install in text mode
                 install_cmd = ["java", "-jar", "server.jar", "--installServer"]
-                
                 with open(os.path.join(server_dir, "install.log"), "w") as log_file:
-                     if progress_callback: progress_callback(60, "Running Forge Installer (this may take 1-2 minutes)")
-                     subprocess.run(
-                        install_cmd, 
-                        cwd=server_dir, 
-                        check=True, 
-                        stdout=log_file,
-                        stderr=subprocess.STDOUT,
-                        input=b"\n" 
-                    )
+                     if progress_callback: progress_callback(60, "Running Forge Installer")
+                     subprocess.run(install_cmd, cwd=server_dir, check=True, stdout=log_file, stderr=subprocess.STDOUT, input=b"\n")
                 
-                print(f"INFO: Forge installation completed for {name}")
                 if progress_callback: progress_callback(80, "Forge installation completed")
-
                 
-                # 4. Clean up installer
+                # Clean up installer
                 has_run_script = os.path.exists(os.path.join(server_dir, "run.bat")) or os.path.exists(os.path.join(server_dir, "run.sh"))
-                
                 if has_run_script:
-                    try:
-                        os.remove(dest_jar)
+                    try: os.remove(dest_jar)
                     except: pass
                 else:
-                    # Legacy Forge logic
                     jars = [f for f in os.listdir(server_dir) if f.endswith(".jar") and f != "server.jar" and "installer" not in f]
                     if jars:
-                        os.remove(dest_jar) # Remove installer
+                        os.remove(dest_jar)
                         os.rename(os.path.join(server_dir, jars[0]), dest_jar)
-                        print(f"INFO: Legacy Forge detected. Renamed {jars[0]} to server.jar")
-                
-            except subprocess.CalledProcessError as e:
-                print(f"ERROR: Forge installation failed. Check install.log.")
-                raise Exception(f"Forge installation failed.")
+            except Exception as e:
+                raise Exception(f"Forge installation failed: {e}")
         
         # 5. Create EULA
         with open(os.path.join(server_dir, "eula.txt"), "w") as f:
             f.write("eula=true\n")
             
         # 6. Create server.properties
-        props = f"""server-port={port}
-max-players={max_players}
-motd={motd}
-online-mode={'true' if online_mode else 'false'}
-"""
+        props = f"server-port={port}\nmax-players={max_players}\nmotd={motd}\nonline-mode={'true' if online_mode else 'false'}\n"
         with open(os.path.join(server_dir, "server.properties"), "w") as f:
             f.write(props)
 
         if progress_callback: progress_callback(90, "Writing environment configurations")
 
-
-        # 7. Create DB Record
-        new_server = Server(
-            name=name, 
-            version=version, 
-            ram_mb=ram_mb, 
-            port=port,
-            online_mode=online_mode, 
-            motd=motd,
-            mod_loader=mod_loader,
-            cpu_cores=cpu_cores,
-            disk_mb=disk_mb,
-            max_players=max_players,
-            disk_usage=jar_size // (1024*1024) # Int MB
-        )
-        db.add(new_server)
+        # 7. Finalize Record
+        server.status = "OFFLINE"
+        server.disk_usage = jar_size // (1024*1024)
         db.commit()
-        db.refresh(new_server)
+        db.refresh(server)
 
-        # Use the new helper method to create the process instance
-        instance = self._create_process(new_server)
+        # 8. Create Process
+        instance = self._create_process(server)
         self.servers[name] = instance
         
         if progress_callback: progress_callback(100, "Server created successfully")
-        return new_server
-
+        return server
 
     def _create_process(self, server_db: Server) -> MinecraftProcess:
         """Create a MinecraftProcess instance from database model"""

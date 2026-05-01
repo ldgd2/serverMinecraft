@@ -4,63 +4,37 @@ import '../models/version_model.dart';
 class VersionService {
   final _client = ApiClient.instance;
 
-  /// List all available Minecraft versions (cached from Mojang manifest)
-  Future<List<VersionModel>> getVersions({String? type}) async {
-    final params = <String, dynamic>{};
-    if (type != null) params['type'] = type;
-    final res = await _client.get('/versions/', params: params);
-    return (res.data as List).map((e) => VersionModel.fromJson(e)).toList();
+  /// List installed/downloaded versions
+  Future<List<VersionModel>> getInstalledVersions({bool grouped = false}) async {
+    final res = await _client.get('/versions/', params: {'grouped': grouped});
+    if (grouped) {
+      // Not typically used this way in VersionProvider directly, but supported
+      return [];
+    }
+    return (res.data['data'] as List).map((e) => VersionModel.fromJson(e)).toList();
   }
 
-  /// List locally downloaded versions
-  Future<List<VersionModel>> getDownloadedVersions() async {
-    final res = await _client.get('/versions/downloaded');
-    return (res.data as List).map((e) => VersionModel.fromJson(e)).toList();
+  /// Get remote versions for a specific loader (vanilla, paper, forge, fabric)
+  Future<List<String>> getRemoteVersions(String loaderType) async {
+    final res = await _client.get('/versions/remote/$loaderType');
+    final data = res.data['data'] as Map<String, dynamic>;
+    if (data.containsKey('versions')) {
+      return List<String>.from(data['versions']);
+    }
+    return [];
   }
 
-  /// Trigger download of a Minecraft version on the server
-  Future<Map<String, dynamic>> downloadVersion(String versionId) async {
-    final res = await _client.post('/versions/$versionId/download');
-    return Map<String, dynamic>.from(res.data);
-  }
-
-  /// Delete a downloaded version
-  Future<void> deleteVersion(String versionId) async {
-    await _client.delete('/versions/$versionId');
-  }
-
-  // ─── MOD LOADERS ──────────────────────────────────────────────────────────
-
-  /// List available mod loaders for a given Minecraft version
-  Future<List<ModLoaderModel>> getModLoaders(String type, {String? minecraftVersion}) async {
-    final params = <String, dynamic>{'type': type};
-    if (minecraftVersion != null) params['mc_version'] = minecraftVersion;
-    final res = await _client.get('/mod-loaders/', params: params);
-    return (res.data as List).map((e) => ModLoaderModel.fromJson(e)).toList();
-  }
-
-  /// Install a mod loader on the server for a specific version
-  Future<Map<String, dynamic>> installModLoader({
-    required String type,
-    required String loaderVersion,
-    required String minecraftVersion,
+  /// Trigger download of a version
+  Future<String> downloadVersion({
+    required String loaderType,
+    required String mcVersion,
+    String loaderVersionId = 'latest',
   }) async {
-    final res = await _client.post('/mod-loaders/install', data: {
-      'type': type,
-      'loader_version': loaderVersion,
-      'minecraft_version': minecraftVersion,
+    final res = await _client.post('/versions/download', data: {
+      'loader_type': loaderType,
+      'mc_version': mcVersion,
+      'loader_version_id': loaderVersionId,
     });
-    return Map<String, dynamic>.from(res.data);
-  }
-
-  /// Get currently installed mod loaders
-  Future<List<ModLoaderModel>> getInstalledModLoaders() async {
-    final res = await _client.get('/mod-loaders/installed');
-    return (res.data as List).map((e) => ModLoaderModel.fromJson(e)).toList();
-  }
-
-  /// Remove an installed mod loader
-  Future<void> removeModLoader(String id) async {
-    await _client.delete('/mod-loaders/$id');
+    return res.data['data']['task_id'] as String;
   }
 }

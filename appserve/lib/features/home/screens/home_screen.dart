@@ -9,6 +9,8 @@ import 'package:appserve/features/servers/screens/servers_screen.dart';
 import 'package:appserve/features/system/screens/system_screen.dart';
 import 'package:appserve/features/settings/screens/settings_screen.dart';
 import 'package:appserve/features/system/screens/version_manager_screen.dart';
+import 'package:appserve/shared/utils/mc_dialogs.dart';
+import 'package:appserve/shared/widgets/mc_cards.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -242,11 +244,11 @@ class _DashboardTab extends StatelessWidget {
         final stats = sp.systemStats;
         return Row(
           children: [
-            Expanded(child: _StatCard(label: 'CPU', value: stats['cpu_percent'] != null ? '${stats['cpu_percent']}%' : '--', icon: Icons.memory, color: AppColors.diamond)),
+            Expanded(child: McStatCard(label: 'CPU', value: stats['cpu_percent'] != null ? '${stats['cpu_percent']}%' : '--', icon: Icons.memory, color: AppColors.diamond)),
             const SizedBox(width: 10),
-            Expanded(child: _StatCard(label: 'RAM', value: stats['ram_percent'] != null ? '${stats['ram_percent']}%' : '--', icon: Icons.storage, color: AppColors.gold)),
+            Expanded(child: McStatCard(label: 'RAM', value: stats['ram_percent'] != null ? '${stats['ram_percent']}%' : '--', icon: Icons.storage, color: AppColors.gold)),
             const SizedBox(width: 10),
-            Expanded(child: _StatCard(label: 'DISK', value: stats['disk_percent'] != null ? '${stats['disk_percent']}%' : '--', icon: Icons.sd_storage, color: AppColors.emerald)),
+            Expanded(child: McStatCard(label: 'DISK', value: stats['disk_percent'] != null ? '${stats['disk_percent']}%' : '--', icon: Icons.sd_storage, color: AppColors.emerald)),
           ],
         );
       },
@@ -256,11 +258,11 @@ class _DashboardTab extends StatelessWidget {
   Widget _buildQuickActions(BuildContext context) {
     return Row(
       children: [
-        Expanded(child: _QuickActionCard(icon: Icons.add_circle_outline, label: 'New Server', color: AppColors.grassGreen, onTap: () => Navigator.pushNamed(context, '/servers/create'))),
+        Expanded(child: McActionCard(icon: Icons.add_circle_outline, label: 'New Server', color: AppColors.grassGreen, onTap: () => Navigator.pushNamed(context, '/servers/create'))),
         const SizedBox(width: 10),
-        Expanded(child: _QuickActionCard(icon: Icons.download_for_offline_outlined, label: 'Versions', color: AppColors.diamond, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const VersionManagerScreen())))),
+        Expanded(child: McActionCard(icon: Icons.download_for_offline_outlined, label: 'Versions', color: AppColors.diamond, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const VersionManagerScreen())))),
         const SizedBox(width: 10),
-        Expanded(child: _QuickActionCard(icon: Icons.refresh, label: 'Refresh', color: AppColors.lapis, onTap: () => context.read<ServerProvider>().loadServers())),
+        Expanded(child: McActionCard(icon: Icons.refresh, label: 'Refresh', color: AppColors.lapis, onTap: () => context.read<ServerProvider>().loadServers())),
       ],
     );
   }
@@ -323,84 +325,19 @@ class _DashboardTab extends StatelessWidget {
     );
   }
 
-  void _showLogoutDialog(BuildContext context, AuthProvider auth) {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: AppColors.backgroundCard,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: AppColors.border)),
-        title: const Text('Sign Out', style: TextStyle(color: AppColors.textPrimary)),
-        content: const Text('Are you sure you want to sign out?', style: TextStyle(color: AppColors.textSecondary)),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel', style: TextStyle(color: AppColors.textMuted))),
-          TextButton(
-            onPressed: () async {
-              await auth.logout();
-              if (context.mounted) Navigator.pushReplacementNamed(context, '/login');
-            },
-            child: const Text('Sign Out', style: TextStyle(color: AppColors.offline)),
-          ),
-        ],
-      ),
+  void _showLogoutDialog(BuildContext context, AuthProvider auth) async {
+    final confirmed = await McDialogs.showConfirm(
+      context,
+      title: 'Sign Out',
+      message: 'Are you sure you want to sign out?',
+      confirmLabel: 'Sign Out',
+      isDanger: true,
     );
+
+    if (confirmed) {
+      await auth.logout();
+      if (context.mounted) Navigator.pushReplacementNamed(context, '/login');
+    }
   }
 }
 
-class _StatCard extends StatelessWidget {
-  final String label;
-  final String value;
-  final IconData icon;
-  final Color color;
-
-  const _StatCard({required this.label, required this.value, required this.icon, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return McCard(
-      padding: const EdgeInsets.all(14),
-      borderColor: color.withValues(alpha: 0.2),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, size: 18, color: color),
-          const SizedBox(height: 8),
-          Text(value, style: TextStyle(color: color, fontSize: 20, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 2),
-          Text(label, style: const TextStyle(color: AppColors.textMuted, fontSize: 11, letterSpacing: 0.5)),
-        ],
-      ),
-    ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.1, end: 0);
-  }
-}
-
-class _QuickActionCard extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final Color color;
-  final VoidCallback onTap;
-
-  const _QuickActionCard({required this.icon, required this.label, required this.color, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return McCard(
-      onTap: onTap,
-      padding: const EdgeInsets.symmetric(vertical: 16),
-      child: Column(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(icon, size: 20, color: color),
-          ),
-          const SizedBox(height: 8),
-          Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.w600)),
-        ],
-      ),
-    );
-  }
-}

@@ -66,11 +66,12 @@ class ServerController:
         )
 
         if server:
-             # Audit Log
-             # Assuming we have a username context available or default to system/admin for now
-             # In a real app, we'd pass the current_user to these controller methods
              BitacoraService.add_log(db, "ADMIN", "SERVER_CREATE", f"Created server {name} ({version})")
         return server
+
+    def setup_server_files(self, db: Session, server: Server, progress_callback=None):
+        """Perform the actual file operations for a server record that already exists"""
+        return server_service.setup_server_files(db, server, progress_callback=progress_callback)
 
     def update_server(self, db: Session, name: str, data: Dict[str, Any]) -> Optional[Server]:
         server = db.query(Server).filter(Server.name == name).first()

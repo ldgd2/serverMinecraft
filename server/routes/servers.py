@@ -17,12 +17,33 @@ router = APIRouter(prefix="/servers", tags=["Servers"])
 server_controller = ServerController()
 file_controller = FileController()
 
-# In-memory server creation state: { task_id: { status: 'pending'|'creating'|'completed'|'error', progress: 0, details: str, name: str } }
 active_creations: Dict[str, Dict] = {}
 
-def task_create_server(task_id: str, server_data: ServerCreate, host: str):
+class GlobalStatusManager:
+    def __init__(self):
+        self.active_connections: List[WebSocket] = []
+
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.append(websocket)
+
+    def disconnect(self, websocket: WebSocket):
+        if websocket in self.active_connections:
+            self.active_connections.remove(websocket)
+
+    async def broadcast_update(self, data: dict):
+        for connection in self.active_connections:
+            try:
+                await connection.send_json(data)
+            except Exception:
+                pass
+
+global_status_manager = GlobalStatusManager()
+
+def task_create_server(task_id: str, server_id: int, host: str):
     # Create a new session for the background task
     from database.connection import SessionLocal
+    from database.models.server import Server
     db = SessionLocal()
     try:
         def update_progress(percent: int, details: str):
@@ -31,35 +52,43 @@ def task_create_server(task_id: str, server_data: ServerCreate, host: str):
 
         active_creations[task_id]["status"] = "creating"
         
-        server = server_controller.create_server(
+        # Get server data from DB
+        db_server = db.query(Server).filter(Server.id == server_id).first()
+        if not db_server:
+            raise Exception("Server record not found")
+
+        # Call service to do the actual file work
+        # We might need a modified service method or just use the current one if it handles existing records
+        from app.services.minecraft.service import server_service
+        
+        # NOTE: The service's create_server normally creates the DB record.
+        # We will wrap it or handle the logic here.
+        # Actually, let's just use the controller but we need to ensure it doesn't duplicate.
+        # For now, let's assume we call a 'setup_existing_server' or similar.
+        # To avoid massive refactor of service, let's just run the logic manually here or update service.
+        
+        server = server_controller.setup_server_files(
             db, 
-            server_data.name, 
-            server_data.version, 
-            server_data.ram_mb, 
-            server_data.port,
-            server_data.online_mode,
-            mod_loader=server_data.mod_loader,
-            cpu_cores=server_data.cpu_cores,
-            disk_mb=server_data.disk_mb,
-            max_players=server_data.max_players,
-            motd=server_data.motd,
+            db_server,
             progress_callback=update_progress
         )
-        
-        # Log Audit manually inside task since we have db session
-        from app.services.audit_service import AuditService
-        # Create a dummy current_user if needed, or query Admin? 
-        # For background tasks, we can log with Admin context or system context.
-        # AuditService.log_action expects a user object.
-        # We can just skip audit if we don't have user ref inside background task, or pass user_id.
         
         active_creations[task_id]["status"] = "completed"
         active_creations[task_id]["progress"] = 100
         active_creations[task_id]["details"] = "Server created successfully"
         
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         active_creations[task_id]["status"] = "error"
         active_creations[task_id]["error"] = str(e)
+        # Update server status to ERROR in DB
+        try:
+            db_server = db.query(Server).filter(Server.id == server_id).first()
+            if db_server:
+                db_server.status = "ERROR"
+                db.commit()
+        except: pass
     finally:
         db.close()
 
@@ -91,6 +120,33 @@ def create_server(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    # 1. Create DB Record synchronously first
+    try:
+        # Check if exists
+        existing = db.query(Server).filter(Server.name == server_data.name).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="Server with this name already exists")
+            
+        new_server = Server(
+            name=server_data.name,
+            version=server_data.version,
+            ram_mb=server_data.ram_mb,
+            port=server_data.port,
+            online_mode=server_data.online_mode,
+            motd=server_data.motd,
+            mod_loader=server_data.mod_loader,
+            cpu_cores=server_data.cpu_cores,
+            disk_mb=server_data.disk_mb,
+            max_players=server_data.max_players,
+            status="CREATING"
+        )
+        db.add(new_server)
+        db.commit()
+        db.refresh(new_server)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+
     import uuid
     task_id = str(uuid.uuid4())
     active_creations[task_id] = {
@@ -100,12 +156,17 @@ def create_server(
         "name": server_data.name
     }
     
-    background_tasks.add_task(task_create_server, task_id, server_data, request.client.host)
+    background_tasks.add_task(task_create_server, task_id, new_server.id, request.client.host)
     
     # Audit sync BEFORE background starts is fine
     AuditService.log_action(db, current_user, "CREATE_SERVER_START", request.client.host, f"Started creating server {server_data.name}")
     
-    return APIResponse(status="success", message="Server creation started", data={"task_id": task_id})
+    from database.schemas import ServerResponse
+    return APIResponse(
+        status="success", 
+        message="Server creation started", 
+        data=ServerResponse.from_orm(new_server).dict()
+    )
 
 @router.get("/creations/active")
 def get_active_creations(current_user: User = Depends(get_current_user)):
@@ -266,6 +327,66 @@ async def websocket_status(websocket: WebSocket, name: str):
         print(f"[WS DISCONNECT] Status connection closed for: {name} (sent {status_count} updates)")
     except Exception as e:
         print(f"[WS ERROR] Status error for {name}: {e}")
+
+@router.websocket("/ws/status-updates")
+async def global_status_ws(websocket: WebSocket):
+    await global_status_manager.connect(websocket)
+    try:
+        while True:
+            await websocket.receive_text() # Keep alive
+    except WebSocketDisconnect:
+        global_status_manager.disconnect(websocket)
+
+async def broadcast_server_updates():
+    """Background task to broadcast server status/stats changes to all connected clients"""
+    from database.connection import SessionLocal
+    from database.models.server import Server
+    from app.controllers.server_controller import server_controller
+    
+    last_states = {}
+    
+    while True:
+        try:
+            db = SessionLocal()
+            servers = db.query(Server).all()
+            
+            updates = []
+            for s in servers:
+                # Get current runtime data
+                server_controller._inject_runtime_data(s)
+                
+                current = {
+                    "status": s.status,
+                    "cpu": s.cpu_usage,
+                    "ram": s.ram_usage,
+                    "players": s.current_players,
+                    "disk": s.disk_usage
+                }
+                
+                # Compare with last state
+                if s.name not in last_states or last_states[s.name] != current:
+                    updates.append({
+                        "name": s.name,
+                        "data": current
+                    })
+                    last_states[s.name] = current
+            
+            if updates:
+                await global_status_manager.broadcast_update({
+                    "type": "server_update",
+                    "servers": updates
+                })
+            
+            db.close()
+        except Exception as e:
+            print(f"Broadcast Error: {e}")
+        
+        await asyncio.sleep(2) # Update every 2 seconds
+
+# Start the broadcast task on app startup
+@router.on_event("startup")
+async def startup_event():
+    asyncio.create_task(broadcast_server_updates())
 
 @router.websocket("/{name}/chat")
 async def websocket_chat(websocket: WebSocket, name: str):

@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:appserve/core/models/version_model.dart';
 import 'package:appserve/core/providers/app_providers.dart';
 import 'package:appserve/core/theme/app_colors.dart';
 import 'package:appserve/shared/widgets/mc_card.dart';
 import 'package:appserve/shared/widgets/mc_button.dart';
+import 'package:appserve/shared/layouts/mc_screen_layout.dart';
 
 class VersionManagerScreen extends StatefulWidget {
   const VersionManagerScreen({super.key});
@@ -21,7 +21,7 @@ class _VersionManagerScreenState extends State<VersionManagerScreen> with Single
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<VersionProvider>().loadVersions();
+      context.read<VersionProvider>().loadInstalledVersions();
     });
   }
 
@@ -33,121 +33,89 @@ class _VersionManagerScreenState extends State<VersionManagerScreen> with Single
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.backgroundDeep,
-      appBar: AppBar(
-        title: const Text('Version Manager'),
-        bottom: TabBar(
-          controller: _tabController,
-          indicatorColor: AppColors.grassGreen,
-          tabs: const [
-            Tab(text: 'Minecraft Versions'),
-            Tab(text: 'Mod Loaders'),
-          ],
-        ),
+    return McScreenLayout(
+      title: 'Version Manager',
+      bottom: TabBar(
+        controller: _tabController,
+        indicatorColor: AppColors.grassGreen,
+        tabs: const [
+          Tab(text: 'Installed'),
+          Tab(text: 'Download'),
+        ],
       ),
       body: TabBarView(
         controller: _tabController,
         children: const [
-          _MinecraftVersionsTab(),
-          _ModLoadersTab(),
+          _InstalledVersionsTab(),
+          _DownloadVersionsTab(),
         ],
       ),
     );
   }
 }
 
-class _MinecraftVersionsTab extends StatelessWidget {
-  const _MinecraftVersionsTab();
+class _InstalledVersionsTab extends StatelessWidget {
+  const _InstalledVersionsTab();
 
   @override
   Widget build(BuildContext context) {
     return Consumer<VersionProvider>(
       builder: (_, vp, __) {
-        if (vp.isLoading) return const Center(child: CircularProgressIndicator());
-        if (vp.error != null) return Center(child: Text(vp.error!));
-
-        return ListView.builder(
-          padding: const EdgeInsets.all(16),
-          itemCount: vp.versions.length,
-          itemBuilder: (context, index) {
-            final version = vp.versions[index];
-            final isDownloaded = vp.downloadedVersions.any((v) => v.id == version.id);
-
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: McCard(
-                child: Row(
-                  children: [
-                    const Icon(Icons.history_edu, color: AppColors.textSecondary),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(version.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                          Text(version.typeLabel, style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
-                        ],
+        return McAsyncLayout(
+          isLoading: vp.isLoading,
+          error: vp.error,
+          isEmpty: vp.installedVersions.isEmpty,
+          emptyMessage: 'No versions installed.',
+          onRetry: () => context.read<VersionProvider>().loadInstalledVersions(),
+          child: ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: vp.installedVersions.length,
+            itemBuilder: (context, index) {
+              final version = vp.installedVersions[index];
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: McCard(
+                  child: Row(
+                    children: [
+                      const Icon(Icons.dns, color: AppColors.textSecondary),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(version.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                            Text('${version.typeLabel} • ${(version.fileSize / 1024 / 1024).toStringAsFixed(1)} MB', style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
+                          ],
+                        ),
                       ),
-                    ),
-                    if (isDownloaded)
                       const Icon(Icons.check_circle, color: AppColors.online)
-                    else
-                      IconButton(
-                        icon: const Icon(Icons.download, color: AppColors.grassGreenLight),
-                        onPressed: () => _confirmDownload(context, version),
-                      ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-            );
-          },
+              );
+            },
+          ),
         );
       },
     );
   }
-
-  void _confirmDownload(BuildContext context, VersionModel version) {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: AppColors.backgroundCard,
-        title: Text('Download ${version.name}?'),
-        content: const Text('This will download the server files to the VPS.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          TextButton(
-            onPressed: () {
-              context.read<VersionProvider>().downloadVersion(version.id);
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Starting download of ${version.name}...')),
-              );
-            },
-            child: const Text('Download'),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
-class _ModLoadersTab extends StatefulWidget {
-  const _ModLoadersTab();
+class _DownloadVersionsTab extends StatefulWidget {
+  const _DownloadVersionsTab();
 
   @override
-  State<_ModLoadersTab> createState() => _ModLoadersTabState();
+  State<_DownloadVersionsTab> createState() => _DownloadVersionsTabState();
 }
 
-class _ModLoadersTabState extends State<_ModLoadersTab> {
-  String _selectedType = 'paper';
-  String _selectedMcVersion = '1.21';
+class _DownloadVersionsTabState extends State<_DownloadVersionsTab> {
+  String _selectedLoader = 'PAPER';
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<VersionProvider>().loadModLoaders(_selectedType, mcVersion: _selectedMcVersion);
+      context.read<VersionProvider>().loadRemoteVersions(_selectedLoader);
     });
   }
 
@@ -157,73 +125,63 @@ class _ModLoadersTabState extends State<_ModLoadersTab> {
       children: [
         Padding(
           padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Expanded(
-                child: DropdownButtonFormField<String>(
-                  initialValue: _selectedType,
-                  dropdownColor: AppColors.backgroundCard,
-                  items: ['paper', 'fabric', 'forge', 'quilt'].map((t) => DropdownMenuItem(value: t, child: Text(t.toUpperCase()))).toList(),
-                  onChanged: (v) {
-                    setState(() => _selectedType = v!);
-                    context.read<VersionProvider>().loadModLoaders(_selectedType, mcVersion: _selectedMcVersion);
-                  },
-                  decoration: const InputDecoration(labelText: 'Type'),
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: DropdownButtonFormField<String>(
-                  initialValue: _selectedMcVersion,
-                  dropdownColor: AppColors.backgroundCard,
-                  items: ['1.21', '1.20.4', '1.20.1', '1.19.4'].map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(),
-                  onChanged: (v) {
-                    setState(() => _selectedMcVersion = v!);
-                    context.read<VersionProvider>().loadModLoaders(_selectedType, mcVersion: _selectedMcVersion);
-                  },
-                  decoration: const InputDecoration(labelText: 'MC Version'),
-                ),
-              ),
-            ],
+          child: DropdownButtonFormField<String>(
+            initialValue: _selectedLoader,
+            dropdownColor: AppColors.backgroundCard,
+            items: ['VANILLA', 'PAPER', 'FABRIC', 'FORGE'].map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
+            onChanged: (v) {
+              setState(() => _selectedLoader = v!);
+              context.read<VersionProvider>().loadRemoteVersions(_selectedLoader);
+            },
+            decoration: const InputDecoration(labelText: 'Loader Type'),
           ),
         ),
         Expanded(
           child: Consumer<VersionProvider>(
             builder: (_, vp, __) {
-              if (vp.isLoading) return const Center(child: CircularProgressIndicator());
-              if (vp.error != null) return Center(child: Text(vp.error!));
+              return McAsyncLayout(
+                isLoading: vp.isLoading,
+                error: vp.error,
+                isEmpty: vp.remoteVersions.isEmpty,
+                emptyMessage: 'No versions available for this loader.',
+                onRetry: () => context.read<VersionProvider>().loadRemoteVersions(_selectedLoader),
+                child: ListView.builder(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  itemCount: vp.remoteVersions.length,
+                  itemBuilder: (context, index) {
+                    final mcVersion = vp.remoteVersions[index];
+                    final isInstalled = vp.installedVersions.any((v) => v.loaderType.toUpperCase() == _selectedLoader && v.mcVersion == mcVersion);
 
-              return ListView.builder(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                itemCount: vp.modLoaders.length,
-                itemBuilder: (context, index) {
-                  final loader = vp.modLoaders[index];
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: McCard(
-                      child: Row(
-                        children: [
-                          const Icon(Icons.settings_input_component, color: AppColors.gold),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(loader.version, style: const TextStyle(fontWeight: FontWeight.bold)),
-                                Text(loader.type.toUpperCase(), style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
-                              ],
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: McCard(
+                        child: Row(
+                          children: [
+                            const Icon(Icons.cloud_download_outlined, color: AppColors.diamond),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('$_selectedLoader $mcVersion', style: const TextStyle(fontWeight: FontWeight.bold)),
+                                  const Text('Available for download', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+                                ],
+                              ),
                             ),
-                          ),
-                          McButton(
-                            label: 'Install',
-                            onPressed: () => _confirmInstall(context, loader),
-                            isSecondary: true,
-                          ),
-                        ],
+                            if (isInstalled)
+                              const Icon(Icons.check_circle, color: AppColors.online)
+                            else
+                              McButton(
+                                label: 'Download',
+                                onPressed: () => _confirmDownload(context, mcVersion),
+                                isSecondary: true,
+                              ),
+                          ],
+                        ),
                       ),
-                    ),
-                  );
-                },
+                    );
+                  },
+                ),
               );
             },
           ),
@@ -232,28 +190,27 @@ class _ModLoadersTabState extends State<_ModLoadersTab> {
     );
   }
 
-  void _confirmInstall(BuildContext context, ModLoaderModel loader) {
+  void _confirmDownload(BuildContext context, String mcVersion) {
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
         backgroundColor: AppColors.backgroundCard,
-        title: const Text('Install Mod Loader?'),
-        content: Text('This will install ${loader.type.toUpperCase()} ${loader.version} for Minecraft $_selectedMcVersion.'),
+        title: const Text('Download Version?'),
+        content: Text('This will download $_selectedLoader $mcVersion to the server.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
           TextButton(
             onPressed: () {
-              context.read<VersionProvider>().installModLoader(
-                type: loader.type,
-                loaderVersion: loader.version,
-                minecraftVersion: _selectedMcVersion,
+              context.read<VersionProvider>().downloadVersion(
+                loaderType: _selectedLoader,
+                mcVersion: mcVersion,
               );
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Starting installation...')),
+                const SnackBar(content: Text('Download started in background...')),
               );
             },
-            child: const Text('Install'),
+            child: const Text('Download'),
           ),
         ],
       ),
