@@ -58,17 +58,38 @@ class ModService:
             return []
 
         mods = []
-        for f in os.listdir(mods_dir):
-            if f.endswith(".jar") or f.endswith(".zip"):
+        try:
+            for f in os.listdir(mods_dir):
                 file_path = os.path.join(mods_dir, f)
                 stat = os.stat(file_path)
+                is_dir = os.path.isdir(file_path)
+                
                 mods.append({
                     "name": f,
                     "filename": f,
-                    "size": stat.st_size,
-                    "modified": stat.st_mtime
+                    "size": stat.st_size if not is_dir else 0,
+                    "modified": stat.st_mtime,
+                    "is_directory": is_dir,
+                    "extension": os.path.splitext(f)[1].lower() if not is_dir else "folder"
                 })
+        except Exception as e:
+            print(f"Error scanning mods directory: {e}")
+            
         return mods
+
+    async def rename_mod(self, server_name: str, old_name: str, new_name: str) -> bool:
+        mods_dir = self._get_mods_dir(server_name)
+        old_path = os.path.join(mods_dir, old_name)
+        new_path = os.path.join(mods_dir, new_name)
+        
+        # Security check: avoid path traversal
+        if not old_path.startswith(mods_dir) or not new_path.startswith(mods_dir):
+            return False
+            
+        if os.path.exists(old_path):
+            os.rename(old_path, new_path)
+            return True
+        return False
 
     async def upload_mod(self, server_name: str, file: UploadFile):
         mods_dir = self.ensure_mods_dir(server_name)

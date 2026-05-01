@@ -1,3 +1,5 @@
+import 'dart:io';
+import 'package:dio/dio.dart' as dio;
 import '../api/api_client.dart';
 import '../models/server_model.dart';
 
@@ -97,5 +99,35 @@ class ServerService {
 
   Future<void> restartDashboardService() async {
     await _client.post('/system/service/restart');
+  }
+
+  // --- Mod Management ---
+  
+  Future<List<dynamic>> getMods(String serverName) async {
+    final res = await _client.get('/servers/$serverName/mods/');
+    return res.data['data'] as List;
+  }
+
+  Future<void> deleteMod(String serverName, String filename) async {
+    await _client.delete('/servers/$serverName/mods/$filename');
+  }
+
+  Future<void> renameMod(String serverName, String oldName, String newName) async {
+    await _client.put('/servers/$serverName/mods/rename', data: {
+      'old_name': oldName,
+      'new_name': newName
+    });
+  }
+
+  Future<void> uploadMod(String serverName, String filePath) async {
+    final fileName = filePath.split(Platform.pathSeparator).last;
+    final formData = dio.FormData.fromMap({
+      'file': await dio.MultipartFile.fromFile(filePath, filename: fileName),
+    });
+
+    await _client.post(
+      '/servers/$serverName/mods/upload',
+      data: formData,
+    );
   }
 }

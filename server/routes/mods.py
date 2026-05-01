@@ -83,4 +83,19 @@ async def delete_mod(server_name: str, filename: str, loader: str = None, curren
         raise HTTPException(status_code=404, detail="Mod not found")
     return APIResponse(status="success", message="Mod deleted", data=None)
 
+@router.put("/rename")
+async def rename_mod(server_name: str, payload: dict, current_user: User = Depends(get_current_user)):
+    # payload: { old_name: str, new_name: str }
+    old_name = payload.get("old_name")
+    new_name = payload.get("new_name")
+    
+    if not old_name or not new_name:
+        raise HTTPException(status_code=400, detail="Missing old_name or new_name")
+        
+    success = await mod_service.rename_mod(server_name, old_name, new_name)
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to rename mod")
+        
+    return APIResponse(status="success", message="Mod renamed successfully", data=None)
+
 import os

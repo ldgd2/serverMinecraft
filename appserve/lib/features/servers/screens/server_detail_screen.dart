@@ -32,7 +32,7 @@ class _ServerDetailScreenState extends State<ServerDetailScreen>
     super.initState();
     _server = widget.server;
     _tabController =
-        TabController(length: 5, vsync: this, initialIndex: widget.initialTab);
+        TabController(length: 6, vsync: this, initialIndex: widget.initialTab);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<ServerProvider>().selectServer(_server.name);
     });
@@ -104,6 +104,7 @@ class _ServerDetailScreenState extends State<ServerDetailScreen>
           _ConsoleTab(server: _server),
           _ChatTab(server: _server),
           _PlayersTab(server: _server),
+          _ModsTab(server: _server),
           _SettingsTab(server: _server),
         ],
       ),
@@ -126,6 +127,7 @@ class _ServerDetailScreenState extends State<ServerDetailScreen>
           Tab(icon: Icon(Icons.terminal, size: 18), text: 'Console'),
           Tab(icon: Icon(Icons.chat_bubble_outline, size: 18), text: 'Chat'),
           Tab(icon: Icon(Icons.people_outline, size: 18), text: 'Players'),
+          Tab(icon: Icon(Icons.extension_outlined, size: 18), text: 'Mods'),
           Tab(icon: Icon(Icons.settings_outlined, size: 18), text: 'Settings'),
         ],
       ),
@@ -960,6 +962,225 @@ class _PlayerListItem extends StatelessWidget {
                   tooltip: 'Ban',
                 ),
               ]
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Mods Tab ────────────────────────────────────────────────────────────────
+
+class _ModsTab extends StatefulWidget {
+  final ServerModel server;
+  const _ModsTab({required this.server});
+
+  @override
+  State<_ModsTab> createState() => _ModsTabState();
+}
+
+class _ModsTabState extends State<_ModsTab> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<ServerProvider>().loadMods(widget.server.name);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<ServerProvider>(
+      builder: (context, sp, child) {
+        if (sp.isLoadingMods && sp.installedMods.isEmpty) {
+          return const Center(child: CircularProgressIndicator(color: AppColors.grassGreen));
+        }
+
+        return RefreshIndicator(
+          onRefresh: () => sp.loadMods(widget.server.name),
+          color: AppColors.grassGreen,
+          backgroundColor: AppColors.backgroundCard,
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  SectionHeader(title: 'INSTALLED MODS (${sp.installedMods.length})'),
+                  IconButton(
+                    icon: const Icon(Icons.upload_file, color: AppColors.gold),
+                    onPressed: () => _pickAndUploadMod(context, sp),
+                    tooltip: 'Upload Mod',
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              if (sp.installedMods.isEmpty && !sp.isLoadingMods)
+                const McCard(
+                  child: Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(40.0),
+                      child: Column(
+                        children: [
+                          Icon(Icons.extension_off_outlined, size: 48, color: AppColors.textMuted),
+                          SizedBox(height: 16),
+                          Text('No mods found in the mods folder', style: TextStyle(color: AppColors.textMuted)),
+                        ],
+                      ),
+                    ),
+                  ),
+                )
+              else
+                ...sp.installedMods.map((mod) => _ModListItem(
+                      mod: mod,
+                      onDelete: () => _confirmDelete(context, sp, mod['filename']),
+                      onRename: () => _showRenameDialog(context, sp, mod['filename']),
+                    )),
+              const SizedBox(height: 80), // Space for fab-like interaction
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _pickAndUploadMod(BuildContext context, ServerProvider sp) async {
+    // Note: This would typically use file_picker
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('File selection would happen here. Uploading to server...'),
+        backgroundColor: AppColors.grassGreen,
+      ),
+    );
+  }
+
+  void _confirmDelete(BuildContext context, ServerProvider sp, String filename) async {
+    final confirmed = await McDialogs.showConfirm(
+      context,
+      title: 'Delete Mod',
+      message: 'Are you sure you want to permanently delete "$filename"?',
+      confirmLabel: 'Delete',
+      isDanger: true,
+    );
+    if (confirmed) {
+      await sp.deleteMod(widget.server.name, filename);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Mod deleted successfully')));
+      }
+    }
+  }
+
+  void _showRenameDialog(BuildContext context, ServerProvider sp, String filename) {
+    final ctrl = TextEditingController(text: filename);
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.backgroundCard,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: AppColors.border)),
+        title: const Text('Rename/Disable Mod', style: TextStyle(color: AppColors.textPrimary, fontSize: 18)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Renaming to .disabled will deactivate the mod.', style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
+            const SizedBox(height: 16),
+            TextField(
+              controller: ctrl,
+              style: const TextStyle(color: AppColors.textPrimary),
+              decoration: InputDecoration(
+                labelText: 'Filename',
+                labelStyle: const TextStyle(color: AppColors.textMuted),
+                filled: true,
+                fillColor: AppColors.backgroundDeep,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel', style: TextStyle(color: AppColors.textMuted))),
+          TextButton(
+            onPressed: () {
+              sp.renameMod(widget.server.name, filename, ctrl.text);
+              Navigator.pop(context);
+            },
+            child: const Text('Apply', style: TextStyle(color: AppColors.gold, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ModListItem extends StatelessWidget {
+  final dynamic mod;
+  final VoidCallback onDelete;
+  final VoidCallback onRename;
+
+  const _ModListItem({required this.mod, required this.onDelete, required this.onRename});
+
+  @override
+  Widget build(BuildContext context) {
+    final filename = mod['filename'].toString();
+    final isFolder = mod['is_directory'] == true;
+    final isDisabled = filename.endsWith('.disabled') || filename.endsWith('.bak') || filename.endsWith('.off');
+    
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8.0),
+      child: McCard(
+        child: ListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          leading: Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: isFolder ? AppColors.gold.withOpacity(0.1) : (isDisabled ? AppColors.textMuted.withOpacity(0.05) : AppColors.diamond.withOpacity(0.1)),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(
+              isFolder ? Icons.folder_rounded : Icons.extension_rounded,
+              color: isFolder ? AppColors.gold : (isDisabled ? AppColors.textMuted : AppColors.diamond),
+              size: 20,
+            ),
+          ),
+          title: Text(
+            mod['name'],
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: isDisabled ? AppColors.textMuted : AppColors.textPrimary,
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              decoration: isDisabled ? TextDecoration.lineThrough : null,
+            ),
+          ),
+          subtitle: Row(
+            children: [
+              Text(
+                isFolder ? 'Folder' : '${(mod['size'] / 1024 / 1024).toStringAsFixed(2)} MB',
+                style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
+              ),
+              if (isDisabled) ...[
+                const SizedBox(width: 8),
+                const Text('• DISABLED', style: TextStyle(color: AppColors.offline, fontSize: 10, fontWeight: FontWeight.bold)),
+              ]
+            ],
+          ),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.drive_file_rename_outline_rounded, size: 20, color: AppColors.textMuted),
+                onPressed: onRename,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+              ),
+              const SizedBox(width: 12),
+              IconButton(
+                icon: const Icon(Icons.delete_sweep_rounded, size: 20, color: AppColors.offline),
+                onPressed: onDelete,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+              ),
             ],
           ),
         ),

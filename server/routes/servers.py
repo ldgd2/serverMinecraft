@@ -13,6 +13,7 @@ from database.models.user import User
 from database.models.server import Server
 from routes.auth import get_current_user
 from core.responses import APIResponse
+from core.broadcaster import broadcaster
 
 router = APIRouter(prefix="/servers", tags=["Servers"])
 server_controller = ServerController()
@@ -420,20 +421,11 @@ async def startup_event():
 
 @router.websocket("/{name}/chat")
 async def websocket_chat(websocket: WebSocket, name: str):
-    await websocket.accept()
-    print(f"[WS CHAT] Client connected to chat for server: {name}")
-    queue = server_controller.get_console_queue(name)
+    await broadcaster.connect(name, websocket, "chat")
+    print(f"[WS CHAT] Client connected to broadcaster chat for server: {name}")
     
-    if not queue:
-        await websocket.close(code=4004, reason="Server not found")
-        return
-        
-    import re
-    # Match patterns for various server types (Vanilla, Paper, etc)
-    # 1. <Username> msg
-    # 2. [Username] msg (some plugins)
-    chat_pattern = re.compile(r"INFO\]: (?:<|\[)([^>\]]+)(?:>|\]) (.*)")
-    
+    # Keep the logic for console-based chat fallback if needed, or just let the broadcaster handle it
+    # For now, let's keep the client-to-server part
     async def listen_to_client():
         try:
             while True:
@@ -442,12 +434,10 @@ async def websocket_chat(websocket: WebSocket, name: str):
                     username = data.get("username", "Admin")
                     message = data.get("message", "")
                     if message:
-                        # Send to Minecraft server as a formatted message
-                        # We use 'say' or 'tellraw' to make it look official
                         cmd = f'tellraw @a {{"text": "<{username}> {message}", "color": "yellow"}}'
                         await server_controller.send_command(name, cmd)
         except Exception as e:
-            print(f"[WS CHAT] Client listen error: {e}")
+            broadcaster.disconnect(name, websocket, "chat")
 
     async def broadcast_to_client():
         try:

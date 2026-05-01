@@ -83,6 +83,8 @@ class ServerProvider extends ChangeNotifier {
   List<dynamic> _onlinePlayers = [];
   List<dynamic> _bannedUsers = [];
   List<dynamic> _bannedIps = [];
+  List<dynamic> _installedMods = [];
+  bool _isLoadingMods = false;
 
   List<ServerModel> get servers => _servers;
   ServerModel? get selectedServer => _selectedServer;
@@ -96,6 +98,8 @@ class ServerProvider extends ChangeNotifier {
   List<dynamic> get onlinePlayers => _onlinePlayers;
   List<dynamic> get bannedUsers => _bannedUsers;
   List<dynamic> get bannedIps => _bannedIps;
+  List<dynamic> get installedMods => _installedMods;
+  bool get isLoadingMods => _isLoadingMods;
 
   int get onlineCount => _servers.where((s) => s.isOnline).length;
   int get offlineCount => _servers.where((s) => s.isOffline).length;
@@ -425,6 +429,54 @@ class ServerProvider extends ChangeNotifier {
       'username': username,
       'message': message,
     }));
+  }
+
+  // --- Mod Management Methods ---
+
+  Future<void> loadMods(String serverName) async {
+    _isLoadingMods = true;
+    notifyListeners();
+    try {
+      _installedMods = await _serverService.getMods(serverName);
+    } catch (e) {
+      debugPrint('Load Mods Error: $e');
+    } finally {
+      _isLoadingMods = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> uploadMod(String serverName, String filePath) async {
+    _isLoadingMods = true;
+    notifyListeners();
+    try {
+      await _serverService.uploadMod(serverName, filePath);
+      await loadMods(serverName);
+    } catch (e) {
+      debugPrint('Upload Mod Error: $e');
+      rethrow;
+    } finally {
+      _isLoadingMods = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> deleteMod(String serverName, String filename) async {
+    try {
+      await _serverService.deleteMod(serverName, filename);
+      await loadMods(serverName);
+    } catch (e) {
+      debugPrint('Delete Mod Error: $e');
+    }
+  }
+
+  Future<void> renameMod(String serverName, String oldName, String newName) async {
+    try {
+      await _serverService.renameMod(serverName, oldName, newName);
+      await loadMods(serverName);
+    } catch (e) {
+      debugPrint('Rename Mod Error: $e');
+    }
   }
 }
 

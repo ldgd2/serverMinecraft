@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from database.connection import get_db
 from database.models.user import User
 from fastapi import WebSocket, WebSocketDisconnect
+from core.broadcaster import broadcaster
 
 router = APIRouter(prefix="/api/v1/bridge", tags=["Minecraft Bridge"])
 logger = logging.getLogger("uvicorn")
@@ -87,6 +88,13 @@ async def test_connection(user: User = Depends(verify_api_key)):
 @router.post("/events")
 async def receive_event(event: BridgeEvent, user: User = Depends(verify_api_key)):
     logger.info(f"[MineBridge] Evento de {user.username}: {event.player} -> {event.type}")
+    
+    # Notificar a la App (Chat de sistema)
+    msg = f"{event.player} {event.type.replace('_', ' ')}"
+    if event.type == "death" and event.cause:
+        msg = f"{event.player} murió por {event.cause}"
+        
+    await broadcaster.broadcast_chat(user.username, "System", msg, is_system=True)
     return {"status": "ok"}
 
 @router.post("/stats")
@@ -97,6 +105,9 @@ async def receive_stat(stat: BridgeStat, user: User = Depends(verify_api_key)):
 @router.post("/chat")
 async def receive_chat(chat: BridgeChat, user: User = Depends(verify_api_key)):
     logger.info(f"[MineBridge] Chat sync for {user.username}: <{chat.player}> {chat.message}")
+    
+    # Retransmitir a la App en tiempo real
+    await broadcaster.broadcast_chat(user.username, chat.player, chat.message)
     return {"status": "ok"}
 
 @router.post("/status")
