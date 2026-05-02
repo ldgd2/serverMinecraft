@@ -734,34 +734,34 @@ class MinecraftProcess:
                                 except Exception as e:
                                     print(f"ERROR: Failed to sync stats for {username}: {e}")
 
-                        # Broadcast to Chat UI
-                        chat_msg = cleaned_line.split("INFO]: ")[1] if "INFO]: " in cleaned_line else cleaned_line
-                        chat_type = "join" if event['type'] == 'join' else "leave"
-                        if event['type'] == 'kick': chat_type = "leave"
-                        
-                        asyncio.create_task(broadcaster.broadcast_chat(
-                            self.name, 
-                            "System", 
-                            chat_msg, 
-                            is_system=True, 
-                            chat_type=chat_type
-                        ))
+                        # Log-based Broadcast disabled to avoid duplicates (Mod bridge handles this better)
+                        # chat_msg = cleaned_line.split("INFO]: ")[1] if "INFO]: " in cleaned_line else cleaned_line
+                        # chat_type = "join" if event['type'] == 'join' else "leave"
+                        # if event['type'] == 'kick': chat_type = "leave"
+                        # 
+                        # asyncio.create_task(broadcaster.broadcast_chat(
+                        #     self.name, 
+                        #     "System", 
+                        #     chat_msg, 
+                        #     is_system=True, 
+                        #     chat_type=chat_type
+                        # ))
+                        pass
                     
                     # Also broadcast raw console chat if detected (fallback for when mod is not sending events)
-                    elif "]: <" in cleaned_line:
-                        # Extract sender and message from: [HH:MM:SS] [Server thread/INFO]: <Player> Message
-                        try:
-                            parts = cleaned_line.split("]: <", 1)
-                            if len(parts) > 1:
-                                sender_part, message = parts[1].split("> ", 1)
-                                asyncio.create_task(broadcaster.broadcast_chat(
-                                    self.name,
-                                    sender_part,
-                                    message,
-                                    is_system=False,
-                                    chat_type="received"
-                                ))
-                        except: pass
+                    # elif "]: <" in cleaned_line:
+                    #     try:
+                    #         parts = cleaned_line.split("]: <", 1)
+                    #         if len(parts) > 1:
+                    #             sender_part, message = parts[1].split("> ", 1)
+                    #             asyncio.create_task(broadcaster.broadcast_chat(
+                    #                 self.name,
+                    #                 sender_part,
+                    #                 message,
+                    #                 is_system=False,
+                    #                 chat_type="received"
+                    #             ))
+                    #     except: pass
 
                     # Always broadcast to console subscribers
                     for queue in self.log_subscribers:

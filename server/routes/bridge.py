@@ -152,11 +152,13 @@ async def receive_event(event: dict, user: User = Depends(verify_api_key)):
 
         if server:
             # 2. Notificar a la App (Chat de sistema) usando el nombre del servidor
-            msg = f"{player} {event_type.replace('_', ' ')}"
-            if event_type == "death" and event.get("cause"):
-                msg = f"{player} murió por {event.get('cause')}"
-                
-            await broadcaster.broadcast_chat(server.name, "System", msg, is_system=True)
+            # Solo si NO es join o leave, ya que esos los maneja app/routes/minecraft.py con más detalle
+            if event_type not in ["join", "leave"]:
+                msg = f"{player} {event_type.replace('_', ' ')}"
+                if event_type == "death" and event.get("cause"):
+                    msg = f"{player} murió por {event.get('cause')}"
+                    
+                await broadcaster.broadcast_chat(server.name, "System", msg, is_system=True)
             
             # 3. Procesar logros
             # ... rest of logic

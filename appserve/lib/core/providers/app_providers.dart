@@ -421,11 +421,16 @@ class ServerProvider extends ChangeNotifier {
 
     _chatChannel!.stream.listen((message) {
       try {
+        debugPrint('Chat WS Received: $message');
         final data = jsonDecode(message);
         if (data['type'] == 'chat') {
+          // Normalize fields between broadcaster and history API
+          final sender = data['sender'] ?? data['user'] ?? 'Unknown';
+          final text = data['message'] ?? data['text'] ?? '';
+          
           _chatMessages.add({
-            'sender': data['sender'],
-            'message': data['message'],
+            'sender': sender,
+            'message': text,
             'is_system': data['is_system'] ?? false,
             'chat_type': data['chat_type'] ?? 'received',
             'time': DateTime.now().toIso8601String(),
