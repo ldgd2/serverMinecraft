@@ -431,34 +431,48 @@ async def receive_player_state(request: Request, state: dict, db: Session = Depe
 
                 # --- FALLBACK / REFRESH POR COMANDO ---
                 # --- FALLBACK / REFRESH POR COMANDO ---
-                # --- FALLBACK / REFRESH POR COMANDO (Dinámico) ---
-                try:
-                    from app.controllers.server_controller import ServerController
-                    sc = ServerController()
+                # --- ESTRATEGIA DE INYECCIÓN GLOBAL (MineSkin + DB) ---
+                async def signature_and_inject_task():
+                    import aiohttp
+                    p_url = f"http://185.214.134.23:8000/static/skins/{player_name}.png"
                     
-                    # Buscamos el servidor donde está el jugador actualmente
-                    # Si el mod no manda el nombre, lo buscamos en los procesos activos
-                    current_server_name = state.get("server_name")
-                    if not current_server_name:
-                        # Fallback: buscamos el primer servidor que esté corriendo
-                        active_server = db.query(Server).filter(Server.status.in_(["RUNNING", "ONLINE"])).first()
-                        current_server_name = active_server.name if active_server else "MinecraftTest"
-                    
-                    async def final_apply_task():
-                        await asyncio.sleep(5) # Un poco menos de espera es suficiente
-                        p_url = f"http://185.214.134.23:8000/static/skins/{player_name}.png"
-                        
-                        if not injection_success:
-                            print(f"[MineBridge] Forzando skin en {current_server_name} para {player_name}")
-                            # ¡OJO!: En Fabric el comando suele requerir la palabra 'url' antes del link
-                            await sc.send_command(current_server_name, f'skinrestorer set {player_name} url "{p_url}"')
-                            # Como extra, lanzamos el update por si acaso
-                            await asyncio.sleep(1)
-                            await sc.send_command(current_server_name, f"skinrestorer update {player_name}")
-                            
-                    asyncio.create_task(final_apply_task())
-                except Exception as cmd_ex:
-                    print(f"Error en comandos de fallback dinámico: {cmd_ex}")
+                    try:
+                        # 1. Pedimos a MineSkin que firme nuestra URL
+                        print(f"[MineBridge] Solicitando firma a MineSkin para {player_name}...")
+                        async with aiohttp.ClientSession() as session:
+                            async with session.post(
+                                "https://api.mineskin.org/generate/url",
+                                json={"url": p_url, "name": player_name}
+                            ) as resp:
+                                if resp.status == 200:
+                                    data = await resp.json()
+                                    texture_data = data.get("data", {}).get("texture", {})
+                                    value = texture_data.get("value")
+                                    signature = texture_data.get("signature")
+                                    
+                                    if value and signature:
+                                        print(f"[MineBridge] ¡Firma obtenida! Inyectando en DB Global...")
+                                        from core.skinrestorer_bridge import SkinRestorerBridge
+                                        bridge = SkinRestorerBridge(db)
+                                        bridge.save_skin(player_name, value, signature)
+                                        
+                                        # 2. Refresco opcional por comando (ahora con el alias 'skin')
+                                        try:
+                                            from app.controllers.server_controller import ServerController
+                                            sc = ServerController()
+                                            current_server = state.get("server_name") or "MinecraftTest"
+                                            # 'skin update' es el comando más ligero una vez que la DB tiene los datos
+                                            await sc.send_command(current_server, f"skin update {player_name}")
+                                        except: pass
+                                    else:
+                                        print("[MineBridge] MineSkin no devolvió firma válida.")
+                                else:
+                                    print(f"[MineBridge] Error en MineSkin API: {resp.status}")
+                    except Exception as e:
+                        print(f"[MineBridge] Error en el proceso de firma global: {e}")
+
+                # Lanzamos la tarea en segundo plano
+                asyncio.create_task(signature_and_inject_task())
 
             except Exception as e:
                 print(f"Error procesando raw skin: {e}")
