@@ -5,6 +5,7 @@ from app.services.achievements.processor import AchievementProcessor
 from database.models.players.player import Player
 from database.models.players.player_detail import PlayerDetail
 from database.models.server import Server
+from database.models.server_chat import ServerChat
 from database.models.players.player_achievement import PlayerAchievement
 from core.broadcaster import broadcaster
 from pydantic import BaseModel
