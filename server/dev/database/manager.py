@@ -112,8 +112,23 @@ def auto_update_cmd(message: Optional[str] = typer.Option(None, "--message", "-m
                 res = try_generate()
             
             if res.returncode != 0 and "Multiple head revisions are present" in err_output:
-                progress.update(task, description="[yellow]Detected multiple migration heads. Attempting auto-fix (Stamp)...")
-                subprocess.run([sys.executable, "-m", "alembic", "stamp", "head"], cwd=PROJECT_ROOT)
+                progress.update(task, description="[yellow]Cleaning duplicate migration heads in DB...")
+                from sqlalchemy import text
+                from database.connection import get_engine
+                engine = get_engine()
+                try:
+                    with engine.connect() as conn:
+                        # Get the real head from alembic
+                        heads_res = subprocess.run([sys.executable, "-m", "alembic", "heads"], cwd=PROJECT_ROOT, capture_output=True, text=True)
+                        real_head = heads_res.stdout.split()[0] if heads_res.stdout else None
+                        if real_head:
+                            conn.execute(text("DELETE FROM alembic_version"))
+                            conn.execute(text(f"INSERT INTO alembic_version (version_num) VALUES ('{real_head}')"))
+                            conn.commit()
+                            progress.update(task, description="[green]Database head cleaned and reset.")
+                except Exception as db_err:
+                    console.print(f"[dim red]Deep clean failed: {db_err}[/dim red]")
+                
                 res = try_generate()
 
             if res.returncode != 0:
