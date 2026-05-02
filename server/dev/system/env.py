@@ -152,7 +152,29 @@ def sync_public_ip():
         
         console.print(f"[green]✓ Detected IP: {public_ip}[/green]")
         update_env_variable("APP_URL", new_url)
-        console.print(f"[bold green]✓ .env updated: APP_URL={new_url}[/bold green]")
-        console.print("[dim]Note: You might need to restart the backend service to apply changes.[/dim]")
+        console.print(f"[bold green]✓ Backend .env updated: APP_URL={new_url}[/bold green]")
+        
+        # 3. Also update App (Flutter) .env if it exists
+        # Relative path from server/ to appserve/
+        app_env_path = os.path.abspath(os.path.join(os.getcwd(), "..", "appserve", ".env"))
+        if os.path.exists(app_env_path):
+            try:
+                with open(app_env_path, "r") as f:
+                    app_content = f.read()
+                
+                # Update API_URL in Flutter env
+                new_api_url = f"{new_url}/api/v1"
+                if "API_URL=" in app_content:
+                    app_content = re.sub(r"^API_URL=.*$", f"API_URL={new_api_url}", app_content, flags=re.MULTILINE)
+                else:
+                    app_content += f"\nAPI_URL={new_api_url}\n"
+                
+                with open(app_env_path, "w") as f:
+                    f.write(app_content)
+                console.print(f"[bold green]✓ App .env updated: API_URL={new_api_url}[/bold green]")
+            except Exception as e_app:
+                console.print(f"[yellow]! Could not update App .env: {e_app}[/yellow]")
+        
+        console.print("[dim]Note: You might need to restart the backend and rebuild the App to apply changes.[/dim]")
     except Exception as e:
         console.print(f"[bold red]Failed to sync IP: {e}[/bold red]")
