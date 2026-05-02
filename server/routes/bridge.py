@@ -135,7 +135,7 @@ async def test_connection(user: User = Depends(verify_api_key)):
     return {"status": "success", "message": f"Conexion exitosa. Vinculado a: {user.username}"}
 
 @router.post("/events")
-async def receive_event(event: dict, user: User = Depends(verify_api_key)):
+async def receive_event(event: dict, request: Request, user: User = Depends(verify_api_key)):
     print(f"DEBUG: Received Bridge Event: {event}")
     player = event.get("player", "Unknown")
     event_type = event.get("type", "unknown")
@@ -164,19 +164,42 @@ async def receive_event(event: dict, user: User = Depends(verify_api_key)):
             
             # 3. Procesar logros
             # ... rest of logic
-            player_obj = PlayerService.get_player_by_name(db, server, player)
-            if player_obj:
-                if event_type == "join":
-                    # 1. Incrementar contador de inicios de sesión
-                    AchievementService.process_stat_update(db, player_obj, "login_count", 1)
-                    
-                    # 2. Actualizar fecha de último ingreso
-                    if not player_obj.detail:
-                        from database.models.players.player_detail import PlayerDetail
-                        player_obj.detail = PlayerDetail(player_id=player_obj.id)
-                    
-                    player_obj.detail.last_joined_at = datetime.datetime.utcnow()
-                    db.commit()
+                if player_obj:
+                    if event_type == "join":
+                        # 1. Incrementar contador de inicios de sesión
+                        AchievementService.process_stat_update(db, player_obj, "login_count", 1)
+                        
+                        # 2. Actualizar fecha de último ingreso
+                        if not player_obj.detail:
+                            from database.models.players.player_detail import PlayerDetail
+                            player_obj.detail = PlayerDetail(player_id=player_obj.id)
+                        
+                        player_obj.detail.last_joined_at = datetime.datetime.utcnow()
+                        db.commit()
+
+                        # --- RE-APPLY SKIN ON JOIN ---
+                        try:
+                            import os
+                            skin_path = f"static/skins/{player}.png"
+                            if os.path.exists(skin_path):
+                                from app.controllers.server_controller import ServerController
+                                sc = ServerController()
+                                
+                                # Obtener host dinámicamente de la request o env
+                                app_url = os.environ.get("APP_URL")
+                                if not app_url:
+                                    host = request.headers.get("host", "localhost:8000")
+                                    protocol = "https" if request.url.scheme == "https" else "http"
+                                    app_url = f"{protocol}://{host}"
+                                
+                                skin_url = f"{app_url}/static/skins/{player}.png"
+                                
+                                # Re-aplicar comando en la consola
+                                import asyncio
+                                asyncio.create_task(sc.send_command(server.name, f"skin set {player} {skin_url}"))
+                                print(f"[MineBridge] Re-aplicando skin para {player} via {skin_url}")
+                        except Exception as e:
+                            print(f"[MineBridge] Error al re-aplicar skin: {e}")
                 
                 elif event_type == "leave":
                     # 1. Calcular duración de la sesión si tenemos el join
@@ -367,16 +390,21 @@ async def receive_player_state(state: dict, db: Session = Depends(get_db), user:
                 try:
                     from app.controllers.server_controller import ServerController
                     sc = ServerController()
-                    # Necesitamos la URL pública del servidor. Intentamos obtenerla del host de la request.
-                    host = request.headers.get("host", "localhost:8000")
-                    # Usamos http por defecto si no detectamos https
-                    protocol = "https" if request.url.scheme == "https" else "http"
-                    skin_url = f"{protocol}://{host}/static/skins/{player_name}.png"
+                    
+                    # Obtener host dinámicamente de la request o env
+                    app_url = os.environ.get("APP_URL")
+                    if not app_url:
+                        host = request.headers.get("host", "localhost:8000")
+                        # Usamos http por defecto si no detectamos https
+                        protocol = "https" if request.url.scheme == "https" else "http"
+                        app_url = f"{protocol}://{host}"
+                    
+                    skin_url = f"{app_url}/static/skins/{player_name}.png"
                     
                     # Comando para SkinRestorer: /skin set <player> <url>
-                    # Usamos el controlador para enviarlo a la consola
                     import asyncio
                     asyncio.create_task(sc.send_command(server.name, f"skin set {player_name} {skin_url}"))
+                    print(f"[MineBridge] Aplicando skin inicial via {skin_url}")
                 except Exception as ex:
                     print(f"Error enviando comando de skin: {ex}")
 

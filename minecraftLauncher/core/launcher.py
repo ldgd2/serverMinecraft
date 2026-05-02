@@ -152,6 +152,22 @@ def launch_minecraft(version_id, callback_dict=None):
             config.get("auth_type") != "premium" and bool(config.get("skin_path"))
         )
 
+        # Skin Sync logic: Auto-enable if skin is set and we are in a server
+        force_skin_sync = False
+        if config.get("skin_path") and config.get("server_ip") and config.get("api_url"):
+             force_skin_sync = True
+             
+        if (config.get("enable_skin_sync") or force_skin_sync) and config.get("server_ip") and config.get("api_url"):
+            from core.skin_sync import start_skin_sync_monitor
+            log_file = os.path.join(options["gameDirectory"], "logs", "latest.log")
+            start_skin_sync_monitor(
+                f_log=log_file,
+                ip=config.get("server_ip"),
+                username=options["username"],
+                uuid=options["uuid"],
+                api_url=f"{config.get('api_url')}/bridge/status/player"
+            )
+
         if enable_local_server and config.get("auth_type") != "premium":
             try:
                 from core.skin_server import start_local_skin_server

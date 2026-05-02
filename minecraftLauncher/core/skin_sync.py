@@ -29,12 +29,38 @@ def get_player_info():
     
     return "127.0.0.1", "?? prototype"
 
+def notify_backend(ip_objetivo, username, uuid, url_api):
+    """Envía la información del jugador y su skin al backend."""
+    try:
+        player_ip, player_country = get_player_info()
+        payload = {
+            "player": username,
+            "uuid": uuid if uuid else "",
+            "server_id": config.get("server_id") or 1,
+            "ip": player_ip,
+            "country": player_country if player_country else "??",
+            "os": platform.system(),
+            "skin_base64": get_base64_skin(config.get("skin_path")) or "",
+            "type": "player_state" # Importante para que el bridge lo reconozca
+        }
+        
+        print(f"[*] [SkinSync] Enviando skin de {username} a {url_api}...")
+        response = requests.post(url_api, json=payload, timeout=5)
+        print(f"[+] [SkinSync] API respondio: {response.status_code}")
+        return True
+    except Exception as e:
+        print(f"[-] [SkinSync] Error notificando API: {e}")
+        return False
+
 def cazador_de_ips(ruta_log, ip_objetivo, username, uuid, url_api):
     """
-    Monitorea el log en tiempo real con consumo casi 0. 
-    Solo dispara la API si detecta la ip_objetivo.
+    Monitorea el log en tiempo real. 
     """
     print(f"[SkinSync] Iniciando monitoreo de log para IP: {ip_objetivo}")
+    
+    # Intento inicial proactivo
+    notify_backend(ip_objetivo, username, uuid, url_api)
+
     while not os.path.exists(ruta_log): 
         time.sleep(1)
         
@@ -45,29 +71,14 @@ def cazador_de_ips(ruta_log, ip_objetivo, username, uuid, url_api):
             while True:
                 linea = f.readline()
                 if not linea:
-                    time.sleep(0.5) 
+                    time.sleep(1) 
                     continue
                 
-                if "Connecting to" in linea and ip_objetivo in linea:
-                    print(f"[*] [SkinSync] Conexión detectada a {ip_objetivo}. Avisando al backend...")
-                    try:
-                        player_ip, player_country = get_player_info()
-                        payload = {
-                            "name": username,
-                            "uuid": uuid if uuid else "",
-                            "server_id": config.get("server_id") or 1,
-                            "ip": player_ip,
-                            "country": player_country if player_country else "??",
-                            "os": platform.system(),
-                            "skin_base64": get_base64_skin(config.get("skin_path")) or ""
-                        }
-                        
-                        response = requests.post(url_api, json=payload, timeout=5)
-                        print(f"[+] [SkinSync] API respondio: {response.status_code}")
-                    except Exception as e:
-                        print(f"[-] [SkinSync] Error notificando API: {e}")
-                    
-                    time.sleep(10) # Cooldown
+                # Patrones comunes de conexión en varias versiones
+                if ip_objetivo in linea and ("Connecting to" in linea or "Connecting" in linea):
+                    print(f"[*] [SkinSync] Evento de conexión detectado en log. Re-sincronizando...")
+                    notify_backend(ip_objetivo, username, uuid, url_api)
+                    time.sleep(30) # Cooldown largo para evitar spam
     except Exception as e:
         print(f"[-] [SkinSync] Error en el monitor de log: {e}")
 
