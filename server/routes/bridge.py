@@ -407,7 +407,15 @@ async def receive_player_state(request: Request, state: dict, db: Session = Depe
                 # --- ACTUALIZACIÓN PARA LA APP (Prioridad) ---
                 import time
                 ts = int(time.time())
-                public_head_url = f"http://185.214.134.23:8000/static/heads/{player_name}.png?t={ts}"
+                
+                # Obtener la URL base dinámicamente
+                app_url = os.environ.get("APP_URL")
+                if not app_url:
+                    host = request.headers.get("host", "localhost:8000")
+                    protocol = "https" if request.url.scheme == "https" else "http"
+                    app_url = f"{protocol}://{host}"
+                
+                public_head_url = f"{app_url}/static/heads/{player_name}.png?t={ts}"
                 print(f"[MineBridge] Actualizando DB para App: {player_name} -> {public_head_url}")
                 player.detail.skin_url = public_head_url
                 player.detail.skin_base64 = skin_data
@@ -436,8 +444,14 @@ async def receive_player_state(request: Request, state: dict, db: Session = Depe
                     if injection_success:
                         return  # Premium ya inyectado
 
-                    import aiohttp
-                    p_url = f"http://185.214.134.23:8000/static/skins/{player_name}.png"
+                    # Usar la URL base detectada arriba o del env
+                    app_url = os.environ.get("APP_URL")
+                    if not app_url:
+                        host = request.headers.get("host", "localhost:8000")
+                        protocol = "https" if request.url.scheme == "https" else "http"
+                        app_url = f"{protocol}://{host}"
+                    
+                    p_url = f"{app_url}/static/skins/{player_name}.png"
 
                     try:
                         print(f"[MineBridge] No-Premium: solicitando firma a MineSkin para {player_name}...")

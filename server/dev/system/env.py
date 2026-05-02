@@ -38,6 +38,7 @@ def main(ctx: typer.Context):
             console.print("[1] Run Universal Configurator (Interactive Wizard)")
             console.print("[2] Set a custom unlisted variable")
             console.print("[3] View current .env contents")
+            console.print("[4] Auto-Sync Public IP (Detect and Update APP_URL)")
             console.print("[0] Return to Main Menu")
             
             choice = Prompt.ask("Select an option", choices=["1", "2", "3", "0"], default="1")
@@ -51,6 +52,8 @@ def main(ctx: typer.Context):
                     update_env_variable(key, value)
                 elif choice == "3":
                     view_env()
+                elif choice == "4":
+                    sync_public_ip()
                 elif choice == "0":
                     break
             except Exception as e:
@@ -59,6 +62,13 @@ def main(ctx: typer.Context):
             Prompt.ask("\n[dim]Press Enter to continue...[/dim]")
 
 def run_universal_wizard():
+    # Detect IP for default suggestion
+    try:
+        import urllib.request
+        detected_ip = urllib.request.urlopen('https://api.ipify.org').read().decode('utf8')
+    except:
+        detected_ip = "127.0.0.1"
+
     console.print(Panel(
         "[bold yellow]Universal Configurator[/bold yellow]\n\n"
         "• Press [bold cyan]Enter[/bold cyan] without typing to [green]accept[/green] the default or keep the current value.\n"
@@ -76,6 +86,7 @@ def run_universal_wizard():
         {"key": "API_HOST", "desc": "Host for the FastAPI backend", "default": "0.0.0.0"},
         {"key": "DEFAULT_MINECRAFT_RAM", "desc": "Default RAM allocation for servers", "default": "4096M"},
         {"key": "DEFAULT_MINECRAFT_CORES", "desc": "Default CPU Cores for servers", "default": "6"},
+        {"key": "APP_URL", "desc": "Base URL for the system (used by Mod and App)", "default": f"http://{detected_ip}:8000"},
     ]
     
     for s in settings:
@@ -129,3 +140,19 @@ def view_env():
             console.print(content)
         else:
             console.print("[dim]File is empty.[/dim]")
+
+def sync_public_ip():
+    """Detects public IP and updates APP_URL in .env automatically."""
+    console.print("[cyan]🔍 Detecting public IP...[/cyan]")
+    try:
+        import urllib.request
+        public_ip = urllib.request.urlopen('https://api.ipify.org').read().decode('utf8')
+        api_port = get_env_variable("API_PORT") or "8000"
+        new_url = f"http://{public_ip}:{api_port}"
+        
+        console.print(f"[green]✓ Detected IP: {public_ip}[/green]")
+        update_env_variable("APP_URL", new_url)
+        console.print(f"[bold green]✓ .env updated: APP_URL={new_url}[/bold green]")
+        console.print("[dim]Note: You might need to restart the backend service to apply changes.[/dim]")
+    except Exception as e:
+        console.print(f"[bold red]Failed to sync IP: {e}[/bold red]")

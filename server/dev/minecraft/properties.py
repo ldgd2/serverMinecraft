@@ -178,16 +178,21 @@ def setup_skinrestorer_auto(server_name: str):
     """Detects public IP and configures SkinRestorer for the specified server."""
     console.print(f"[cyan]🚀 Auto-configuring skins for {server_name}...[/cyan]")
     
-    # 1. Detect Public IP
-    try:
-        public_ip = urllib.request.urlopen('https://api.ipify.org').read().decode('utf8')
-        console.print(f"[green]✓ Detected Public IP: {public_ip}[/green]")
-    except Exception as e:
-        console.print(f"[red]Error detecting IP: {e}. Falling back to 127.0.0.1[/red]")
-        public_ip = "127.0.0.1"
+    # 1. Get Base URL from .env
+    from dev.system.env import get_env_variable
+    app_url = get_env_variable("APP_URL")
+    
+    if not app_url:
+        # Fallback to auto-detection if not in .env
+        try:
+            public_ip = urllib.request.urlopen('https://api.ipify.org').read().decode('utf8')
+            app_url = f"http://{public_ip}:8000"
+            console.print(f"[yellow]! APP_URL not found in .env. Using detected IP: {public_ip}[/yellow]")
+        except:
+            app_url = "http://127.0.0.1:8000"
+            console.print("[red]! Could not detect IP. Falling back to localhost.[/red]")
 
     # 2. Path to config.json
-    # server/dev/minecraft/properties.py -> server/servers/{name}/config/skinrestorer/config.json
     base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
     config_path = os.path.join(base_dir, "servers", server_name, "config", "skinrestorer", "config.json")
     
@@ -221,7 +226,7 @@ def setup_skinrestorer_auto(server_name: str):
             {
                 "name": "MineManager",
                 "type": "WEB",
-                "url": f"http://{public_ip}:8000/api/v1/players/skin/%s"
+                "url": f"{app_url}/api/v1/players/skin/%s"
             }
         ]
         
@@ -230,7 +235,7 @@ def setup_skinrestorer_auto(server_name: str):
             json.dump(config, f, indent=2)
             
         console.print(f"[bold green]✓ SkinRestorer configured successfully in {server_name}![/bold green]")
-        console.print(f"[dim]Provider: MineManager -> http://{public_ip}:8000[/dim]")
+        console.print(f"[dim]Provider: MineManager -> {app_url}[/dim]")
         
     except Exception as e:
         console.print(f"[bold red]Error updating JSON: {e}[/bold red]")
