@@ -405,7 +405,9 @@ async def receive_player_state(request: Request, state: dict, db: Session = Depe
                     print(f"Error generando cabeza de skin: {e}")
                 
                 # --- ACTUALIZACIÓN PARA LA APP (Prioridad) ---
-                public_head_url = f"http://185.214.134.23:8000/static/heads/{player_name}.png"
+                import time
+                ts = int(time.time())
+                public_head_url = f"http://185.214.134.23:8000/static/heads/{player_name}.png?t={ts}"
                 print(f"[MineBridge] Actualizando DB para App: {player_name} -> {public_head_url}")
                 player.detail.skin_url = public_head_url
                 player.detail.skin_base64 = skin_data
@@ -439,16 +441,17 @@ async def receive_player_state(request: Request, state: dict, db: Session = Depe
                             print(f"[MineBridge] Esperando 10s para aplicar skin a {player_name}...")
                             await asyncio.sleep(10)
                             
-                            # 1. Usar la imagen local (La más segura porque ya la copiaste a la carpeta del mod)
-                            # Hacemos que el jugador ejecute el comando simulando que lo escribió él mismo
-                            print(f"[MineBridge] Aplicando skin via execute as {player_name}")
-                            await sc.send_command(target_server_name, f"execute as {player_name} run skin {player_name}")
+                            # 1. Recargar el mod correctamente
+                            await sc.send_command(target_server_name, "fabrictailor reload")
                             
-                            # 2. Alternativa con la URL Pública por si falla la local
-                            await sc.send_command(target_server_name, f"execute as {player_name} run skin http://185.214.134.23:8000/static/skins/{player_name}.png")
+                            # 2. Comando directo de consola (Nivel 4 de permisos)
+                            # Intentamos primero con la skin local ya inyectada en la carpeta del mod
+                            print(f"[MineBridge] Aplicando skin local via fabrictailor para {player_name}")
+                            await sc.send_command(target_server_name, f"fabrictailor set {player_name} {player_name}")
                             
-                            # 3. Algunas versiones de FabricTailor requieren la palabra clave 'url'
-                            await sc.send_command(target_server_name, f"execute as {player_name} run skin url http://185.214.134.23:8000/static/skins/{player_name}.png")
+                            # 3. Fallback: URL Pública por si el mod no refrescó la carpeta a tiempo
+                            public_skin_url = f"http://185.214.134.23:8000/static/skins/{player_name}.png"
+                            await sc.send_command(target_server_name, f"fabrictailor set {player_name} {public_skin_url}")
                             
                         asyncio.create_task(apply_skin_task())
                 except Exception as ex:
