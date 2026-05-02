@@ -455,6 +455,10 @@ async def receive_player_state(request: Request, state: dict, db: Session = Depe
                             # a MineSkin sin problemas de IPs o firewalls.
                             skin_path = f"/root/app/serverMinecraft/server/static/skins/{player_name}.png"
                             
+                            # Definimos las rutas y URLs
+                            skin_path = f"/root/app/serverMinecraft/server/static/skins/{player_name}.png"
+                            public_url = f"http://185.214.134.23:8000/static/skins/{player_name}.png"
+                            
                             # --- RÁFAGA DE COMANDOS MAESTRA (Con contexto de jugador) ---
                             # Intentamos ejecutarlo COMO el jugador para saltar restricciones de consola
                             await sc.send_command(target_server_name, f"execute as {player_name} run skin set {skin_path}")
