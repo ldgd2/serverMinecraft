@@ -261,11 +261,11 @@ def setup_skinrestorer_auto(server_name: str):
         with open(config_path, "r") as f:
             config = json.load(f)
         
-        # Update autoFetch
+        # Disable autoFetch to prevent SkinRestorer from failing and showing errors
+        # Our MineBridge mod already handles the injection on join.
         config["join"] = config.get("join", {})
         config["join"]["autoFetch"] = {
-            "enabled": True,
-            "overrideExisting": True,
+            "enabled": False, # Disabled to avoid conflicts and "not found" errors
             "provider": "MineManager"
         }
         
@@ -273,19 +273,49 @@ def setup_skinrestorer_auto(server_name: str):
         if "providers" not in config:
             config["providers"] = {}
         
-        # Disable others, add MineManager to custom
+        # Disable built-in providers to avoid redundant lookups
         for p in ["mojang", "ely_by", "mineskin"]:
             if p in config["providers"]:
                 config["providers"][p]["enabled"] = False
         
+        # Correct structure for Custom Provider in SkinRestorer
         config["providers"]["custom"] = [
             {
                 "name": "MineManager",
                 "type": "web",
-                "client": "web",
                 "url": f"{app_url}/api/v1/players/skin/%s"
             }
         ]
+
+        # --- DATABASE SYNC: Force SkinRestorer to use our PostgreSQL ---
+        from core.config import settings
+        db_url = os.environ.get("DATABASE_URL", "postgresql://user:pass@localhost/dbname")
+        
+        # Parse simple URL (postgresql://user:pass@host:port/db)
+        try:
+            # Using basic string splits to avoid extra dependencies
+            parts = db_url.split("://")[1].split("@")
+            user_pass = parts[0].split(":")
+            host_port_db = parts[1].split("/")
+            host_port = host_port_db[0].split(":")
+            
+            db_user = user_pass[0]
+            db_pass = user_pass[1] if len(user_pass) > 1 else ""
+            db_host = host_port[0]
+            db_port = int(host_port[1]) if len(host_port) > 1 else 5432
+            db_name = host_port_db[1]
+
+            config["storage"] = {
+                "type": "POSTGRESQL",
+                "host": db_host,
+                "port": db_port,
+                "database": db_name,
+                "username": db_user,
+                "password": db_pass
+            }
+            console.print(f"[dim]✓ SkinRestorer Storage synced with PostgreSQL ({db_host})[/dim]")
+        except Exception as db_err:
+            console.print(f"[yellow]! Could not auto-sync DB config: {db_err}[/yellow]")
         
         # Save
         with open(config_path, "w") as f:

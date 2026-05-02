@@ -472,32 +472,10 @@ async def receive_player_state(request: Request, state: dict, db: Session = Depe
                                         signature = texture_data.get("signature")
                                         
                                         if value and signature:
-                                            print(f"[MineBridge] Firma OK. Inyectando en player_details para {player_name}...")
+                                            print(f"[MineBridge] Firma OK. Inyectando en player_details y SkinRestorer para {player_name}...")
                                             from sqlalchemy import text
-                                            # Crear VIEWs para que SkinRestorer lea (sin tablas extra)
-                                            db.execute(text("""
-                                                CREATE OR REPLACE VIEW "Skins" AS
-                                                SELECT
-                                                    pd.player_id AS "ID",
-                                                    CONCAT('custom_', p.name) AS "Name",
-                                                    pd.skin_value AS "Value",
-                                                    COALESCE(pd.skin_signature, '') AS "Signature",
-                                                    'none' AS "Timestamp"
-                                                FROM player_details pd
-                                                JOIN players p ON pd.player_id = p.id
-                                                WHERE pd.skin_value IS NOT NULL
-                                            """))
-                                            db.execute(text("""
-                                                CREATE OR REPLACE VIEW "Players" AS
-                                                SELECT
-                                                    p.id AS "ID",
-                                                    p.name AS "Nick",
-                                                    CONCAT('custom_', p.name) AS "Skin"
-                                                FROM players p
-                                                JOIN player_details pd ON pd.player_id = p.id
-                                                WHERE pd.skin_value IS NOT NULL
-                                            """))
-                                            # Guardar en player_details (tabla existente, sin caos)
+                                            
+                                            # 1. Guardar en player_details (nuestra DB)
                                             db.execute(text("""
                                                 UPDATE player_details
                                                 SET skin_value = :value,
@@ -508,7 +486,21 @@ async def receive_player_state(request: Request, state: dict, db: Session = Depe
                                                 )
                                             """), {"value": value, "signature": signature, "username": player_name})
                                             db.commit()
-                                            print(f"[MineBridge] ✅ Skin de {player_name} guardada en player_details (sin tablas extra).")
+
+                                            # 2. Inyectar en SkinRestorer (para que el mod lo reconozca oficialmente)
+                                            try:
+                                                try:
+                                                    from core.skinrestorer_bridge import set_skin_in_skinrestorer
+                                                except ImportError:
+                                                    from server.core.skinrestorer_bridge import set_skin_in_skinrestorer
+                                                
+                                                sr_success = set_skin_in_skinrestorer(db, player_name, value, signature)
+                                                if sr_success:
+                                                    print(f"[MineBridge] ✅ Skin de {player_name} sincronizada con SkinRestorer.")
+                                            except Exception as sr_ex:
+                                                print(f"[MineBridge] Error inyectando en SkinRestorer: {sr_ex}")
+
+                                            print(f"[MineBridge] ✅ Proceso completo para {player_name}.")
 
                                         else:
                                             print("[MineBridge] MineSkin no devolvió datos válidos.")
