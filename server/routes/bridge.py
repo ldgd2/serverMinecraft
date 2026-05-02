@@ -470,53 +470,50 @@ async def receive_player_state(request: Request, state: dict, db: Session = Depe
                                         texture_data = data_json.get("data", {}).get("texture", {})
                                         value = texture_data.get("value")
                                         signature = texture_data.get("signature")
-                                    else:
-                                        print(f"[MineBridge] MineSkin API error: {resp.status}")
-                                        return
+                                        
+                                        if value and signature:
+                                            print(f"[MineBridge] Firma OK. Inyectando en player_details para {player_name}...")
+                                            from sqlalchemy import text
+                                            # Crear VIEWs para que SkinRestorer lea (sin tablas extra)
+                                            db.execute(text("""
+                                                CREATE OR REPLACE VIEW "Skins" AS
+                                                SELECT
+                                                    pd.player_id AS "ID",
+                                                    CONCAT('custom_', p.name) AS "Name",
+                                                    pd.skin_value AS "Value",
+                                                    COALESCE(pd.skin_signature, '') AS "Signature",
+                                                    'none' AS "Timestamp"
+                                                FROM player_details pd
+                                                JOIN players p ON pd.player_id = p.id
+                                                WHERE pd.skin_value IS NOT NULL
+                                            """))
+                                            db.execute(text("""
+                                                CREATE OR REPLACE VIEW "Players" AS
+                                                SELECT
+                                                    p.id AS "ID",
+                                                    p.name AS "Nick",
+                                                    CONCAT('custom_', p.name) AS "Skin"
+                                                FROM players p
+                                                JOIN player_details pd ON pd.player_id = p.id
+                                                WHERE pd.skin_value IS NOT NULL
+                                            """))
+                                            # Guardar en player_details (tabla existente, sin caos)
+                                            db.execute(text("""
+                                                UPDATE player_details
+                                                SET skin_value = :value,
+                                                    skin_signature = :signature,
+                                                    skin_last_update = NOW()
+                                                WHERE player_id = (
+                                                    SELECT id FROM players WHERE name = :username LIMIT 1
+                                                )
+                                            """), {"value": value, "signature": signature, "username": player_name})
+                                            db.commit()
+                                            print(f"[MineBridge] ✅ Skin de {player_name} guardada en player_details (sin tablas extra).")
 
-                                    if value and signature:
-                                        print(f"[MineBridge] Firma OK. Inyectando en player_details para {player_name}...")
-                                        from sqlalchemy import text
-                                        # Crear VIEWs para que SkinRestorer lea (sin tablas extra)
-                                        db.execute(text("""
-                                            CREATE OR REPLACE VIEW "Skins" AS
-                                            SELECT
-                                                pd.player_id AS "ID",
-                                                CONCAT('custom_', p.name) AS "Name",
-                                                pd.skin_value AS "Value",
-                                                COALESCE(pd.skin_signature, '') AS "Signature",
-                                                'none' AS "Timestamp"
-                                            FROM player_details pd
-                                            JOIN players p ON pd.player_id = p.id
-                                            WHERE pd.skin_value IS NOT NULL
-                                        """))
-                                        db.execute(text("""
-                                            CREATE OR REPLACE VIEW "Players" AS
-                                            SELECT
-                                                p.id AS "ID",
-                                                p.name AS "Nick",
-                                                CONCAT('custom_', p.name) AS "Skin"
-                                            FROM players p
-                                            JOIN player_details pd ON pd.player_id = p.id
-                                            WHERE pd.skin_value IS NOT NULL
-                                        """))
-                                        # Guardar en player_details (tabla existente, sin caos)
-                                        db.execute(text("""
-                                            UPDATE player_details
-                                            SET skin_value = :value,
-                                                skin_signature = :signature,
-                                                skin_last_update = NOW()
-                                            WHERE player_id = (
-                                                SELECT id FROM players WHERE name = :username LIMIT 1
-                                            )
-                                        """), {"value": value, "signature": signature, "username": player_name})
-                                        db.commit()
-                                        print(f"[MineBridge] ✅ Skin de {player_name} guardada en player_details (sin tablas extra).")
-
+                                        else:
+                                            print("[MineBridge] MineSkin no devolvió datos válidos.")
                                     else:
-                                        print("[MineBridge] MineSkin no devolvió datos válidos.")
-                                else:
-                                    print(f"[MineBridge] MineSkin API status: {resp.status}.")
+                                        print(f"[MineBridge] MineSkin API status: {resp.status}.")
                     except Exception as e:
                         print(f"[MineBridge] Error SQL inyección: {e}")
 
