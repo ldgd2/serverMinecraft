@@ -286,7 +286,7 @@ async def receive_status(status: dict, user: User = Depends(verify_api_key)):
     return {"status": "ok"}
 
 @router.post("/status/player")
-async def receive_player_state(state: dict, db: Session = Depends(get_db)):
+async def receive_player_state(request: Request, state: dict, db: Session = Depends(get_db)):
     # print(f"DEBUG: Received Bridge Player State: {state}")
     player_name = state.get("player")
     if not player_name:
@@ -380,14 +380,19 @@ async def receive_player_state(state: dict, db: Session = Depends(get_db)):
                     f.write(b64.b64decode(skin_data))
                 
                 # Para la App, generamos la cabeza desde el PNG local
-                from PIL import Image
-                from io import BytesIO
-                skin_img = Image.open(BytesIO(b64.b64decode(skin_data))).convert('RGBA')
-                face = skin_img.crop((8, 8, 16, 16)).resize((64, 64), Image.NEAREST)
-                helmet = skin_img.crop((40, 8, 48, 16)).resize((64, 64), Image.NEAREST)
-                final_head = Image.alpha_composite(face, helmet)
-                os.makedirs("static/heads", exist_ok=True)
-                final_head.save(f"static/heads/{player_name}.png")
+                try:
+                    from PIL import Image
+                    from io import BytesIO
+                    skin_img = Image.open(BytesIO(b64.b64decode(skin_data))).convert('RGBA')
+                    face = skin_img.crop((8, 8, 16, 16)).resize((64, 64), Image.NEAREST)
+                    helmet = skin_img.crop((40, 8, 48, 16)).resize((64, 64), Image.NEAREST)
+                    final_head = Image.alpha_composite(face, helmet)
+                    os.makedirs("static/heads", exist_ok=True)
+                    final_head.save(f"static/heads/{player_name}.png")
+                except ImportError:
+                    print("⚠️ Pillow (PIL) no está instalado. No se generará la cabeza para la App. (Usa 'pip install Pillow' en el servidor)")
+                except Exception as e:
+                    print(f"Error generando cabeza de skin: {e}")
                 
                 player.detail.skin_base64 = skin_data # Guardamos el raw por ahora
                 player.detail.skin_last_update = datetime.datetime.utcnow()
