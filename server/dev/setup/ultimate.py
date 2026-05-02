@@ -5,7 +5,7 @@ import json
 import urllib.request
 from rich.console import Console
 from rich.panel import Panel
-from rich.prompt import Prompt
+from rich.prompt import Prompt, Confirm
 
 # Ensure parent is in sys.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
@@ -65,12 +65,12 @@ def run_ultimate_setup():
     
     # --- STEP 3: RCON Configuration ---
     console.print("\n[bold cyan]STEP 3: RCON Auto-Configuration[/bold cyan]")
-    if Prompt.confirm("Do you want to configure RCON (Console access from App) for all servers?", default=True):
+    if Confirm.ask("Do you want to configure RCON (Console access from App) for all servers?", default=True):
         setup_rcon_logic()
 
     # --- STEP 4: Skin & Mod Synchronization ---
     console.print("\n[bold cyan]STEP 4: SkinRestorer & MineBridge Mod Integration[/bold cyan]")
-    if Prompt.confirm("Do you want to auto-configure Skins and Mod settings for all servers?", default=True):
+    if Confirm.ask("Do you want to auto-configure Skins and Mod settings for all servers?", default=True):
         if os.path.exists(servers_dir):
             servers = [d for d in os.listdir(servers_dir) if os.path.isdir(os.path.join(servers_dir, d))]
             for server in servers:
