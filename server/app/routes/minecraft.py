@@ -2,8 +2,12 @@ from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
 from database.connection import get_db
 from app.services.achievements.processor import AchievementProcessor
-from database.models.players.player_stat import PlayerStat
+from database.models.players.player import Player
+from database.models.players.player_detail import PlayerDetail
 from pydantic import BaseModel
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/minecraft", tags=["minecraft-integration"])
 
@@ -41,51 +45,57 @@ async def receive_minecraft_event(
         )
         return {"status": "received"}
     except Exception as e:
+        logger.error(f"Error processing minecraft event: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/chat")
 async def handle_minecraft_chat(event: dict, db: Session = Depends(get_db)):
-    # ... (lógica de chat existente)
+    # Lógica de chat básica
     return {"status": "ok"}
 
 @router.post("/player_state")
 async def handle_player_state(state: dict, db: Session = Depends(get_db)):
     """
     Recibe el estado del jugador (pos, salud, etc.) y calcula distancia/tiempo.
-    El mod envía: pos_x, pos_y, pos_z, player (nombre), health, food, world.
+    El mod envía: pos_x, pos_y, pos_z, player (UUID), health, food, world.
     """
-    player_uuid = state.get("player")  # El mod envía el nombre en el campo "player"
+    player_uuid = state.get("player")
     if not player_uuid: return {"error": "no player"}
 
-    # Claves reales que envía el mod Java
+    # 1. Obtener jugador y su detalle
+    player = db.query(Player).filter(Player.uuid == player_uuid).first()
+    if not player:
+        return {"error": "player not found"}
+    
+    if not player.detail:
+        player.detail = PlayerDetail(player_id=player.id)
+        db.add(player.detail)
+        db.flush()
+
+    # 2. CALCULAR DISTANCIA (Pitágoras entre pos anterior y actual)
     x = state.get("pos_x", 0)
     y = state.get("pos_y", 0)
     z = state.get("pos_z", 0)
 
-    # 1. Obtener stats actuales
-    stats = db.query(PlayerStats).filter(PlayerStats.player_uuid == player_uuid).first()
-    if not stats:
-        stats = PlayerStats(player_uuid=player_uuid, counters={})
-        db.add(stats)
-        db.flush()
-
-    # 2. CALCULAR DISTANCIA (Pitágoras entre pos anterior y actual)
-    last_x = stats.counters.get("_last_x", x)
-    last_y = stats.counters.get("_last_y", y)
-    last_z = stats.counters.get("_last_z", z)
+    last_x = player.detail.position_x
+    last_y = player.detail.position_y
+    last_z = player.detail.position_z
     
     dist = ((x - last_x)**2 + (y - last_y)**2 + (z - last_z)**2)**0.5
     
-    if dist > 0.1 and dist < 100:  # Evitar teleports o micro-movimientos
+    if 0.1 < dist < 100:  # Evitar teleports o micro-movimientos
         AchievementProcessor.process_event(db, player_uuid, "distance_travelled", int(dist))
 
     # 3. CALCULAR TIEMPO (Cada update son ~5 segundos)
     AchievementProcessor.process_event(db, player_uuid, "playtime_seconds", 5)
 
-    # 4. Actualizar última posición conocida
-    stats.counters["_last_x"] = x
-    stats.counters["_last_y"] = y
-    stats.counters["_last_z"] = z
+    # 4. Actualizar posición y salud en PlayerDetail
+    player.detail.position_x = int(x)
+    player.detail.position_y = int(y)
+    player.detail.position_z = int(z)
+    player.detail.health = int(state.get("health", 20))
+    player.detail.total_playtime_seconds += 5
+    
     db.commit()
 
     return {"status": "ok"}
@@ -99,13 +109,11 @@ async def send_to_game(
     Envía un mensaje desde la App hacia el chat del juego usando RCON.
     """
     try:
+        from app.services.minecraft.rcon import rcon_service
         # Formateamos el mensaje para que destaque en el juego
-        # [APP] Nombre: Mensaje
         rcon_msg = f'tellraw @a ["", {{"text":"[APP] ","color":"dark_gray"}}, {{"text":"{user_name}: ","color":"dark_aqua"}}, {{"text":"{message}","color":"gray"}}]'
-        
-        from ..services.minecraft.rcon import rcon_service
         rcon_service.send_command(rcon_msg)
-        
         return {"status": "sent"}
     except Exception as e:
+        logger.error(f"Error sending message to game via RCON: {e}")
         raise HTTPException(status_code=500, detail=str(e))
