@@ -441,16 +441,18 @@ async def receive_player_state(request: Request, state: dict, db: Session = Depe
                             print(f"[MineBridge] Esperando 10s para aplicar skin a {player_name}...")
                             await asyncio.sleep(10)
                             
-                            # 1. Recargar el mod correctamente
-                            await sc.send_command(target_server_name, "fabrictailor reload")
-                            
-                            # 2. Comando directo de consola (Nivel 4 de permisos)
-                            # Intentamos primero con la skin local ya inyectada en la carpeta del mod
-                            print(f"[MineBridge] Aplicando skin local via fabrictailor para {player_name}")
-                            await sc.send_command(target_server_name, f"fabrictailor set {player_name} {player_name}")
-                            
-                            # 3. Fallback: URL Pública por si el mod no refrescó la carpeta a tiempo
                             public_skin_url = f"http://185.214.134.23:8000/static/skins/{player_name}.png"
+                            
+                            # 1. SkinRestorer (El estándar de la industria para servidores Offline)
+                            # Este comando funciona en consola perfectamente si SkinRestorer está instalado.
+                            print(f"[MineBridge] Intentando aplicar skin via SkinRestorer para {player_name}")
+                            await sc.send_command(target_server_name, f"sr set {player_name} {public_skin_url}")
+                            await sc.send_command(target_server_name, f"sr update {player_name}")
+                            
+                            # 2. Comando genérico 'skin set' (Soportado por muchos otros mods)
+                            await sc.send_command(target_server_name, f"skin set {player_name} {public_skin_url}")
+                            
+                            # 3. FabricTailor Fallback (Por si acaso, pero SkinRestorer es prioridad ahora)
                             await sc.send_command(target_server_name, f"fabrictailor set {player_name} {public_skin_url}")
                             
                         asyncio.create_task(apply_skin_task())
