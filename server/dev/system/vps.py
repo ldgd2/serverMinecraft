@@ -26,9 +26,10 @@ def main(ctx: typer.Context):
             console.print("[7] Network Ports (Listening)")
             console.print("[8] Top Processes (RAM usage)")
             console.print("[9] Service Status (Systemd)")
+            console.print("[10] Cleanup Blocked Ports (Kill port owner)")
             console.print("[0] Return to Main Menu")
             
-            choice = Prompt.ask("Select an option", choices=["1", "2", "3", "4", "5", "6", "7", "8", "0"], default="1")
+            choice = Prompt.ask("Select an option", choices=["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "0"], default="1")
             
             try:
                 if choice == "1":
@@ -49,6 +50,8 @@ def main(ctx: typer.Context):
                     top_processes()
                 elif choice == "9":
                     check_service_status()
+                elif choice == "10":
+                    cleanup_ports()
                 elif choice == "0":
                     break
             except Exception as e:
@@ -251,4 +254,37 @@ def top_processes():
             f"{p['cpu_percent']:.1f}%"
         )
         
+    
     console.print(table)
+
+@app.command("cleanup-ports")
+def cleanup_ports():
+    """Kill processes holding Minecraft ports (25565, 25575)"""
+    if sys.platform == "win32":
+        console.print("[red]Not available on Windows.[/red]")
+        return
+        
+    ports = ["25565", "25575"]
+    console.print(Panel.fit("[bold yellow]🧹 Port Cleanup Utility[/bold yellow]", border_style="yellow"))
+    
+    for port in ports:
+        try:
+            console.print(f"[dim]Checking port {port}...[/dim]")
+            # Check if anyone is listening
+            result = subprocess.run(["sudo", "lsof", "-t", f"-i:{port}"], capture_output=True, text=True)
+            pids = result.stdout.strip().split()
+            
+            if not pids:
+                console.print(f"[green]Port {port} is already free.[/green]")
+                continue
+                
+            for pid in pids:
+                console.print(f"[bold red]Found process {pid} blocking port {port}.[/bold red]")
+                confirm = Confirm.ask(f"Do you want to FORCE KILL process {pid}?", default=True)
+                if confirm:
+                    subprocess.run(["sudo", "kill", "-9", pid], check=True)
+                    console.print(f"[bold green]✓ Process {pid} terminated.[/bold green]")
+        except Exception as e:
+            console.print(f"[red]Error cleaning port {port}: {e}[/red]")
+            console.print("[dim]Note: 'lsof' might not be installed. Try 'sudo apt install lsof'[/dim]")
+
