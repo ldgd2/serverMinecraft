@@ -404,75 +404,53 @@ async def receive_player_state(request: Request, state: dict, db: Session = Depe
                 except Exception as e:
                     print(f"Error generando cabeza de skin: {e}")
                 
-                player.detail.skin_base64 = skin_data # Guardamos el raw por ahora
+                # --- ACTUALIZACIÓN PARA LA APP ---
+                # Guardamos la URL de la cabeza generada para que la App sepa de dónde sacarla
+                public_head_url = f"http://185.214.134.23:8000/static/heads/{player_name}.png"
+                player.detail.skin_url = public_head_url
+                player.detail.skin_base64 = skin_data
                 player.detail.skin_last_update = datetime.datetime.utcnow()
+                db.commit() # Guardamos en DB inmediatamente para la App
 
-                # --- APLICAR EN EL JUEGO (Opcional pero recomendado) ---
-                # Si tenemos acceso al controlador, mandamos el comando /skin
+                # --- APLICAR EN EL JUEGO ---
                 try:
+                    import shutil
                     from app.controllers.server_controller import ServerController
                     sc = ServerController()
                     
-                    # Usamos 127.0.0.1 para que el server de MC (en la misma maquina) 
-                    # descargue la skin del backend directamente sin salir a internet.
-                    # No tocamos APP_URL porque el usuario dice que se usa para otra cosa.
-                    skin_host = "127.0.0.1:8000"
-                    
-                    # Intentar detectar el puerto real si no es el 8000
-                    host_header = request.headers.get("host", "")
-                    if host_header and ":" in host_header:
-                        _, port = host_header.split(":")
-                        skin_host = f"127.0.0.1:{port}"
-                    
-                    skin_url = f"http://{skin_host}/static/skins/{player_name}.png"
-                    
-                    # Try to apply the skin to the server
-                    # 1. Try by name
+                    # 1. Buscar el servidor activo
                     server = db.query(Server).filter(Server.name == server_name).first()
-                    
-                    # 2. If not found by name, try finding any online server (fallback)
                     if not server:
                         server = db.query(Server).filter(Server.status == "RUNNING").first()
-                    
-                    # 3. Last resort: just use the first server
                     if not server:
                         server = db.query(Server).first()
 
-                    if server and player_name and skin_url:
-                        # Try multiple common mod commands to apply the skin
-                        # sc is already instantiated as ServerController() above
-                        
-                        # Capture name BEFORE the delay to avoid DetachedInstanceError
+                    if server:
                         target_server_name = server.name
-
-                        # We use a helper to send to the specific server
-                        async def apply_skin():
-                            # Wait for the player to actually join (10 seconds delay)
-                            print(f"[MineBridge] Waiting 10s for {player_name} to join before applying skin...")
-                            await asyncio.sleep(10)
-                            # Usamos la RUTA ABSOLUTA del archivo en el VPS.
-                            # Esto es mejor que una URL porque FabricTailor puede subir el archivo directamente
-                            # a MineSkin sin problemas de IPs o firewalls.
-                            skin_path = f"/root/app/serverMinecraft/server/static/skins/{player_name}.png"
-                            
-                            # Definimos las rutas y URLs
-                            skin_path = f"/root/app/serverMinecraft/server/static/skins/{player_name}.png"
-                            public_url = f"http://185.214.134.23:8000/static/skins/{player_name}.png"
-                            
-                            # --- RÁFAGA DE COMANDOS MAESTRA (Con contexto de jugador) ---
-                            # Intentamos ejecutarlo COMO el jugador para saltar restricciones de consola
-                            await sc.send_command(target_server_name, f"execute as {player_name} run skin set {skin_path}")
-                            await sc.send_command(target_server_name, f"execute as {player_name} run skin set {public_url}")
-                            
-                            # Comandos directos (Variantes)
-                            await sc.send_command(target_server_name, f"skin set {player_name} {skin_path}")
-                            await sc.send_command(target_server_name, f"skin {player_name} {skin_path}")
-                            await sc.send_command(target_server_name, f"skin set {player_name} {public_url}")
+                        # Rutas
+                        backend_skin_path = f"/root/app/serverMinecraft/server/static/skins/{player_name}.png"
+                        # Inyectamos la skin en la carpeta interna del mod FabricTailor
+                        mod_skins_dir = f"/root/app/serverMinecraft/server/servers/{target_server_name}/config/fabrictailor/skins"
+                        os.makedirs(mod_skins_dir, exist_ok=True)
+                        mod_skin_path = os.path.join(mod_skins_dir, f"{player_name}.png")
                         
-                        asyncio.create_task(apply_skin())
-                        print(f"[MineBridge] Aplicando skin inicial para {player_name} via {skin_url}")
+                        # Copiamos la skin físicamente
+                        if os.path.exists(backend_skin_path):
+                            shutil.copy2(backend_skin_path, mod_skin_path)
+                            print(f"[MineBridge] Skin inyectada en mod: {mod_skin_path}")
+
+                        async def apply_skin_task():
+                            print(f"[MineBridge] Esperando 10s para aplicar skin a {player_name}...")
+                            await asyncio.sleep(10)
+                            # Al estar en la carpeta 'skins' del mod, el comando es ultra simple
+                            print(f"[MineBridge] Enviando comando de skin local para {player_name}")
+                            await sc.send_command(target_server_name, f"skin set {player_name} {player_name}")
+                            # Fallback con IP pública por si acaso
+                            await sc.send_command(target_server_name, f"skin set {player_name} http://185.214.134.23:8000/static/skins/{player_name}.png")
+                            
+                        asyncio.create_task(apply_skin_task())
                 except Exception as ex:
-                    print(f"Error enviando comando de skin: {ex}")
+                    print(f"Error en la ráfaga de skin: {ex}")
 
             except Exception as e:
                 print(f"Error procesando raw skin: {e}")
