@@ -109,7 +109,7 @@ def auto_update_cmd(message: Optional[str] = typer.Option(None, "--message", "-m
             if "Target database is not up to date" in err_output or "Multiple heads" in err_output:
                 progress.update(task, description="[yellow]Conflict detected. Cleaning and syncing DB...")
                 
-                # Manual SQL clean if multiple heads
+                # 1. Manual SQL clean if multiple heads in DB
                 if "Multiple heads" in err_output:
                     from sqlalchemy import text
                     from database.connection import get_engine
@@ -119,9 +119,15 @@ def auto_update_cmd(message: Optional[str] = typer.Option(None, "--message", "-m
                             conn.commit()
                     except: pass
 
-                # Sync to head (use 'heads' plural to avoid 'Multiple heads are present' failure)
+                # 2. Sync DB to current heads
                 subprocess.run([sys.executable, "-m", "alembic", "stamp", "heads"], cwd=PROJECT_ROOT)
                 
+                # 3. If it's still failing with "Multiple heads", it means the FILES have multiple heads.
+                # Let's try to merge them automatically.
+                if "Multiple heads are present" in err_output or "specify a single target revision" in err_output:
+                    progress.update(task, description="[yellow]Multiple heads in files. Merging migrations...")
+                    subprocess.run([sys.executable, "-m", "alembic", "merge", "heads", "-m", "merge_heads_auto"], cwd=PROJECT_ROOT)
+
                 # Second attempt
                 progress.update(task, description="[cyan]Retrying migration generation...")
                 res = try_generate()
