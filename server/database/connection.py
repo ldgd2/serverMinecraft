@@ -57,14 +57,16 @@ def get_connection_url():
         }
         driver = driver_map.get(engine_type, engine_type)
         
-        return URL.create(
-            drivername=driver,
-            username=os.getenv("DB_USER"),
-            password=os.getenv("DB_PASSWORD"),
-            host=os.getenv("DB_HOST"),
-            port=int(os.getenv("DB_PORT")) if os.getenv("DB_PORT") else None,
-            database=os.getenv("DB_NAME")
-        )
+        # Use a URL string instead of URL.create to have more control over the result if needed
+        # and ensure we add the client_encoding parameter
+        user = os.getenv("DB_USER")
+        password = os.getenv("DB_PASSWORD")
+        host = os.getenv("DB_HOST")
+        port = os.getenv("DB_PORT")
+        database = os.getenv("DB_NAME")
+        
+        url_str = f"{driver}://{user}:{password}@{host}:{port}/{database}?client_encoding=utf8"
+        return url_str
 
 def create_app_engine():
     """
