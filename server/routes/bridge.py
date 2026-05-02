@@ -4,6 +4,8 @@ from typing import Optional, List
 import logging
 import hashlib
 import asyncio
+import aiohttp
+import os
 from sqlalchemy.orm import Session
 from database.connection import get_db
 from database.models.user import User
