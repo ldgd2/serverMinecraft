@@ -646,6 +646,14 @@ class _ChatTabState extends State<_ChatTab> {
   final _scrollCtrl = ScrollController();
   static final int _sessionSalt = DateTime.now().millisecondsSinceEpoch;
 
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<ServerProvider>().loadChatHistory(widget.server.name);
+    });
+  }
+
   Color _getSenderColor(String? name, bool isAdmin) {
     if (isAdmin) return AppColors.gold;
     if (name == null || name.isEmpty) return AppColors.textMuted;

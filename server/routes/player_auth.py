@@ -310,7 +310,9 @@ def get_player_profile(current: PlayerAccount = Depends(get_current_player), db:
     final_kills = current.total_kills + total_server_kills
     final_player_kills = current.total_player_kills + total_server_player_kills
     final_hostile_kills = current.total_hostile_kills + total_server_hostile_kills
-    final_genocide = current.total_genocide_score + genocida_score
+    
+    # Genocide score is the total sum of all kills (Player + Hostile + Passive)
+    final_genocide = current.total_genocide_score + total_server_kills
     
     final_deaths = current.total_deaths + total_server_deaths
     final_blocks_broken = current.total_blocks_broken + total_server_blocks_broken

@@ -160,11 +160,24 @@ async def startup_event():
     print(f"  - Chat:    ws://{print_host}:{print_port}/api/v1/servers/{{name}}/chat", flush=True)
     print(f"  - Downloads: ws://{print_host}:{print_port}/api/v1/versions/downloads/ws?token=YOUR_TOKEN", flush=True)
     
+    # Auto-Migration for missing columns
     db = SessionLocal()
     try:
+        from sqlalchemy import text
+        print("Checking and fixing database schema...")
+        queries = [
+            "ALTER TABLE player_accounts ADD COLUMN IF NOT EXISTS total_player_kills INTEGER DEFAULT 0;",
+            "ALTER TABLE player_accounts ADD COLUMN IF NOT EXISTS total_hostile_kills INTEGER DEFAULT 0;",
+            "ALTER TABLE player_accounts ADD COLUMN IF NOT EXISTS total_genocide_score INTEGER DEFAULT 0;"
+        ]
+        for query in queries:
+            db.execute(text(query))
+        db.commit()
+        print("Schema update complete.")
+        
         server_service.load_servers_from_db(db)
     except Exception as e:
-        print(f"Error loading servers: {e}")
+        print(f"Error updating schema or loading servers: {e}")
     finally:
         db.close()
 

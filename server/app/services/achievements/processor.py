@@ -34,7 +34,45 @@ class AchievementProcessor:
         stat.stat_value += increment
         db.commit()
         
-        # 3. Verificar logros
+        # 3. Actualizar PlayerAccount (Estadísticas globales/launcher)
+        try:
+            from database.models.players.player_account import PlayerAccount
+            account = db.query(PlayerAccount).filter(
+                (PlayerAccount.uuid == player.uuid) | (PlayerAccount.username == player.name)
+            ).first()
+
+            if account:
+                HOSTILE_MOBS = {
+                    "zombie", "skeleton", "creeper", "spider", "enderman", "witch", "slime", "silverfish",
+                    "ghast", "blaze", "magma_cube", "endermite", "guardian", "shulker", "husk", "stray",
+                    "wither_skeleton", "vex", "evoker", "vindicator", "pillager", "ravager", "hoglin",
+                    "zoglin", "piglin_brute", "warden", "drowned", "phantom", "wither", "ender_dragon", 
+                    "elder_guardian", "ravager"
+                }
+
+                if stat_key.startswith("kill:"):
+                    entity = stat_key.split(":")[-1].lower()
+                    if entity == "player":
+                        account.total_player_kills += increment
+                    elif entity in HOSTILE_MOBS:
+                        account.total_hostile_kills += increment
+                    
+                    # Genocida: todo lo que muera suma (jugadores, hostiles y pasivos)
+                    account.total_genocide_score += increment
+                    account.total_kills += increment
+                
+                elif stat_key == "total_death":
+                    account.total_deaths += increment
+                elif stat_key == "total_block_broken":
+                    account.total_blocks_broken += increment
+                elif stat_key == "total_block_placed":
+                    account.total_blocks_placed += increment
+
+                db.commit()
+        except Exception as e:
+            logger.error(f"Error updating global PlayerAccount stats: {e}")
+
+        # 4. Verificar logros
         AchievementProcessor._check_unlocks(db, player, stat_key, stat.stat_value)
 
     @staticmethod

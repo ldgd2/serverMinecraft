@@ -71,6 +71,7 @@ DEFAULT_CONFIG = {
     "discord_rpc":      True,
     "check_updates":    True,
     "log_level":        "INFO",     # "DEBUG" | "INFO" | "WARNING"
+    "jvm_mode":         "manual",   # "auto" | "manual"
 }
 
 # Keys that must never be written to disk in plain-text

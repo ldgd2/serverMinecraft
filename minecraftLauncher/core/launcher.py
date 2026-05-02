@@ -111,7 +111,7 @@ def launch_minecraft(version_id, callback_dict=None):
         java_path = config.get("java_path")
         
         # ── JVM Logic ──
-        jvm_mode = config.get("jvm_mode", "auto")
+        jvm_mode = config.get("jvm_mode", "manual")
         if jvm_mode == "manual":
             jvm_arguments_str = config.get("jvm_arguments", "")
             jvm_args_list = jvm_arguments_str.split() if jvm_arguments_str else []

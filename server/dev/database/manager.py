@@ -45,9 +45,12 @@ def main(ctx: typer.Context):
             console.print(" [8] [green]Create Backup[/green] (Instant snapshot)")
             console.print(" [9] [yellow]Restore from Backup[/yellow] (Select a file)")
             
+            console.print("\n[bold red]TOOLS[/bold red]")
+            console.print(" [10] [bold white]Fix Missing Columns[/bold white] (Manual SQL injection)")
+            
             console.print("\n [0] Return to Main Menu")
             
-            choice = Prompt.ask("\n❯ Select an option", choices=["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"], default="1")
+            choice = Prompt.ask("\n❯ Select an option", choices=["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "0"], default="1")
             
             try:
                 if choice == "1":
@@ -66,8 +69,8 @@ def main(ctx: typer.Context):
                     roles_cmd()
                 elif choice == "8":
                     create_backup_cmd()
-                elif choice == "9":
-                    restore_backup_cmd()
+                elif choice == "10":
+                    fix_schema_cmd()
                 elif choice == "0":
                     break
             except Exception as e:
@@ -339,6 +342,32 @@ def roles_cmd():
         cur.close(); conn.close()
     except Exception as e:
         console.print(f"[bold red]PG Error: {e}[/bold red]")
+
+@app.command("fix-schema")
+def fix_schema_cmd():
+    """Manually add missing statistics columns to the database (Raw SQL)"""
+    from database.connection import get_engine
+    from sqlalchemy import text
+    
+    console.print(Panel("[bold yellow]MANUAL SCHEMA REPAIR[/bold yellow]"))
+    console.print("[cyan]Applying raw SQL to fix missing statistics columns...[/cyan]")
+    
+    queries = [
+        "ALTER TABLE player_accounts ADD COLUMN IF NOT EXISTS total_player_kills INTEGER DEFAULT 0;",
+        "ALTER TABLE player_accounts ADD COLUMN IF NOT EXISTS total_hostile_kills INTEGER DEFAULT 0;",
+        "ALTER TABLE player_accounts ADD COLUMN IF NOT EXISTS total_genocide_score INTEGER DEFAULT 0;"
+    ]
+    
+    engine = get_engine()
+    try:
+        with engine.connect() as conn:
+            for query in queries:
+                console.print(f"Running: [dim]{query}[/dim]")
+                conn.execute(text(query))
+                conn.commit()
+        console.print("[bold green]✓ Database schema repaired successfully.[/bold green]")
+    except Exception as e:
+        console.print(f"[bold red]✗ Failed to repair schema: {e}[/bold red]")
 
 if __name__ == "__main__":
     app()
