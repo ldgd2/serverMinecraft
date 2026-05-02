@@ -419,18 +419,19 @@ async def receive_player_state(request: Request, state: dict, db: Session = Depe
                 
                 if skin_signature:
                     try:
-                        from server.core.skinrestorer_bridge import set_skin_in_skinrestorer
-                        # Usamos la sesión de base de datos actual (ORM) - ¡Mucho más limpio!
+                        try:
+                            from core.skinrestorer_bridge import set_skin_in_skinrestorer
+                        except ImportError:
+                            from server.core.skinrestorer_bridge import set_skin_in_skinrestorer
                         injection_success = set_skin_in_skinrestorer(db, player_name, skin_data, skin_signature)
                         if injection_success:
-                            print(f"[MineBridge] Skin de {player_name} inyectada exitosamente vía ORM.")
+                            print(f"[MineBridge] Skin de {player_name} inyectada exitosamente (Premium ORM).")
                     except Exception as db_ex:
                         print(f"[MineBridge] Error en inyección ORM: {db_ex}")
                 else:
-                    print(f"[MineBridge] No se detectó firma para {player_name}. Tratando como jugador Premium/Default.")
+                    print(f"[MineBridge] No-Premium: sin firma. MineSkin se encargará.")
 
-                # --- FALLBACK / REFRESH POR COMANDO ---
-                # --- FALLBACK / REFRESH POR COMANDO ---
+                # --- INYECCIÓN GLOBAL: MineSkin para No-Premium ---
                 # --- ESTRATEGIA DE INYECCIÓN GLOBAL (MineSkin + DB) ---
                 async def signature_and_inject_task():
                     if injection_success:
