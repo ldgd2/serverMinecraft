@@ -84,9 +84,10 @@ def run_universal_wizard():
         {"key": "DB_PASSWORD", "desc": "PostgreSQL Password", "default": "postgres"},
         {"key": "API_PORT", "desc": "Port for the FastAPI backend", "default": "8000"},
         {"key": "API_HOST", "desc": "Host for the FastAPI backend", "default": "0.0.0.0"},
+        {"key": "PUBLIC_IP", "desc": "Public IP of the VPS", "default": detected_ip},
+        {"key": "APP_URL", "desc": "Base URL (auto-generated from IP/Port)", "default": f"http://{detected_ip}:8000"},
         {"key": "DEFAULT_MINECRAFT_RAM", "desc": "Default RAM allocation for servers", "default": "4096M"},
         {"key": "DEFAULT_MINECRAFT_CORES", "desc": "Default CPU Cores for servers", "default": "6"},
-        {"key": "APP_URL", "desc": "Base URL for the system (used by Mod and App)", "default": f"http://{detected_ip}:8000"},
     ]
     
     for s in settings:
@@ -142,7 +143,7 @@ def view_env():
             console.print("[dim]File is empty.[/dim]")
 
 def sync_public_ip():
-    """Detects public IP and updates APP_URL in .env automatically."""
+    """Detects public IP and updates PUBLIC_IP and APP_URL in .env automatically."""
     console.print("[cyan]🔍 Detecting public IP...[/cyan]")
     try:
         import urllib.request
@@ -151,8 +152,9 @@ def sync_public_ip():
         new_url = f"http://{public_ip}:{api_port}"
         
         console.print(f"[green]✓ Detected IP: {public_ip}[/green]")
+        update_env_variable("PUBLIC_IP", public_ip)
         update_env_variable("APP_URL", new_url)
-        console.print(f"[bold green]✓ Backend .env updated: APP_URL={new_url}[/bold green]")
+        console.print(f"[bold green]✓ .env updated: PUBLIC_IP={public_ip}, APP_URL={new_url}[/bold green]")
         
         # 3. Also update App (Flutter) .env if it exists
         # Relative path from server/ to appserve/

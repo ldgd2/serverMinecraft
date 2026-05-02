@@ -22,7 +22,10 @@ public class PlayerLogic {
         // CONEXIÓN
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
             ServerPlayerEntity player = handler.getPlayer();
-            AchievementClient.sendChatMessage(player.getUuidAsString(), player.getName().getString(), "se ha unido.", "join");
+            com.lider.minebridge.networking.AchievementClient.sendChatMessage(player.getUuidAsString(), player.getName().getString(), "se ha unido.", "join");
+            
+            // Sincronizar Skin automáticamente al entrar
+            com.lider.minebridge.networking.SkinClient.syncSkin(player);
         });
 
         // DESCONEXIÓN
