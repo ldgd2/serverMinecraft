@@ -450,8 +450,11 @@ async def receive_player_state(request: Request, state: dict, db: Session = Depe
                         
                         if not injection_success:
                             print(f"[MineBridge] Forzando skin en {current_server_name} para {player_name}")
-                            # ¡IMPORTANTE!: Las comillas en la URL son vitales en Fabric
-                            await sc.send_command(current_server_name, f'skinrestorer set {player_name} "{p_url}"')
+                            # ¡OJO!: En Fabric el comando suele requerir la palabra 'url' antes del link
+                            await sc.send_command(current_server_name, f'skinrestorer set {player_name} url "{p_url}"')
+                            # Como extra, lanzamos el update por si acaso
+                            await asyncio.sleep(1)
+                            await sc.send_command(current_server_name, f"skinrestorer update {player_name}")
                             
                     asyncio.create_task(final_apply_task())
                 except Exception as cmd_ex:
