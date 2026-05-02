@@ -87,12 +87,18 @@ class Broadcaster:
                 else:
                     final_chat_type = "received"
             
+            # Incluir URL de la cabeza para la App
+            head_url = kwargs.get("head_url")
+            if not head_url and not is_system and sender:
+                head_url = f"/static/heads/{sender}.png"
+
             data = json.dumps({
                 "type": "chat",
                 "sender": sender,
                 "message": message,
                 "is_system": is_system,
-                "chat_type": final_chat_type
+                "chat_type": final_chat_type,
+                "head_url": head_url
             })
             
             try:

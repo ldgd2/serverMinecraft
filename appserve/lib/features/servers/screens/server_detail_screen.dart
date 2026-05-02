@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:provider/provider.dart';
+import 'package:appserve/core/constants/app_constants.dart';
 import 'package:appserve/core/models/server_model.dart';
 import 'package:appserve/core/providers/app_providers.dart';
 import 'package:appserve/core/theme/app_colors.dart';
@@ -702,6 +703,35 @@ class _ChatTabState extends State<_ChatTab> {
     HapticFeedback.lightImpact();
   }
 
+  Widget _buildChatAvatar(String? headUrl) {
+    String? fullHeadUrl;
+    if (headUrl != null) {
+      final base = AppConstants.baseUrl.replaceAll('/api/v1', '');
+      fullHeadUrl = '$base$headUrl';
+    }
+
+    return Container(
+      width: 28,
+      height: 28,
+      margin: const EdgeInsets.symmetric(horizontal: 6),
+      decoration: BoxDecoration(
+        color: AppColors.backgroundOverlay,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: AppColors.border, width: 0.5),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(6),
+        child: fullHeadUrl != null
+            ? Image.network(
+                fullHeadUrl,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => const Icon(Icons.person, size: 14, color: AppColors.textMuted),
+              )
+            : const Icon(Icons.person, size: 14, color: AppColors.textMuted),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -775,84 +805,94 @@ class _ChatTabState extends State<_ChatTab> {
                   final isMe = chatType == 'sent' && 
                                sender.toLowerCase() == currentUsername?.toLowerCase();
                   final isOtherAdmin = chatType == 'sent' && !isMe;
-
-                  // Debug log para ver qué está llegando a la UI
-                  debugPrint('Rendering Bubble: sender=$sender, isMe=$isMe, chatType=$chatType, current=$currentUsername');
+                  final headUrl = msg['head_url']?.toString();
 
                   return Align(
                     alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-                    child: Container(
-                      margin: EdgeInsets.fromLTRB(isMe ? 60 : 0, 4, isMe ? 0 : 60, 4),
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                      decoration: BoxDecoration(
-                        color: isMe ? AppColors.grassGreen.withOpacity(0.15) : AppColors.backgroundElevated,
-                        borderRadius: BorderRadius.only(
-                          topLeft: const Radius.circular(16),
-                          topRight: const Radius.circular(16),
-                          bottomLeft: Radius.circular(isMe ? 16 : 4),
-                          bottomRight: Radius.circular(isMe ? 4 : 16),
-                        ),
-                        border: Border.all(
-                          color: isMe ? AppColors.grassGreen.withOpacity(0.4) : AppColors.border,
-                          width: 1,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.1),
-                            blurRadius: 4,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Row(
                         mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
                         children: [
-                          if (!isMe)
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 4),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    sender,
-                                    style: TextStyle(
-                                      color: _getSenderColor(sender, isOtherAdmin),
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 11,
-                                      letterSpacing: 0.5,
+                          if (!isMe) _buildChatAvatar(headUrl),
+                          Container(
+                            margin: EdgeInsets.fromLTRB(isMe ? 60 : 0, 0, isMe ? 0 : 60, 0),
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: isMe ? AppColors.grassGreen.withOpacity(0.15) : AppColors.backgroundElevated,
+                              borderRadius: BorderRadius.only(
+                                topLeft: const Radius.circular(16),
+                                topRight: const Radius.circular(16),
+                                bottomLeft: Radius.circular(isMe ? 16 : 4),
+                                bottomRight: Radius.circular(isMe ? 4 : 16),
+                              ),
+                              border: Border.all(
+                                color: isMe ? AppColors.grassGreen.withOpacity(0.4) : AppColors.border,
+                                width: 1,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.1),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Column(
+                              crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (!isMe)
+                                  Padding(
+                                    padding: const EdgeInsets.only(bottom: 4),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          sender,
+                                          style: TextStyle(
+                                            color: _getSenderColor(sender, isOtherAdmin),
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 11,
+                                            letterSpacing: 0.5,
+                                          ),
+                                        ),
+                                        if (isOtherAdmin) ...[
+                                          const SizedBox(width: 4),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                            decoration: BoxDecoration(
+                                              color: AppColors.gold.withOpacity(0.2),
+                                              borderRadius: BorderRadius.circular(4),
+                                              border: Border.all(color: AppColors.gold.withOpacity(0.5), width: 0.5),
+                                            ),
+                                            child: const Text(
+                                              'ADMIN',
+                                              style: TextStyle(
+                                                color: AppColors.gold,
+                                                fontSize: 7,
+                                                fontWeight: FontWeight.w900,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ],
                                     ),
                                   ),
-                                  if (isOtherAdmin) ...[
-                                    const SizedBox(width: 4),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                                      decoration: BoxDecoration(
-                                        color: AppColors.gold.withOpacity(0.2),
-                                        borderRadius: BorderRadius.circular(4),
-                                        border: Border.all(color: AppColors.gold.withOpacity(0.5), width: 0.5),
-                                      ),
-                                      child: const Text(
-                                        'ADMIN',
-                                        style: TextStyle(
-                                          color: AppColors.gold,
-                                          fontSize: 7,
-                                          fontWeight: FontWeight.w900,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ],
-                              ),
-                            ),
-                          Text(
-                            text,
-                            style: TextStyle(
-                              color: isMe ? AppColors.grassGreenGlow : AppColors.textPrimary,
-                              fontSize: 14,
-                              height: 1.3,
+                                Text(
+                                  text,
+                                  style: TextStyle(
+                                    color: isMe ? AppColors.grassGreenGlow : AppColors.textPrimary,
+                                    fontSize: 14,
+                                    height: 1.3,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
+                          if (isMe) _buildChatAvatar(headUrl),
                         ],
                       ),
                     ),
@@ -1144,6 +1184,17 @@ class _PlayerListItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final name = player['username']?.toString() ?? player['name']?.toString() ?? 'Unknown';
+    final headUrl = player['head_url']?.toString();
+    
+    // Construct full image URL
+    String? fullHeadUrl;
+    if (headUrl != null) {
+      final base = AppConstants.baseUrl.replaceAll('/api/v1', '');
+      fullHeadUrl = '$base$headUrl';
+    }
+
+    final isPremium = player['is_premium'] == true;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       child: InkWell(
@@ -1160,14 +1211,58 @@ class _PlayerListItem extends StatelessWidget {
                   color: AppColors.backgroundOverlay,
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Icon(Icons.person, color: AppColors.textSecondary),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: fullHeadUrl != null 
+                    ? Image.network(
+                        fullHeadUrl,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => const Icon(Icons.person, color: AppColors.textSecondary),
+                        loadingBuilder: (context, child, loadingProgress) {
+                          if (loadingProgress == null) return child;
+                          return Center(
+                            child: CircularProgressIndicator(
+                              value: loadingProgress.expectedTotalBytes != null
+                                ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                                : null,
+                              strokeWidth: 2,
+                            ),
+                          );
+                        },
+                      )
+                    : const Icon(Icons.person, color: AppColors.textSecondary),
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(name, style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
+                    Row(
+                      children: [
+                        Text(name, style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: isPremium ? AppColors.diamond.withOpacity(0.1) : AppColors.gold.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(
+                              color: isPremium ? AppColors.diamond.withOpacity(0.3) : AppColors.gold.withOpacity(0.3),
+                              width: 0.5,
+                            ),
+                          ),
+                          child: Text(
+                            isPremium ? 'MOJANG' : 'LAUNCHER',
+                            style: TextStyle(
+                              color: isPremium ? AppColors.diamond : AppColors.gold,
+                              fontSize: 7,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                     if (!isBanned && player['ip'] != null)
                       Text(player['ip'].toString(), style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
                   ],

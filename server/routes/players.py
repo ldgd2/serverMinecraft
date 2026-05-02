@@ -77,30 +77,66 @@ def get_players(server_name: str, db: Session = Depends(get_db)):
         seconds = playtime_seconds % 60
         playtime_str = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
         ban_status = PlayerService.check_if_banned(db, server, p.uuid)
-        # --- SkinRestorer y cabeza ---
-        skin_base64 = get_skin_base64_from_skinrestorer(SKINRESTORER_DB, p.name)
-        skin_changed = False
+        # --- Detección de Cuenta (Premium vs No-Premium/Launcher) ---
+        # Mojang usa UUID v4. Los servidores offline usan UUID v3 (basado en nombre).
+        # Un UUID v4 tiene un '4' en la posición 13: xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
+        is_premium_account = False
+        if p.uuid and len(p.uuid) > 14 and p.uuid[14] == '4':
+            is_premium_account = True
+
+        # --- SkinHead y Sincronización ---
         head_url = None
-        if skin_base64:
-            if not detail.skin_base64 or detail.skin_base64 != skin_base64:
-                detail.skin_base64 = skin_base64
-                detail.skin_last_update = dt.datetime.utcnow()
-                skin_changed = True
-                db.commit()
-            skin_url = extract_skin_url(skin_base64)
-            if skin_url:
-                head_path = f"static/heads/{p.name}.png"
-                if skin_changed or not os.path.exists(head_path):
+        head_path = f"static/heads/{p.name}.png"
+        
+        # 1. Si ya existe el archivo físico, lo usamos
+        if os.path.exists(head_path):
+            head_url = f"/static/heads/{p.name}.png"
+        else:
+            # 2. Intentar obtener el Base64 de varias fuentes
+            skin_base64 = None
+            
+            # Fuente A: SkinRestorer (Premium o skins manuales en el server)
+            try:
+                skin_base64 = get_skin_base64_from_skinrestorer(SKINRESTORER_DB, p.name)
+            except: pass
+            
+            # Fuente B: Base de datos local (Sincronizado desde el Launcher)
+            if not skin_base64 and detail:
+                skin_base64 = detail.skin_base64
+            
+            # 3. Procesar el Base64 encontrado
+            if skin_base64:
+                # Mojang-style JSON?
+                skin_url = extract_skin_url(skin_base64)
+                if skin_url:
                     try:
                         download_and_crop_head(skin_url, head_path)
-                    except Exception:
-                        head_path = None
-                if head_path and os.path.exists(head_path):
-                    head_url = f"/static/heads/{p.name}.png"
+                        head_url = f"/static/heads/{p.name}.png"
+                    except: pass
+                else:
+                    # Raw PNG Base64?
+                    try:
+                        from PIL import Image
+                        from io import BytesIO
+                        import base64 as b64
+                        skin_img = Image.open(BytesIO(b64.b64decode(skin_base64))).convert('RGBA')
+                        face = skin_img.crop((8, 8, 16, 16)).resize((64, 64), Image.NEAREST)
+                        helmet = skin_img.crop((40, 8, 48, 16)).resize((64, 64), Image.NEAREST)
+                        final_head = Image.alpha_composite(face, helmet)
+                        os.makedirs("static/heads", exist_ok=True)
+                        final_head.save(head_path)
+                        head_url = f"/static/heads/{p.name}.png"
+                    except: pass
+            
+            # 4. FALLBACK: Solo para jugadores Premium usamos APIs externas
+            if not head_url and is_premium_account:
+                head_url = f"https://mc-heads.net/avatar/{p.name}/64"
+
         result.append({
             "uuid": p.uuid,
             "name": p.name,
             "is_online": is_online,
+            "is_premium": is_premium_account,
             "last_played": last_played,
             "total_playtime": playtime_str,
             "ip": detail.last_ip if detail else None,

@@ -309,7 +309,7 @@ def launch_minecraft(version_id, callback_dict=None):
                     ip=config.get("server_ip"),
                     username=options["username"],
                     uuid=options["uuid"],
-                    api_url=config.get("api_url")
+                    api_url=f"{config.get('api_url')}/bridge/status/player"
                 )
 
             # Signal that process started

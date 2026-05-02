@@ -11,6 +11,8 @@ import datetime
 from app.services.player_service import PlayerService
 from app.services.achievements import AchievementService
 from database.models import Server
+from database.models.players.player import Player
+from database.models.players.player_detail import PlayerDetail
 from database.connection import SessionLocal
 
 router = APIRouter(prefix="/bridge", tags=["Minecraft Bridge"])
@@ -261,7 +263,127 @@ async def receive_status(status: dict, user: User = Depends(verify_api_key)):
     return {"status": "ok"}
 
 @router.post("/status/player")
-async def receive_player_state(state: dict, user: User = Depends(verify_api_key)):
+async def receive_player_state(state: dict, db: Session = Depends(get_db), user: User = Depends(verify_api_key)):
+    # print(f"DEBUG: Received Bridge Player State: {state}")
+    player_name = state.get("player")
+    if not player_name:
+        return {"error": "no player"}
+
+    # 1. Obtener el servidor (priorizar server_name si el mod lo envía)
+    server_name = state.get("server_name")
+    if server_name:
+        server = db.query(Server).filter(Server.name == server_name).first()
+    else:
+        server = db.query(Server).filter(Server.user_id == user.id).first()
+        if not server:
+            server = db.query(Server).first()
+
+    if not server:
+        return {"error": "server not found"}
+
+    # 2. Obtener el jugador
+    player = PlayerService.get_player_by_name(db, server, player_name)
+    if not player:
+        # Intentar crear si no existe
+        player = Player(server_id=server.id, name=player_name, uuid=state.get("uuid", "unknown"))
+        db.add(player)
+        db.flush()
+
+    if not player.detail:
+        from database.models.players.player_detail import PlayerDetail
+        player.detail = PlayerDetail(player_id=player.id)
+        db.add(player.detail)
+
+    # 3. Actualizar datos básicos
+    player.detail.health = int(state.get("health", 20))
+    player.detail.position_x = int(state.get("pos_x", 0))
+    player.detail.position_y = int(state.get("pos_y", 0))
+    player.detail.position_z = int(state.get("pos_z", 0))
+    player.detail.last_ip = state.get("ip")
+    player.detail.country = state.get("country")
+    player.detail.os = state.get("os")
+
+    # 4. Sincronizar Skin si viene en el payload
+    skin_data = state.get("skin_base64")
+    if skin_data:
+        # Detectar si es un JSON (Mojang style) o un raw PNG Base64
+        import base64 as b64
+        is_mojang = False
+        try:
+            decoded_test = b64.b64decode(skin_data).decode('utf-8')
+            if '"textures"' in decoded_test:
+                is_mojang = True
+        except: pass
+
+        if is_mojang:
+            player.detail.skin_base64 = skin_data
+            player.detail.skin_last_update = datetime.datetime.utcnow()
+            
+            # Intentar actualizar SkinRestorer
+            from core.skinrestorer_bridge import set_skin_in_skinrestorer
+            import os
+            SKINRESTORER_DB = {
+                'host': os.environ.get('SKINRESTORER_HOST', 'localhost'),
+                'user': os.environ.get('SKINRESTORER_USER', 'root'),
+                'password': os.environ.get('SKINRESTORER_PASS', ''),
+                'database': os.environ.get('SKINRESTORER_DB', 'SkinRestorer')
+            }
+            # Extraer signature si viene por separado
+            signature = state.get("skin_signature", "")
+            set_skin_in_skinrestorer(SKINRESTORER_DB, player_name, skin_data, signature)
+
+            # Descargar cabeza para la App
+            from core.skin_utils import extract_skin_url, download_and_crop_head
+            skin_url = extract_skin_url(skin_data)
+            if skin_url:
+                head_path = f"static/heads/{player_name}.png"
+                try: download_and_crop_head(skin_url, head_path)
+                except: pass
+        else:
+            # Es un raw PNG Base64 del Launcher
+            # Lo guardamos como archivo estático para que el server pueda servirlo como URL a SkinRestorer
+            try:
+                import os
+                os.makedirs("static/skins", exist_ok=True)
+                skin_file_path = f"static/skins/{player_name}.png"
+                with open(skin_file_path, "wb") as f:
+                    f.write(b64.b64decode(skin_data))
+                
+                # Para la App, generamos la cabeza desde el PNG local
+                from PIL import Image
+                from io import BytesIO
+                skin_img = Image.open(BytesIO(b64.b64decode(skin_data))).convert('RGBA')
+                face = skin_img.crop((8, 8, 16, 16)).resize((64, 64), Image.NEAREST)
+                helmet = skin_img.crop((40, 8, 48, 16)).resize((64, 64), Image.NEAREST)
+                final_head = Image.alpha_composite(face, helmet)
+                os.makedirs("static/heads", exist_ok=True)
+                final_head.save(f"static/heads/{player_name}.png")
+                
+                player.detail.skin_base64 = skin_data # Guardamos el raw por ahora
+                player.detail.skin_last_update = datetime.datetime.utcnow()
+
+                # --- APLICAR EN EL JUEGO (Opcional pero recomendado) ---
+                # Si tenemos acceso al controlador, mandamos el comando /skin
+                try:
+                    from app.controllers.server_controller import ServerController
+                    sc = ServerController()
+                    # Necesitamos la URL pública del servidor. Intentamos obtenerla del host de la request.
+                    host = request.headers.get("host", "localhost:8000")
+                    # Usamos http por defecto si no detectamos https
+                    protocol = "https" if request.url.scheme == "https" else "http"
+                    skin_url = f"{protocol}://{host}/static/skins/{player_name}.png"
+                    
+                    # Comando para SkinRestorer: /skin set <player> <url>
+                    # Usamos el controlador para enviarlo a la consola
+                    import asyncio
+                    asyncio.create_task(sc.send_command(server.name, f"skin set {player_name} {skin_url}"))
+                except Exception as ex:
+                    print(f"Error enviando comando de skin: {ex}")
+
+            except Exception as e:
+                print(f"Error procesando raw skin: {e}")
+
+    db.commit()
     return {"status": "ok"}
 
 # --- WebSocket Bridge (Comandos en Tiempo Real) ---
