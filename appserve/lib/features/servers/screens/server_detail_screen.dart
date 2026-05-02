@@ -772,7 +772,8 @@ class _ChatTabState extends State<_ChatTab> {
                   }
 
                   final currentUsername = context.read<AuthProvider>().user?.username;
-                  final isMe = chatType == 'sent' && sender == currentUsername;
+                  final isMe = chatType == 'sent' && 
+                               sender.toLowerCase() == currentUsername?.toLowerCase();
                   final isOtherAdmin = chatType == 'sent' && !isMe;
 
                   return Align(

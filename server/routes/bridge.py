@@ -244,7 +244,8 @@ async def receive_chat(chat: dict, db: Session = Depends(get_db), user: User = D
 
     if server:
         # 2. Retransmitir a la App en tiempo real usando el canal del servidor
-        await broadcaster.broadcast_chat(server.name, player_name, message)
+        # Desactivado aquí para evitar duplicados, ya que app/routes/minecraft.py lo maneja con historial
+        # await broadcaster.broadcast_chat(server.name, player_name, message)
 
         # 3. --- PROCESAR LOGROS DE CHAT ---
         player = PlayerService.get_player_by_name(db, server, player_name)

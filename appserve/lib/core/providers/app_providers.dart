@@ -435,6 +435,7 @@ class ServerProvider extends ChangeNotifier {
             'chat_type': data['chat_type'] ?? 'received',
             'time': DateTime.now().toIso8601String(),
           });
+          debugPrint('Added message to list. Total: ${_chatMessages.length}');
           if (_chatMessages.length > 200) _chatMessages.removeAt(0);
           notifyListeners();
         }

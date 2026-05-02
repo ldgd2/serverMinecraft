@@ -17,28 +17,33 @@ class Broadcaster:
         if client_type == "console":
             if server_name not in self.console_clients: self.console_clients[server_name] = []
             self.console_clients[server_name].append(websocket)
+            print(f"[BROADCASTER] {client_type} client joined room: {server_name}")
         elif client_type == "chat":
             if server_name not in self.chat_clients: self.chat_clients[server_name] = []
             self.chat_clients[server_name].append({
                 "ws": websocket,
                 "username": username
             })
+            print(f"[BROADCASTER] {client_type} client '{username}' joined room: {server_name}")
         elif client_type == "status":
             if server_name not in self.status_clients: self.status_clients[server_name] = []
             self.status_clients[server_name].append(websocket)
+            print(f"[BROADCASTER] {client_type} client joined room: {server_name}")
 
     def disconnect(self, server_name: str, websocket: WebSocket, client_type: str):
         server_name = server_name.lower()
         if client_type == "console":
             clients = self.console_clients.get(server_name, [])
             if websocket in clients: clients.remove(websocket)
+            print(f"[BROADCASTER] {client_type} client left room: {server_name}")
         elif client_type == "chat":
             clients = self.chat_clients.get(server_name, [])
-            # Find and remove by ws reference
             self.chat_clients[server_name] = [c for c in clients if c["ws"] != websocket]
+            print(f"[BROADCASTER] {client_type} client left room: {server_name}")
         elif client_type == "status":
             clients = self.status_clients.get(server_name, [])
             if websocket in clients: clients.remove(websocket)
+            print(f"[BROADCASTER] {client_type} client left room: {server_name}")
 
     async def broadcast_chat(self, server_name: str, sender: str, message: str, is_system: bool = False, **kwargs):
         server_name = server_name.lower()
@@ -46,6 +51,7 @@ class Broadcaster:
         if not clients:
             return
 
+        print(f"DEBUG: Broadcaster: Broadcasting to {len(clients)} clients in {server_name}: <{sender}> {message[:30]}...")
         for client_info in list(clients):
             client = client_info["ws"]
             client_user = client_info["username"]
@@ -69,7 +75,7 @@ class Broadcaster:
             
             try:
                 await client.send_text(data)
-                # print(f"DEBUG: Broadcaster: Sent chat to {client_user} in {server_name}")
+                print(f"DEBUG: Broadcaster: Sent chat to {client_user} in {server_name}")
             except Exception as e:
                 print(f"DEBUG: Broadcaster: Chat send error to {client_user}: {e}")
                 try: self.chat_clients[server_name].remove(client_info)

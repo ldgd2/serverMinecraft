@@ -436,8 +436,13 @@ async def startup_event():
 
 @router.websocket("/{name}/chat")
 async def websocket_chat(websocket: WebSocket, name: str, username: str = None):
+    # En caso de que FastAPI no inyecte el query param automáticamente
+    if not username:
+        username = websocket.query_params.get("username")
+        
+    print(f"[WS CHAT] Connecting client to server: {name} as {username}")
     await broadcaster.connect(name, websocket, "chat", username=username)
-    print(f"[WS CHAT] Client connected to broadcaster chat for server: {name} as {username}")
+    print(f"[WS CHAT] Connection established for: {name} (User: {username})")
     
     # Keep the logic for console-based chat fallback if needed, or just let the broadcaster handle it
     # For now, let's keep the client-to-server part
