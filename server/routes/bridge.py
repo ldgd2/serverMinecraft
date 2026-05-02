@@ -413,21 +413,18 @@ async def receive_player_state(request: Request, state: dict, db: Session = Depe
                     from app.controllers.server_controller import ServerController
                     sc = ServerController()
                     
-                    # Obtener host dinámicamente de la request o env
-                    app_url = os.environ.get("APP_URL")
-                    if not app_url:
-                        host = request.headers.get("host", "127.0.0.1:8000")
-                        # If host is 0.0.0.0, it's not a valid download URL for the mod
-                        if "0.0.0.0" in host:
-                            host = host.replace("0.0.0.0", "127.0.0.1")
-                        
-                        protocol = "https" if request.url.scheme == "https" else "http"
-                        app_url = f"{protocol}://{host}"
+                    # Usamos 127.0.0.1 para que el server de MC (en la misma maquina) 
+                    # descargue la skin del backend directamente sin salir a internet.
+                    # No tocamos APP_URL porque el usuario dice que se usa para otra cosa.
+                    skin_host = "127.0.0.1:8000"
                     
-                    if not app_url.startswith("http"):
-                        app_url = f"http://{app_url}"
+                    # Intentar detectar el puerto real si no es el 8000
+                    host_header = request.headers.get("host", "")
+                    if host_header and ":" in host_header:
+                        _, port = host_header.split(":")
+                        skin_host = f"127.0.0.1:{port}"
                     
-                    skin_url = f"{app_url}/static/skins/{player_name}.png"
+                    skin_url = f"http://{skin_host}/static/skins/{player_name}.png"
                     
                     # Try to apply the skin to the server
                     # 1. Try by name
@@ -454,11 +451,12 @@ async def receive_player_state(request: Request, state: dict, db: Session = Depe
                             print(f"[MineBridge] Waiting 10s for {player_name} to join before applying skin...")
                             await asyncio.sleep(10)
                             
-                            # Command for FabricTailor
-                            print(f"[MineBridge] Sending skin commands for {player_name} to server {target_server_name}")
-                            await sc.send_command(target_server_name, f"skin set {player_name} {skin_url}")
+                            # Command for FabricTailor (Standard)
+                            await sc.send_command(target_server_name, f'skin set {player_name} "{skin_url}"')
+                            # Command for FabricTailor (Alternative)
+                            await sc.send_command(target_server_name, f'skin set {player_name} url "{skin_url}"')
                             # Command for SkinRestorer
-                            await sc.send_command(target_server_name, f"skin url {player_name} {skin_url}")
+                            await sc.send_command(target_server_name, f'skin url {player_name} "{skin_url}"')
                         
                         asyncio.create_task(apply_skin())
                         print(f"[MineBridge] Aplicando skin inicial para {player_name} via {skin_url}")
