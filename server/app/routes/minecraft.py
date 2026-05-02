@@ -5,10 +5,11 @@ from app.services.achievements.processor import AchievementProcessor
 from database.models.players.player import Player
 from database.models.players.player_detail import PlayerDetail
 from database.models.server import Server
-from database.models.server_chat import ServerChat
+from database.models.players.player_achievement import PlayerAchievement
 from core.broadcaster import broadcaster
 from pydantic import BaseModel
 import logging
+import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -119,6 +120,21 @@ async def handle_minecraft_chat(chat: MinecraftChat, db: Session = Depends(get_d
             if chat.player_uuid and chat.player_uuid != "unknown":
                 player.uuid = chat.player_uuid
         
+        # --- PROCESAR LOGROS DE INICIO DE SESIÓN ---
+        # 1. Incrementar contador de inicios de sesión
+        AchievementProcessor.process_stat_update(db, player, "login_count", 1)
+        
+        # 2. Logros por horario (Night Owl / Early Bird)
+        now = datetime.datetime.utcnow()
+        if 3 <= now.hour < 5:
+            AchievementProcessor.process_stat_update(db, player, "play_at_night", 1)
+        elif 5 <= now.hour < 7:
+            AchievementProcessor.process_stat_update(db, player, "play_at_dawn", 1)
+
+        # 3. Actualizar fecha de último ingreso para cálculos de sesión
+        if player.detail:
+            player.detail.last_joined_at = now
+
         db.commit()
 
     # 3. Guardar en historial (Chat, Join, Leave, Achievement)
@@ -140,6 +156,10 @@ async def handle_minecraft_chat(chat: MinecraftChat, db: Session = Depends(get_d
         type=db_type
     )
     db.add(new_chat)
+
+    # --- PROCESAR LOGROS DE CHAT ---
+    if chat.type == "chat" and player:
+        AchievementProcessor.process_stat_update(db, player, "chat_message", 1)
 
     # 4. Registrar logro si aplica
     if chat.type == "achievement" and player:
@@ -210,6 +230,7 @@ async def handle_player_state(state: dict, db: Session = Depends(get_db)):
 
     # 3. CALCULAR TIEMPO (Cada update son ~5 segundos)
     AchievementProcessor.process_event(db, player_uuid, "playtime_seconds", 5)
+    AchievementProcessor.process_event(db, player_uuid, "session_time_seconds", 5)
 
     # 4. Actualizar posición y salud en PlayerDetail
     player.detail.position_x = int(x)
@@ -265,7 +286,9 @@ async def send_to_game(
 
         # 4. Enviar al juego vía RCON
         # Formateamos el mensaje para que destaque en el juego
-        rcon_msg = f'tellraw @a ["", {{"text":"[APP] ","color":"dark_gray"}}, {{"text":"{user_name}: ","color":"dark_aqua"}}, {{"text":"{message}","color":"gray"}}]'
+        # Formateamos el mensaje: $nombredeusuarioAdmin: mensaje
+        # Usamos colores para que destaque
+        rcon_msg = f'tellraw @a ["", {{"text":"{user_name}","color":"yellow"}}, {{"text":"Admin","color":"gold","bold":true}}, {{"text":": ","color":"gray"}}, {{"text":"{message}","color":"white"}}]'
         success = rcon_service.send_command(rcon_msg, server_name=server.name)
         
         if not success:

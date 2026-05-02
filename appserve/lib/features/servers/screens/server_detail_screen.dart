@@ -644,6 +644,28 @@ class _ChatTab extends StatefulWidget {
 class _ChatTabState extends State<_ChatTab> {
   final _msgCtrl = TextEditingController();
   final _scrollCtrl = ScrollController();
+  static final int _sessionSalt = DateTime.now().millisecondsSinceEpoch;
+
+  Color _getSenderColor(String name, bool isAdmin) {
+    if (isAdmin) return AppColors.gold;
+    
+    final List<Color> colors = [
+      AppColors.diamond,
+      const Color(0xFFF472B6), // Pink
+      const Color(0xFFA78BFA), // Purple
+      const Color(0xFFFB923C), // Orange
+      const Color(0xFF2DD4BF), // Teal
+      const Color(0xFF60A5FA), // Blue
+      const Color(0xFFF87171), // Red
+      AppColors.emerald,
+    ];
+
+    int hash = _sessionSalt;
+    for (int i = 0; i < name.length; i++) {
+      hash = name.codeUnitAt(i) + ((hash << 5) - hash);
+    }
+    return colors[hash.abs() % colors.length];
+  }
 
   @override
   void dispose() {
@@ -740,7 +762,9 @@ class _ChatTabState extends State<_ChatTab> {
                     );
                   }
 
-                  final isMe = chatType == 'sent';
+                  final currentUsername = context.read<AuthProvider>().user?.username;
+                  final isMe = chatType == 'sent' && sender == currentUsername;
+                  final isOtherAdmin = chatType == 'sent' && !isMe;
 
                   return Align(
                     alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
@@ -774,14 +798,38 @@ class _ChatTabState extends State<_ChatTab> {
                           if (!isMe)
                             Padding(
                               padding: const EdgeInsets.only(bottom: 4),
-                              child: Text(
-                                sender,
-                                style: const TextStyle(
-                                  color: AppColors.diamond,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 11,
-                                  letterSpacing: 0.5,
-                                ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    sender,
+                                    style: TextStyle(
+                                      color: _getSenderColor(sender, isOtherAdmin),
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 11,
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
+                                  if (isOtherAdmin) ...[
+                                    const SizedBox(width: 4),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.gold.withOpacity(0.2),
+                                        borderRadius: BorderRadius.circular(4),
+                                        border: Border.all(color: AppColors.gold.withOpacity(0.5), width: 0.5),
+                                      ),
+                                      child: const Text(
+                                        'ADMIN',
+                                        style: TextStyle(
+                                          color: AppColors.gold,
+                                          fontSize: 7,
+                                          fontWeight: FontWeight.w900,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
                               ),
                             ),
                           Text(

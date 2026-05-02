@@ -6,8 +6,12 @@ import hashlib
 from sqlalchemy.orm import Session
 from database.connection import get_db
 from database.models.user import User
-from fastapi import WebSocket, WebSocketDisconnect, Request
 from core.broadcaster import broadcaster
+import datetime
+from app.services.player_service import PlayerService
+from app.services.achievements import AchievementService
+from database.models import Server
+from database.connection import SessionLocal
 
 router = APIRouter(prefix="/bridge", tags=["Minecraft Bridge"])
 ws_router = APIRouter(prefix="/ws", tags=["Minecraft Bridge WS"])
@@ -142,29 +146,44 @@ async def receive_event(event: dict, user: User = Depends(verify_api_key)):
         
     await broadcaster.broadcast_chat(user.username, "System", msg, is_system=True)
 
-    # Procesar logros de inicio de sesion (Login Count)
-    if event_type == "join":
-        from app.services.player_service import PlayerService
-        from app.services.achievements import AchievementService
-        from database.models import Server
-        from database.connection import SessionLocal
-        
-        # Usamos una sesion nueva para evitar conflictos con el request principal si fuera necesario
-        with SessionLocal() as db:
-            # Intentar encontrar por server_name si viniera en el payload (no viene en el mod actual pero lo preparamos)
-            server_name = event.get("server_name")
-            if server_name:
-                server = db.query(Server).filter(Server.name == server_name).first()
-            else:
-                # Fallback al primer servidor del usuario o el primero global
-                server = db.query(Server).filter(Server.user_id == user.id).first()
-                if not server:
-                    server = db.query(Server).first()
+    # Procesar logros y estado del jugador
+    with SessionLocal() as db:
+        # Obtener el servidor
+        server_name = event.get("server_name")
+        if server_name:
+            server = db.query(Server).filter(Server.name == server_name).first()
+        else:
+            server = db.query(Server).filter(Server.user_id == user.id).first()
+            if not server:
+                server = db.query(Server).first()
 
-            if server:
-                player_obj = PlayerService.get_player_by_name(db, server, player)
-                if player_obj:
+        if server:
+            player_obj = PlayerService.get_player_by_name(db, server, player)
+            if player_obj:
+                if event_type == "join":
+                    # 1. Incrementar contador de inicios de sesión
                     AchievementService.process_stat_update(db, player_obj, "login_count", 1)
+                    
+                    # 2. Actualizar fecha de último ingreso
+                    if not player_obj.detail:
+                        from database.models.players.player_detail import PlayerDetail
+                        player_obj.detail = PlayerDetail(player_id=player_obj.id)
+                    
+                    player_obj.detail.last_joined_at = datetime.datetime.utcnow()
+                    db.commit()
+                
+                elif event_type == "leave":
+                    # 1. Calcular duración de la sesión si tenemos el join
+                    if player_obj.detail and player_obj.detail.last_joined_at:
+                        now = datetime.datetime.utcnow()
+                        duration = int((now - player_obj.detail.last_joined_at).total_seconds())
+                        
+                        if duration > 0:
+                            # Actualizar tiempo total
+                            player_obj.detail.total_playtime_seconds += duration
+                            # Registrar para logros (esto se acumula en PlayerStat)
+                            AchievementService.process_stat_update(db, player_obj, "session_time_seconds", duration)
+                            db.commit()
 
     return {"status": "ok"}
 
@@ -201,14 +220,30 @@ async def receive_stat(stat: dict, db: Session = Depends(get_db), user: User = D
     return {"status": "ok"}
 
 @router.post("/chat")
-async def receive_chat(chat: dict, user: User = Depends(verify_api_key)):
+async def receive_chat(chat: dict, db: Session = Depends(get_db), user: User = Depends(verify_api_key)):
     print(f"DEBUG: Received Bridge Chat: {chat}")
-    player = chat.get("player", "Unknown")
+    player_name = chat.get("player", "Unknown")
     message = chat.get("message", "")
-    logger.info(f"[MineBridge] Chat sync for {user.username}: <{player}> {message}")
+    logger.info(f"[MineBridge] Chat sync for {user.username}: <{player_name}> {message}")
     
     # Retransmitir a la App en tiempo real
-    await broadcaster.broadcast_chat(user.username, player, message)
+    await broadcaster.broadcast_chat(user.username, player_name, message)
+
+    # --- PROCESAR LOGROS DE CHAT ---
+    # Obtener el servidor
+    server_name = chat.get("server_name")
+    if server_name:
+        server = db.query(Server).filter(Server.name == server_name).first()
+    else:
+        server = db.query(Server).filter(Server.user_id == user.id).first()
+        if not server:
+            server = db.query(Server).first()
+
+    if server:
+        player = PlayerService.get_player_by_name(db, server, player_name)
+        if player:
+            AchievementService.process_stat_update(db, player, "chat_message", 1)
+
     return {"status": "ok"}
 
 @router.post("/status")

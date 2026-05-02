@@ -249,7 +249,7 @@ class ServerController:
             # Use /tellraw command for formatted admin message with yellow <Admin>
             # Escape quotes and backslashes in the message
             escaped_text = text.replace('\\', '\\\\').replace('"', '\\"')
-            tellraw_command = f'tellraw @a [{{"text":"<","color":"yellow"}},{{"text":"Admin","color":"yellow"}},{{"text":"> ","color":"yellow"}},{{"text":"{escaped_text}","color":"white"}}]'
+            tellraw_command = f'tellraw @a [{{"text":"Admin","color":"gold","bold":true}},{{"text":": ","color":"gray"}},{{"text":"{escaped_text}","color":"white"}}]'
             await process.write(tellraw_command)
             return True
         else:
