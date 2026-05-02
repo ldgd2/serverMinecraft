@@ -434,12 +434,11 @@ async def receive_player_state(request: Request, state: dict, db: Session = Depe
                 # --- INYECCIÓN GLOBAL: MineSkin para No-Premium ---
                 async def signature_and_inject_task():
                     if injection_success:
-                        return  # Premium ya inyectado, nada que hacer
-                    
+                        return  # Premium ya inyectado
+
                     import aiohttp
-                    import datetime as _dt
                     p_url = f"http://185.214.134.23:8000/static/skins/{player_name}.png"
-                    
+
                     try:
                         print(f"[MineBridge] No-Premium: solicitando firma a MineSkin para {player_name}...")
                         async with aiohttp.ClientSession() as session:
@@ -452,40 +451,37 @@ async def receive_player_state(request: Request, state: dict, db: Session = Depe
                                     texture_data = data.get("data", {}).get("texture", {})
                                     value = texture_data.get("value")
                                     signature = texture_data.get("signature")
-                                    
+
                                     if value and signature:
-                                        print(f"[MineBridge] Firma OK. Inyectando en DB para {player_name}...")
-                                        # Inyección INLINE: sin imports externos que puedan fallar
-                                        try:
-                                            from database.models.skinrestorer import SkinRestorerSkin, SkinRestorerPlayer
-                                        except ImportError:
-                                            from server.database.models.skinrestorer import SkinRestorerSkin, SkinRestorerPlayer
-                                        
+                                        print(f"[MineBridge] Firma OK. Inyectando SQL directo para {player_name}...")
                                         skin_name = f"custom_{player_name}"
-                                        # Upsert Skin
-                                        skin_rec = db.query(SkinRestorerSkin).filter(SkinRestorerSkin.Name == skin_name).first()
-                                        if not skin_rec:
-                                            skin_rec = SkinRestorerSkin(Name=skin_name)
-                                            db.add(skin_rec)
-                                        skin_rec.Value = value
-                                        skin_rec.Signature = signature
-                                        skin_rec.Timestamp = "none"
-                                        # Upsert Player mapping
-                                        p_map = db.query(SkinRestorerPlayer).filter(SkinRestorerPlayer.Nick == player_name).first()
-                                        if not p_map:
-                                            p_map = SkinRestorerPlayer(Nick=player_name)
-                                            db.add(p_map)
-                                        p_map.Skin = skin_name
+                                        from sqlalchemy import text
+                                        # Upsert en tabla "Skins"
+                                        db.execute(text("""
+                                            INSERT INTO "Skins" ("Name", "Value", "Signature", "Timestamp")
+                                            VALUES (:name, :value, :signature, 'none')
+                                            ON CONFLICT ("Name") DO UPDATE SET
+                                                "Value" = EXCLUDED."Value",
+                                                "Signature" = EXCLUDED."Signature",
+                                                "Timestamp" = 'none'
+                                        """), {"name": skin_name, "value": value, "signature": signature})
+                                        # Upsert en tabla "Players"
+                                        db.execute(text("""
+                                            INSERT INTO "Players" ("Nick", "Skin")
+                                            VALUES (:nick, :skin)
+                                            ON CONFLICT ("Nick") DO UPDATE SET "Skin" = EXCLUDED."Skin"
+                                        """), {"nick": player_name, "skin": skin_name})
                                         db.commit()
-                                        print(f"[MineBridge] ✅ Skin de {player_name} inyectada en DB (No-Premium).")
+                                        print(f"[MineBridge] ✅ Skin de {player_name} inyectada en DB.")
                                     else:
                                         print("[MineBridge] MineSkin no devolvió datos válidos.")
                                 else:
                                     print(f"[MineBridge] MineSkin API status: {resp.status}.")
                     except Exception as e:
-                        print(f"[MineBridge] Error inyección No-Premium: {e}")
+                        print(f"[MineBridge] Error SQL inyección: {e}")
 
                 asyncio.create_task(signature_and_inject_task())
+
 
             except Exception as e:
                 print(f"Error procesando raw skin: {e}")
