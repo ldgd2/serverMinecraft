@@ -106,11 +106,11 @@ def auto_update_cmd(message: Optional[str] = typer.Option(None, "--message", "-m
             err_output = (res.stderr or "") + (res.stdout or "")
             
             # AUTOMATIC CONFLICT RESOLUTION
-            if "Target database is not up to date" in err_output or "Multiple head revisions" in err_output:
+            if "Target database is not up to date" in err_output or "Multiple heads" in err_output:
                 progress.update(task, description="[yellow]Conflict detected. Cleaning and syncing DB...")
                 
                 # Manual SQL clean if multiple heads
-                if "Multiple head revisions" in err_output:
+                if "Multiple heads" in err_output:
                     from sqlalchemy import text
                     from database.connection import get_engine
                     try:
@@ -119,8 +119,8 @@ def auto_update_cmd(message: Optional[str] = typer.Option(None, "--message", "-m
                             conn.commit()
                     except: pass
 
-                # Sync to head
-                subprocess.run([sys.executable, "-m", "alembic", "stamp", "head"], cwd=PROJECT_ROOT)
+                # Sync to head (use 'heads' plural to avoid 'Multiple heads are present' failure)
+                subprocess.run([sys.executable, "-m", "alembic", "stamp", "heads"], cwd=PROJECT_ROOT)
                 
                 # Second attempt
                 progress.update(task, description="[cyan]Retrying migration generation...")

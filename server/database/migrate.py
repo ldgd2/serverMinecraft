@@ -53,7 +53,7 @@ def create_database():
                     from sqlalchemy import text
                     conn.execute(text("DELETE FROM alembic_version"))
                     # Re-try stamping
-                    subprocess.run([sys.executable, "-m", "alembic", "stamp", "head"], cwd=PROJECT_ROOT)
+                    subprocess.run([sys.executable, "-m", "alembic", "stamp", "heads"], cwd=PROJECT_ROOT)
                     conn.commit()
                     print("[INIT] Forced clean successful.")
                 except Exception as ex:
@@ -89,8 +89,8 @@ def run_migrations():
             print("\n[MIGRATE] Migrations completed successfully ✓")
         else:
             print(f"[MIGRATE] Migration failed ✗")
-            err = result.stderr or result.stdout
-            if "Multiple head revisions" in err or "Multiple heads" in err:
+            err = (result.stderr or "") + (result.stdout or "")
+            if "Multiple head" in err or "Multiple heads" in err:
                 print("[MIGRATE] Detected multiple heads in DB. Attempting forced clean...")
                 try:
                     from database.connection import get_engine
@@ -98,8 +98,8 @@ def run_migrations():
                     with get_engine().connect() as conn:
                         conn.execute(text("DELETE FROM alembic_version"))
                         conn.commit()
-                    # After cleaning, we must stamp to a valid head or re-run
-                    subprocess.run([sys.executable, "-m", "alembic", "stamp", "head"], cwd=PROJECT_ROOT)
+                    # After cleaning, we must stamp to a valid head
+                    subprocess.run([sys.executable, "-m", "alembic", "stamp", "heads"], cwd=PROJECT_ROOT)
                     print("[MIGRATE] Forced clean successful. Please try again.")
                 except Exception as ex:
                     print(f"[MIGRATE] Forced clean failed: {ex}")
