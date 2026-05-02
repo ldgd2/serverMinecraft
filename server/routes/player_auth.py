@@ -203,34 +203,69 @@ def get_player_profile(current: PlayerAccount = Depends(get_current_player), db:
     # Aggregate server stats for this player (by username)
     db_players = db.query(Player).filter(Player.name == current.username).all()
     
+    # Aggregating Stats
     server_stats = []
     total_server_playtime = 0
+    total_server_kills = 0
+    total_server_deaths = 0
+    total_server_blocks_broken = 0
+    total_server_blocks_placed = 0
+
     for p in db_players:
         if p.detail:
             total_server_playtime += p.detail.total_playtime_seconds or 0
-        stats_dict = {s.stat_key: s.stat_value for s in p.stats}
+        
+        for s in p.stats:
+            if s.stat_key == "total_kill":
+                total_server_kills += s.stat_value
+            elif s.stat_key == "total_death":
+                total_server_deaths += s.stat_value
+            elif s.stat_key == "total_block_broken":
+                total_server_blocks_broken += s.stat_value
+            elif s.stat_key == "total_block_placed":
+                total_server_blocks_placed += s.stat_value
+
         server_stats.append({
             "server_id": p.server_id,
-            "stats": stats_dict,
             "playtime_seconds": p.detail.total_playtime_seconds if p.detail else 0,
         })
 
-    # Achievements
-    achievements = [{
-        "key": a.achievement_key,
-        "name": a.name,
-        "description": a.description,
-        "icon": a.icon,
-        "unlocked_at": a.unlocked_at.isoformat() if a.unlocked_at else None,
-        "server_name": a.server_name,
-    } for a in current.achievements]
+    # Merging Achievements
+    achievements = []
+    
+    # Global Account Achievements
+    for a in current.achievements:
+        achievements.append({
+            "key": a.achievement_key,
+            "name": a.name,
+            "description": a.description,
+            "icon": a.icon,
+            "unlocked_at": a.unlocked_at.isoformat() if a.unlocked_at else None,
+            "server_name": a.server_name or "Global",
+        })
+        
+    # Server Specific Achievements (from Mod)
+    for p in db_players:
+        for sa in p.achievements:
+            achievements.append({
+                "key": sa.achievement_id,
+                "name": sa.name,
+                "description": sa.description,
+                "icon": "🏆",
+                "unlocked_at": sa.unlocked_at.isoformat() if sa.unlocked_at else None,
+                "server_name": p.server.name if p.server else "Servidor",
+            })
 
-    # Format playtime
+    # Final Totals
+    final_kills = current.total_kills + total_server_kills
+    final_deaths = current.total_deaths + total_server_deaths
+    final_blocks_broken = current.total_blocks_broken + total_server_blocks_broken
+    final_blocks_placed = current.total_blocks_placed + total_server_blocks_placed
     total_pt = current.total_playtime_seconds + total_server_playtime
+
     h = total_pt // 3600
     m = (total_pt % 3600) // 60
-
-    kd = round(current.total_kills / max(current.total_deaths, 1), 2)
+    kd = round(final_kills / max(final_deaths, 1), 2)
 
     return APIResponse(status="success", message="Profile retrieved", data={
         "username": current.username,
@@ -241,11 +276,11 @@ def get_player_profile(current: PlayerAccount = Depends(get_current_player), db:
         "stats": {
             "playtime": f"{h}h {m}m",
             "playtime_seconds": total_pt,
-            "kills": current.total_kills,
-            "deaths": current.total_deaths,
+            "kills": final_kills,
+            "deaths": final_deaths,
             "kd_ratio": kd,
-            "blocks_broken": current.total_blocks_broken,
-            "blocks_placed": current.total_blocks_placed,
+            "blocks_broken": final_blocks_broken,
+            "blocks_placed": final_blocks_placed,
             "best_kill_streak": current.best_kill_streak,
         },
         "achievements": achievements,

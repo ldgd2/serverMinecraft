@@ -5,7 +5,24 @@
   "compatibilityLevel": "JAVA_17",
   "mixins": [
     "ServerPlayerEntityMixin",
-    "PlayerAdvancementTrackerMixin"
+    "PlayerAdvancementTrackerMixin",
+    "BedBlockMixin",
+    "LivingEntityMixin",
+    "BlockItemMixin",
+    "FishingMixin",
+    "MerchantResultSlotMixin",
+    "BrewingStandBlockEntityMixin",
+    "EnchantmentScreenHandlerMixin",
+    "PiglinBrainMixin",
+    "PlayerEntityMixin",
+    "SheepEntityMixin",
+    "TameableEntityMixin",
+    "ProjectileEntityMixin",
+    "PaintingEntityMixin",
+    "InventoryMixin",
+    "MerchantEntityMixin",
+    "JukeboxBlockMixin",
+    "AnvilScreenHandlerMixin"
   ],
   "injectors": {
     "defaultRequire": 1

@@ -33,6 +33,29 @@ class ConnectionManager:
                 "command": command
             })
 
+    async def send_kick(self, username: str, target: str, reason: str):
+        if username in self.active_connections:
+            await self.active_connections[username].send_json({
+                "action": "kick",
+                "player": target,
+                "reason": reason
+            })
+
+    async def send_ban(self, username: str, target: str, reason: str):
+        if username in self.active_connections:
+            await self.active_connections[username].send_json({
+                "action": "ban",
+                "player": target,
+                "reason": reason
+            })
+
+    async def send_unban(self, username: str, target: str):
+        if username in self.active_connections:
+            await self.active_connections[username].send_json({
+                "action": "unban",
+                "player": target
+            })
+
 manager = ConnectionManager()
 
 async def verify_api_key(x_api_key: str = Header(...), db: Session = Depends(get_db)):
@@ -118,11 +141,46 @@ async def receive_event(event: dict, user: User = Depends(verify_api_key)):
         msg = f"{player} murió por {event.get('cause')}"
         
     await broadcaster.broadcast_chat(user.username, "System", msg, is_system=True)
+
+    # Procesar logros de inicio de sesion (Login Count)
+    if event_type == "join":
+        from app.services.player_service import PlayerService
+        from app.services.achievements import AchievementService
+        from database.models import Server
+        from database.connection import SessionLocal
+        
+        # Usamos una sesion nueva para evitar conflictos con el request principal si fuera necesario
+        with SessionLocal() as db:
+            server = db.query(Server).filter(Server.user_id == user.id).first()
+            if server:
+                player_obj = PlayerService.get_player_by_name(db, server, player)
+                if player_obj:
+                    AchievementService.process_stat_update(db, player_obj, "login_count", 1)
+
     return {"status": "ok"}
 
 @router.post("/stats")
-async def receive_stat(stat: dict, user: User = Depends(verify_api_key)):
+async def receive_stat(stat: dict, db: Session = Depends(get_db), user: User = Depends(verify_api_key)):
     # print(f"DEBUG: Received Bridge Stat: {stat}")
+    player_name = stat.get("player")
+    stat_key = stat.get("stat")
+    value = stat.get("value")
+    amount = stat.get("amount", 1)
+    
+    if player_name and stat_key:
+        from app.services.achievements import AchievementService
+        from app.services.player_service import PlayerService
+        
+        # Obtener el primer servidor del usuario (o el que corresponda)
+        # En una arquitectura multi-servidor real, el Mod debería enviar su ID o nombre de instancia
+        # Por ahora, buscamos al jugador en los servidores de este administrador
+        from database.models import Server
+        server = db.query(Server).filter(Server.user_id == user.id).first()
+        if server:
+            player = PlayerService.get_player_by_name(db, server, player_name)
+            if player:
+                AchievementService.process_stat_update(db, player, stat_key, amount, value=value)
+
     return {"status": "ok"}
 
 @router.post("/chat")

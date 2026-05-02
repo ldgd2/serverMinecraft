@@ -129,6 +129,15 @@ class PlayerService:
         process = server_service.get_process(server.name)
         if process and process.is_running():
             await process.write(f"ban {player.name} {reason}")
+            
+        # Also notify via Bridge if connected
+        from routes.bridge import manager as bridge_manager
+        # Assuming server username matches some identifier, but usually it's the server owner's username
+        # For now, we search for the server owner's connection
+        from database.models.user import User
+        owner = db.query(User).filter(User.id == server.user_id).first()
+        if owner:
+            await bridge_manager.send_ban(owner.username, player.name, reason)
         
         db.commit()
         
@@ -243,6 +252,13 @@ class PlayerService:
         process = server_service.get_process(server.name)
         if process and process.is_running():
             await process.write(f"pardon {player.name}")
+
+        # Also notify via Bridge if connected
+        from routes.bridge import manager as bridge_manager
+        from database.models.user import User
+        owner = db.query(User).filter(User.id == server.user_id).first()
+        if owner:
+            await bridge_manager.send_unban(owner.username, player.name)
         
         db.commit()
         
@@ -306,6 +322,13 @@ class PlayerService:
             }
         
         await process.write(f"kick {player_name} {reason}")
+
+        # Also notify via Bridge if connected
+        from routes.bridge import manager as bridge_manager
+        from database.models.user import User
+        owner = db.query(User).filter(User.id == server.user_id).first()
+        if owner:
+            await bridge_manager.send_kick(owner.username, player_name, reason)
         
         # Audit log
         if player:
@@ -419,6 +442,17 @@ class PlayerService:
         process = server_service.get_process(server.name)
         if process and process.is_running():
             await process.write(f"pardon-ip {ip_address}")
+
+        # Also notify via Bridge if connected
+        from routes.bridge import manager as bridge_manager
+        from database.models.user import User
+        owner = db.query(User).filter(User.id == server.user_id).first()
+        if owner:
+            if owner.username in bridge_manager.active_connections:
+                await bridge_manager.active_connections[owner.username].send_json({
+                    "action": "unban-ip",
+                    "ip": ip_address
+                })
         
         # Audit log
         BitacoraService.add_log(

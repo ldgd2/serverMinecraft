@@ -1,55 +1,39 @@
 package com.lider.minebridge.events;
 
-import com.lider.minebridge.MineBridge;
-import net.fabricmc.fabric.api.entity.event.v1.ServerEntityCombatEvents;
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
-import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
-import net.fabricmc.fabric.api.message.v1.ServerMessageEvents;
-import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
+import com.lider.minebridge.events.blocks.BlockLogic;
+import com.lider.minebridge.events.combat.CombatLogic;
+import com.lider.minebridge.events.economy.EconomyLogic;
+import com.lider.minebridge.events.items.ItemLogic;
+import com.lider.minebridge.events.player.PlayerLogic;
+import com.lider.minebridge.events.special.MemeLogic;
+import com.lider.minebridge.events.world.WorldLogic;
+import net.minecraft.server.network.ServerPlayerEntity;
 
+/**
+ * El Gran Orquestador. 
+ * Su única misión es despertar a los módulos especializados al inicio.
+ */
 public class ServerEvents {
-    
+
     public static void init() {
-        // Lifecycle events
-        ServerLifecycleEvents.SERVER_STARTED.register(server -> {
-            MineBridge.getBackendClient().notifyServerState("STARTED");
-        });
+        // Inicializar cada dominio por separado
+        PlayerLogic.init();
+        BlockLogic.init();
+        CombatLogic.init();
+        ItemLogic.init();
+        WorldLogic.init();
+        MemeLogic.init();
+        EconomyLogic.init();
+    }
 
-        ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
-            MineBridge.getBackendClient().notifyServerState("STOPPING");
-            MineBridge.getBackendClient().close();
-        });
+    /**
+     * Puentes para Mixins (Delegando a sus respectivos dominios)
+     */
+    public static void onNetherBedExplosion(ServerPlayerEntity player) {
+        MemeLogic.onNetherBedExplosion(player);
+    }
 
-        // Chat events
-        ServerMessageEvents.CHAT_MESSAGE.register((message, sender, params) -> {
-            String content = message.getContent().getString();
-            String player = sender.getName().getString();
-            MineBridge.getBackendClient().sendChatMessage(player, content);
-        });
-
-        // Connection events
-        ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
-            String player = handler.getPlayer().getName().getString();
-            String uuid = handler.getPlayer().getUuidAsString();
-            MineBridge.getBackendClient().notifyPlayerJoin(player, uuid);
-        });
-
-        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
-            String player = handler.getPlayer().getName().getString();
-            MineBridge.getBackendClient().notifyPlayerLeave(player);
-        });
-
-        // Statistics and Actions
-        PlayerBlockBreakEvents.AFTER.register((world, player, pos, state, entity) -> {
-            if (!world.isClient) {
-                MineBridge.getBackendClient().notifyStatUpdate(player.getName().getString(), "block_broken", state.getBlock().getTranslationKey());
-            }
-        });
-
-        ServerEntityCombatEvents.AFTER_KILLED_OTHER_ENTITY.register((world, entity, killedEntity) -> {
-            if (entity instanceof net.minecraft.server.network.ServerPlayerEntity player) {
-                MineBridge.getBackendClient().notifyStatUpdate(player.getName().getString(), "kill", killedEntity.getType().getTranslationKey());
-            }
-        });
+    public static void onPlayerDeath(ServerPlayerEntity player, net.minecraft.entity.damage.DamageSource source, net.minecraft.text.Text deathMessage) {
+        PlayerLogic.onPlayerDeath(player, source, deathMessage);
     }
 }

@@ -217,6 +217,12 @@ public class BackendClient {
                     String target = json.get("player").getAsString();
                     String reason = json.has("reason") ? json.get("reason").getAsString() : "Banned by admin";
                     executeCommand("ban " + target + " " + reason);
+                } else if ("unban".equals(action)) {
+                    String target = json.get("player").getAsString();
+                    executeCommand("pardon " + target);
+                } else if ("unban-ip".equals(action)) {
+                    String target = json.get("ip").getAsString();
+                    executeCommand("pardon-ip " + target);
                 }
             } catch (Exception e) {
                 MineBridge.LOGGER.error("Error processing WebSocket message: " + e.getMessage());

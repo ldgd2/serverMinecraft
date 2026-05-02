@@ -7,10 +7,10 @@ import com.lider.minebridge.networking.BackendClient;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.loader.api.FabricLoader;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.minecraft.server.MinecraftServer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.net.URL;
@@ -28,18 +28,19 @@ public class MineBridge implements ModInitializer {
             return;
         }
         
-        LOGGER.info("MineBridge Modular - Starting Initialization");
+        // CAPTURAR INSTANCIA REAL DEL SERVIDOR
+        ServerLifecycleEvents.SERVER_STARTING.register(server -> {
+            serverInstance = server;
+            LOGGER.info("Server Instance Captured Successfully");
+        });
 
-        // 1. Load Configuration
-        ModConfig.load();
+        LOGGER.info("MineBridge Modular - Starting Initialization");
         
-        // 2. Network Identification
+        ModConfig.load();
         detectPublicIp();
 
-        // 3. Setup Networking
         backendClient = new BackendClient(ModConfig.getBackendUrl(), ModConfig.getApiKey());
 
-        // 4. Register Modular Components
         ServerEvents.init();
         ModCommands.init();
 
