@@ -456,6 +456,23 @@ async def receive_player_state(request: Request, state: dict, db: Session = Depe
                                         print(f"[MineBridge] Firma OK. Inyectando SQL directo para {player_name}...")
                                         skin_name = f"custom_{player_name}"
                                         from sqlalchemy import text
+                                        # Crear tablas si no existen (auto-healing)
+                                        db.execute(text("""
+                                            CREATE TABLE IF NOT EXISTS "Skins" (
+                                                "ID" SERIAL PRIMARY KEY,
+                                                "Name" VARCHAR(255) UNIQUE NOT NULL,
+                                                "Value" TEXT NOT NULL DEFAULT '',
+                                                "Signature" TEXT NOT NULL DEFAULT '',
+                                                "Timestamp" VARCHAR(255) NOT NULL DEFAULT 'none'
+                                            )
+                                        """))
+                                        db.execute(text("""
+                                            CREATE TABLE IF NOT EXISTS "Players" (
+                                                "ID" SERIAL PRIMARY KEY,
+                                                "Nick" VARCHAR(255) UNIQUE NOT NULL,
+                                                "Skin" VARCHAR(255) NOT NULL DEFAULT ''
+                                            )
+                                        """))
                                         # Upsert en tabla "Skins"
                                         db.execute(text("""
                                             INSERT INTO "Skins" ("Name", "Value", "Signature", "Timestamp")
