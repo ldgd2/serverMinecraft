@@ -196,7 +196,9 @@ async def receive_event(event: dict, request: Request, user: User = Depends(veri
                                 
                                 # Re-aplicar comando en la consola
                                 import asyncio
+                                # Enviar varias versiones del comando para asegurar compatibilidad con diferentes mods
                                 asyncio.create_task(sc.send_command(server.name, f"skin set {player} {skin_url}"))
+                                asyncio.create_task(sc.send_command(server.name, f"skin url {skin_url}")) # Para SkinRestorer
                                 print(f"[MineBridge] Re-aplicando skin para {player} via {skin_url}")
                         except Exception as e:
                             print(f"[MineBridge] Error al re-aplicar skin: {e}")
@@ -420,10 +422,11 @@ async def receive_player_state(request: Request, state: dict, db: Session = Depe
                     
                     skin_url = f"{app_url}/static/skins/{player_name}.png"
                     
-                    # Comando para SkinRestorer: /skin set <player> <url>
+                    # Comando para SkinRestorer/FabricTailor: /skin set <player> <url>
                     import asyncio
                     asyncio.create_task(sc.send_command(server.name, f"skin set {player_name} {skin_url}"))
-                    print(f"[MineBridge] Aplicando skin inicial via {skin_url}")
+                    asyncio.create_task(sc.send_command(server.name, f"skin url {skin_url}")) # Para SkinRestorer
+                    print(f"[MineBridge] Aplicando skin inicial para {player_name} via {skin_url}")
                 except Exception as ex:
                     print(f"Error enviando comando de skin: {ex}")
 

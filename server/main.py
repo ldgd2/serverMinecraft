@@ -7,7 +7,7 @@ if sys.platform == 'win32':
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
 from fastapi import FastAPI, Request, HTTPException
-# StaticFiles and Templates removed for Pure API
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
@@ -65,8 +65,11 @@ os.makedirs("source/fabric", exist_ok=True)
 os.makedirs("source/paper", exist_ok=True)
 os.makedirs("source/vanilla", exist_ok=True)
 os.makedirs("servers", exist_ok=True)
+os.makedirs("static/skins", exist_ok=True)
+os.makedirs("static/heads", exist_ok=True)
 
-# Pure API - No static mounts
+# Mount static files
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Custom Exception Handlers
 @app.exception_handler(HTTPException)
