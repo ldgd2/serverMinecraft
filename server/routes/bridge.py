@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from typing import Optional, List
 import logging
 import hashlib
+import asyncio
 from sqlalchemy.orm import Session
 from database.connection import get_db
 from database.models.user import User
