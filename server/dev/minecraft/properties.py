@@ -2,6 +2,8 @@ import typer
 import os
 from rich.console import Console
 from rich.table import Table
+import json
+import urllib.request
 
 app = typer.Typer(help="Manage server.properties configuration")
 console = Console()
@@ -70,6 +72,7 @@ def main(ctx: typer.Context):
             console.print("[3] Set Property")
             console.print("[4] Bind to Localhost (127.0.0.1)")
             console.print("[5] Bind to Public (0.0.0.0)")
+            console.print("[6] Auto-Config SkinRestorer")
             console.print("[0] Return to Main Menu")
             
             choice = Prompt.ask("Select an option", choices=["1", "2", "3", "4", "5", "0"], default="1")
@@ -110,6 +113,8 @@ def main(ctx: typer.Context):
                     bind_local(prop_file)
                 elif choice == "5":
                     bind_public(prop_file)
+                elif choice == "6":
+                    setup_skinrestorer_auto(selected_server)
             except Exception as e:
                 console.print(f"[bold red]An error occurred: {e}[/bold red]")
                 
@@ -163,7 +168,64 @@ def bind_public(file: str = typer.Option(DEFAULT_PROPERTIES_FILE, help="Path to 
     """Bind server to 0.0.0.0 (Publicly accessible)."""
     set_property("server-ip", "0.0.0.0", file)
 
-@app.command("bind")
-def bind(ip: str, file: str = typer.Option(DEFAULT_PROPERTIES_FILE, help="Path to server.properties")):
-    """Bind server to a specific IP."""
-    set_property("server-ip", ip, file)
+@app.command("setup-skins")
+def setup_skinrestorer_auto(server_name: str):
+    """Detects public IP and configures SkinRestorer for the specified server."""
+    console.print(f"[cyan]🚀 Auto-configuring skins for {server_name}...[/cyan]")
+    
+    # 1. Detect Public IP
+    try:
+        public_ip = urllib.request.urlopen('https://api.ipify.org').read().decode('utf8')
+        console.print(f"[green]✓ Detected Public IP: {public_ip}[/green]")
+    except Exception as e:
+        console.print(f"[red]Error detecting IP: {e}. Falling back to 127.0.0.1[/red]")
+        public_ip = "127.0.0.1"
+
+    # 2. Path to config.json
+    # server/dev/minecraft/properties.py -> server/servers/{name}/config/skinrestorer/config.json
+    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    config_path = os.path.join(base_dir, "servers", server_name, "config", "skinrestorer", "config.json")
+    
+    if not os.path.exists(config_path):
+        console.print(f"[red]Error: {config_path} not found. Is SkinRestorer installed on this server?[/red]")
+        return
+
+    # 3. Load and Update JSON
+    try:
+        with open(config_path, "r") as f:
+            config = json.load(f)
+        
+        # Update autoFetch
+        config["join"] = config.get("join", {})
+        config["join"]["autoFetch"] = {
+            "enabled": True,
+            "overrideExisting": True,
+            "provider": "MineManager"
+        }
+        
+        # Ensure providers exist
+        if "providers" not in config:
+            config["providers"] = {}
+        
+        # Disable others, add MineManager to custom
+        for p in ["mojang", "ely_by", "mineskin"]:
+            if p in config["providers"]:
+                config["providers"][p]["enabled"] = False
+        
+        config["providers"]["custom"] = [
+            {
+                "name": "MineManager",
+                "type": "WEB",
+                "url": f"http://{public_ip}:8000/api/v1/players/skin/%s"
+            }
+        ]
+        
+        # Save
+        with open(config_path, "w") as f:
+            json.dump(config, f, indent=2)
+            
+        console.print(f"[bold green]✓ SkinRestorer configured successfully in {server_name}![/bold green]")
+        console.print(f"[dim]Provider: MineManager -> http://{public_ip}:8000[/dim]")
+        
+    except Exception as e:
+        console.print(f"[bold red]Error updating JSON: {e}[/bold red]")
