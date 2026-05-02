@@ -422,11 +422,36 @@ async def receive_player_state(request: Request, state: dict, db: Session = Depe
                     
                     skin_url = f"{app_url}/static/skins/{player_name}.png"
                     
-                    # Comando para SkinRestorer/FabricTailor: /skin set <player> <url>
-                    import asyncio
-                    asyncio.create_task(sc.send_command(server.name, f"skin set {player_name} {skin_url}"))
-                    asyncio.create_task(sc.send_command(server.name, f"skin url {skin_url}")) # Para SkinRestorer
-                    print(f"[MineBridge] Aplicando skin inicial para {player_name} via {skin_url}")
+                    # Try to apply the skin to the server
+                    # 1. Try by name
+                    server = db.query(Server).filter(Server.name == server_name).first()
+                    
+                    # 2. If not found by name, try finding any online server (fallback)
+                    if not server:
+                        server = db.query(Server).filter(Server.status == "RUNNING").first()
+                    
+                    # 3. Last resort: just use the first server
+                    if not server:
+                        server = db.query(Server).first()
+
+                    if server and player_name and skin_url:
+                        # Try multiple common mod commands to apply the skin
+                        from core.websocket_server import server_controller as sc
+                        
+                        # We use a helper to send to the specific server
+                        async def apply_skin():
+                            # Wait for the player to actually join (10 seconds delay)
+                            print(f"[MineBridge] Waiting 10s for {player_name} to join before applying skin...")
+                            await asyncio.sleep(10)
+                            
+                            # Command for FabricTailor
+                            print(f"[MineBridge] Sending skin commands for {player_name}")
+                            await sc.send_command(server.name, f"skin set {player_name} {skin_url}")
+                            # Command for SkinRestorer
+                            await sc.send_command(server.name, f"skin url {player_name} {skin_url}")
+                        
+                        asyncio.create_task(apply_skin())
+                        print(f"[MineBridge] Aplicando skin inicial para {player_name} via {skin_url}")
                 except Exception as ex:
                     print(f"Error enviando comando de skin: {ex}")
 

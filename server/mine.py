@@ -156,12 +156,13 @@ def show_menu():
         table.add_row("11", "System", "Status", "Check Service Status")
         table.add_row("12", "Security", "Key Manager", "Generate/View Admin API Keys")
         table.add_row("13", "RCON", "Setup", "Configurar RCON para App→Minecraft (auto contraseña)")
+        table.add_row("14", "System", "Update Deps", "Install/Update python requirements (Pillow, etc)")
         table.add_row("0", "Exit", "Quit", "Close the CLI")
         
         console.print(table)
         console.print("\n")
 
-        choice = Prompt.ask("[bold yellow]❯ Select an option[/bold yellow]", choices=["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "0"], default="1")
+        choice = Prompt.ask("[bold yellow]❯ Select an option[/bold yellow]", choices=["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "0"], default="1")
         import subprocess
         script_path = os.path.abspath(__file__)
         python_exe = sys.executable
@@ -197,6 +198,12 @@ def show_menu():
             subprocess.run([python_exe, script_path, "security"])
         elif choice == "13":
             subprocess.run([python_exe, script_path, "rcon_setup"])
+        elif choice == "14":
+            console.print("[cyan]Installing/Updating dependencies from requirements.txt...[/cyan]")
+            subprocess.run([python_exe, "-m", "pip", "install", "-r", "requirements.txt"])
+            subprocess.run([python_exe, "-m", "pip", "install", "Pillow"]) # Ensure Pillow is explicitly installed
+            console.print("[bold green]✓ Dependencies updated.[/bold green]")
+            Prompt.ask("\n[dim]Press Enter to continue...[/dim]")
         elif choice == "0":
             console.print("[bold cyan]Goodbye![/bold cyan]")
             sys.exit(0)
