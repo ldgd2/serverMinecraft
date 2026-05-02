@@ -41,6 +41,9 @@ class PremiumLoginRequest(BaseModel):
 class StatUpdateRequest(BaseModel):
     server_name: str
     kills: Optional[int] = 0
+    player_kills: Optional[int] = 0
+    hostile_kills: Optional[int] = 0
+    passive_kills: Optional[int] = 0
     deaths: Optional[int] = 0
     blocks_broken: Optional[int] = 0
     blocks_placed: Optional[int] = 0
@@ -201,6 +204,15 @@ def login_premium_player(data: PremiumLoginRequest, db: Session = Depends(get_db
 @router.get("/profile")
 def get_player_profile(current: PlayerAccount = Depends(get_current_player), db: Session = Depends(get_db)):
     """Get the current player's profile, stats and achievements."""
+    # Hostile mobs for K/D calculation
+    HOSTILE_MOBS = {
+        "zombie", "skeleton", "creeper", "spider", "enderman", "witch", "slime", "silverfish",
+        "ghast", "blaze", "magma_cube", "endermite", "guardian", "shulker", "husk", "stray",
+        "wither_skeleton", "vex", "evoker", "vindicator", "pillager", "ravager", "hoglin",
+        "zoglin", "piglin_brute", "warden", "drowned", "phantom", "wither", "ender_dragon", 
+        "elder_guardian", "ravager"
+    }
+
     # Aggregate server stats for this player (by username or UUID)
     from sqlalchemy import func
     db_players = db.query(Player).filter(
@@ -214,15 +226,40 @@ def get_player_profile(current: PlayerAccount = Depends(get_current_player), db:
     total_server_deaths = 0
     total_server_blocks_broken = 0
     total_server_blocks_placed = 0
+    
+    # K/D Specific Categories
+    total_server_player_kills = 0
+    total_server_hostile_kills = 0
+    total_server_passive_kills = 0
 
     for p in db_players:
         if p.detail:
             total_server_playtime += p.detail.total_playtime_seconds or 0
         
+        # Track seen keys in this server to avoid double counting if total_kill is present
+        seen_entity_kills = 0
+        
         for s in p.stats:
-            # Aggregate kills (total_kill + any specific kill:zombie etc)
-            if s.stat_key == "total_kill" or s.stat_key.startswith("kill:"):
+            # Aggregate kills
+            if s.stat_key.startswith("kill:"):
+                # Format is usually kill:entity_name or kill:minecraft:entity_name
+                parts = s.stat_key.split(":")
+                entity = parts[-1].lower()
+                
+                if entity == "player":
+                    total_server_player_kills += s.stat_value
+                elif entity in HOSTILE_MOBS:
+                    total_server_hostile_kills += s.stat_value
+                else:
+                    total_server_passive_kills += s.stat_value
+                
+                seen_entity_kills += s.stat_value
                 total_server_kills += s.stat_value
+            
+            elif s.stat_key == "total_kill":
+                # Only add if we haven't counted detailed kills, or handle separately
+                # For now, if we have detailed kills, they are more accurate
+                pass
             
             # Aggregate deaths
             elif s.stat_key == "total_death" or s.stat_key.startswith("death"):
@@ -238,6 +275,7 @@ def get_player_profile(current: PlayerAccount = Depends(get_current_player), db:
 
         server_stats.append({
             "server_id": p.server_id,
+            "server_name": p.server.name if p.server else "Unknown",
             "playtime_seconds": p.detail.total_playtime_seconds if p.detail else 0,
         })
 
@@ -267,16 +305,28 @@ def get_player_profile(current: PlayerAccount = Depends(get_current_player), db:
                 "server_name": p.server.name if p.server else "Servidor",
             })
 
-    # Final Totals
+    # Final Totals (Account + Server detailed)
+    # We assume current.total_kills is the 'legacy' or global count from launcher pushes
     final_kills = current.total_kills + total_server_kills
+    final_player_kills = current.total_player_kills + total_server_player_kills
+    final_hostile_kills = current.total_hostile_kills + total_server_hostile_kills
+    final_genocide = current.total_genocide_score + genocida_score
+    
     final_deaths = current.total_deaths + total_server_deaths
     final_blocks_broken = current.total_blocks_broken + total_server_blocks_broken
     final_blocks_placed = current.total_blocks_placed + total_server_blocks_placed
     total_pt = current.total_playtime_seconds + total_server_playtime
 
+    # K/D Calculation (Balanced)
+    # Kills = (Hostile Mobs) + (Players * 10)
+    weighted_kills = final_hostile_kills + (final_player_kills * 10)
+    kd_ratio = round(weighted_kills / max(final_deaths, 1), 2)
+    
+    # Genocida Score (All kills: passive + hostile + players)
+    # Already calculated as final_genocide
+
     h = total_pt // 3600
     m = (total_pt % 3600) // 60
-    kd = round(final_kills / max(final_deaths, 1), 2)
 
     return APIResponse(status="success", message="Profile retrieved", data={
         "username": current.username,
@@ -289,7 +339,10 @@ def get_player_profile(current: PlayerAccount = Depends(get_current_player), db:
             "playtime_seconds": total_pt,
             "kills": final_kills,
             "deaths": final_deaths,
-            "kd_ratio": kd,
+            "kd_ratio": kd_ratio,
+            "genocida": final_genocide,
+            "player_kills": final_player_kills,
+            "hostile_kills": final_hostile_kills,
             "blocks_broken": final_blocks_broken,
             "blocks_placed": final_blocks_placed,
             "best_kill_streak": current.best_kill_streak,
@@ -311,6 +364,17 @@ def update_player_stats(
     Accumulates on top of existing values.
     """
     current.total_kills += data.kills
+    current.total_player_kills += data.player_kills
+    current.total_hostile_kills += data.hostile_kills
+    
+    # Calculate genocide score for this session update
+    # If detailed ones are provided, we use them, otherwise we just use 'kills' as passive or unknown
+    session_genocide = data.player_kills + data.hostile_kills + data.passive_kills
+    if session_genocide == 0 and data.kills > 0:
+        session_genocide = data.kills
+        
+    current.total_genocide_score += session_genocide
+    
     current.total_deaths += data.deaths
     current.total_blocks_broken += data.blocks_broken
     current.total_blocks_placed += data.blocks_placed
@@ -396,7 +460,8 @@ def get_leaderboard(db: Session = Depends(get_db)):
         "account_type": p.account_type,
         "kills": p.total_kills,
         "deaths": p.total_deaths,
-        "kd_ratio": round(p.total_kills / max(p.total_deaths, 1), 2),
+        "kd_ratio": round((p.total_hostile_kills + (p.total_player_kills * 10)) / max(p.total_deaths, 1), 2),
+        "genocida": p.total_genocide_score,
         "playtime_hours": round(p.total_playtime_seconds / 3600, 1),
         "achievements_count": len(p.achievements),
     } for i, p in enumerate(top)])
@@ -413,6 +478,8 @@ def get_leaderboard_by_category(category: str, db: Session = Depends(get_db)):
         query = query.order_by(PlayerAccount.total_blocks_broken.desc())
     elif category == "playtime":
         query = query.order_by(PlayerAccount.total_playtime_seconds.desc())
+    elif category == "genocida":
+        query = query.order_by(PlayerAccount.total_genocide_score.desc())
     else:
         query = query.order_by(PlayerAccount.total_kills.desc())
         
@@ -424,6 +491,7 @@ def get_leaderboard_by_category(category: str, db: Session = Depends(get_db)):
         "account_type": p.account_type,
         "kills": p.total_kills,
         "blocks": p.total_blocks_broken,
+        "genocida": p.total_genocide_score,
         "playtime_hours": round(p.total_playtime_seconds / 3600, 1),
         "achievements_count": len(p.achievements),
     } for i, p in enumerate(top)])

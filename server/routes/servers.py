@@ -445,13 +445,17 @@ async def websocket_chat(websocket: WebSocket, name: str, username: str = None):
     # We only need this loop to keep the connection open and handle messages FROM the app.
     try:
         while True:
-            data = await websocket.receive_json()
-            if data.get("type") == "send_chat":
-                username = data.get("username") or "Admin"
-                message = data.get("message", "")
-                if message:
-                    # 1. Send message to game console
-                    await server_controller.send_chat_message(name, message, formatted=True)
+                try:
+                    data = await websocket.receive_json()
+                except:
+                    break
+                
+                if data.get("type") == "send_chat":
+                    username = data.get("username") or "Admin"
+                    message = data.get("message", "")
+                    if message:
+                        # 1. Send message to game console
+                        await server_controller.send_chat_message(name, message, formatted=True, sender=username)
                     
                     # 2. Persist in history
                     from database.models.server_chat import ServerChat
@@ -697,7 +701,7 @@ async def send_chat_message(
         
     try:
         # 1. Send to game console
-        success = await server_controller.send_chat_message(name, text, formatted=True)
+        success = await server_controller.send_chat_message(name, text, formatted=True, sender=current_user.username)
         
         # 2. Persist in history
         new_chat = ServerChat(

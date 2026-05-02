@@ -86,8 +86,9 @@ async def handle_minecraft_chat(chat: MinecraftChat, db: Session = Depends(get_d
     if not server:
         return {"status": "error", "message": "No server found"}
 
-    # 2. Registrar jugador si es un evento de join
-    if chat.type == "join":
+    # 2. Identificar al jugador si es un evento relevante
+    player = None
+    if chat.type in ["chat", "join", "leave", "achievement"]:
         # Buscar si ya existe por UUID
         player = db.query(Player).filter(
             Player.uuid == chat.player_uuid,
@@ -120,23 +121,25 @@ async def handle_minecraft_chat(chat: MinecraftChat, db: Session = Depends(get_d
             player.name = chat.player_name
             if chat.player_uuid and chat.player_uuid != "unknown":
                 player.uuid = chat.player_uuid
-        
-        # --- PROCESAR LOGROS DE INICIO DE SESIÓN ---
-        # 1. Incrementar contador de inicios de sesión
-        AchievementProcessor.process_stat_update(db, player, "login_count", 1)
-        
-        # 2. Logros por horario (Night Owl / Early Bird)
-        now = datetime.datetime.utcnow()
-        if 3 <= now.hour < 5:
-            AchievementProcessor.process_stat_update(db, player, "play_at_night", 1)
-        elif 5 <= now.hour < 7:
-            AchievementProcessor.process_stat_update(db, player, "play_at_dawn", 1)
-
-        # 3. Actualizar fecha de último ingreso para cálculos de sesión
-        if player.detail:
-            player.detail.last_joined_at = now
-
         db.commit()
+        
+        # --- PROCESAR LOGROS ESPECÍFICOS DE INICIO DE SESIÓN ---
+        if chat.type == "join":
+            # 1. Incrementar contador de inicios de sesión
+            AchievementProcessor.process_stat_update(db, player, "login_count", 1)
+            
+            # 2. Logros por horario (Night Owl / Early Bird)
+            now = datetime.datetime.utcnow()
+            if 3 <= now.hour < 5:
+                AchievementProcessor.process_stat_update(db, player, "play_at_night", 1)
+            elif 5 <= now.hour < 7:
+                AchievementProcessor.process_stat_update(db, player, "play_at_dawn", 1)
+
+            # 3. Actualizar fecha de último ingreso para cálculos de sesión
+            if player.detail:
+                player.detail.last_joined_at = now
+            
+            db.commit()
 
     # 3. Guardar en historial (Chat, Join, Leave, Achievement)
     chat_mapping = {
@@ -157,6 +160,16 @@ async def handle_minecraft_chat(chat: MinecraftChat, db: Session = Depends(get_d
         type=db_type
     )
     db.add(new_chat)
+    db.commit()
+
+    # 3.1. Retransmitir a la App en tiempo real
+    await broadcaster.broadcast_chat(
+        server.name, 
+        new_chat.username, 
+        new_chat.message,
+        is_system=(chat.type != "chat"),
+        chat_type=db_type
+    )
 
     # --- PROCESAR LOGROS DE CHAT ---
     if chat.type == "chat" and player:

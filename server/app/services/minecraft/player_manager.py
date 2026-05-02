@@ -98,6 +98,8 @@ class PlayerManager:
         # "Username lost connection: Reason"
         match_lost = re.search(r':\s(\S+)\slost\sconnection:\s(.*)', cleaned_line)
         if match_lost:
+            username = match_lost.group(1)
+            reason = match_lost.group(2)
             uuid = self.get_uuid(username)
             if update_state:
                 with self._lock:

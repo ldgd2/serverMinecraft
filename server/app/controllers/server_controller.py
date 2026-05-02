@@ -233,24 +233,32 @@ class ServerController:
             return await process.deop_player(username)
         return False
     
-    async def send_chat_message(self, name: str, text: str, formatted: bool = False):
+    async def send_chat_message(self, name: str, text: str, formatted: bool = False, sender: str = "Admin"):
         """
         Send a chat message to the game
         Args:
             name: Server name
             text: Message text
-            formatted: If True, sends as Admin with /tellraw, otherwise uses MasterBridge
+            formatted: If True, sends as Admin with /tellraw
+            sender: The username of the admin sending the message
         """
         process = server_service.get_process(name)
         if not process:
             return False
         
         if formatted:
-            # Use /tellraw command for formatted admin message with yellow <Admin>
-            # Escape quotes and backslashes in the message
+            # Use /tellraw command for formatted admin message
+            # Format: [Admin] sender: text
             escaped_text = text.replace('\\', '\\\\').replace('"', '\\"')
-            tellraw_command = f'tellraw @a [{{"text":"Admin","color":"gold","bold":true}},{{"text":": ","color":"gray"}},{{"text":"{escaped_text}","color":"white"}}]'
+            escaped_sender = sender.replace('\\', '\\\\').replace('"', '\\"')
+            
+            tellraw_command = f'tellraw @a [{{"text":"<","color":"yellow"}},{{"text":"{escaped_sender}","color":"yellow"}},{{"text":"> ","color":"yellow"}},{{"text":"{escaped_text}","color":"white"}}]'
             await process.write(tellraw_command)
+            
+            # Also broadcast back to all apps so the sender and others see it immediately via broadcaster
+            # This ensures real-time sync even for messages sent from the app
+            await broadcaster.broadcast_chat(name, sender, text, is_system=False, chat_type="sent")
+            
             return True
         else:
             # Fallback to standard Server Command

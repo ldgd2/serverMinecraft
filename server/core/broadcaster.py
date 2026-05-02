@@ -40,15 +40,9 @@ class Broadcaster:
 
     async def broadcast_chat(self, server_name: str, sender: str, message: str, is_system: bool = False, **kwargs):
         if server_name in self.chat_clients:
-            for client_info in self.chat_clients[server_name]:
+            for client_info in list(self.chat_clients[server_name]):
                 client = client_info["ws"]
                 client_user = client_info["username"]
-                
-                # Determine chat type for THIS specific client
-                # If it's a system message, use 'received' or provided type
-                # If it's a user message:
-                # - If THIS client is the sender, use 'sent'
-                # - Otherwise, use 'received'
                 
                 final_chat_type = kwargs.get("chat_type", "received")
                 if not is_system and sender and client_user:
@@ -67,24 +61,30 @@ class Broadcaster:
                 
                 try:
                     await client.send_text(data)
-                except:
-                    pass
+                except Exception as e:
+                    print(f"DEBUG: Broadcaster: Chat send error to {client_user}: {e}")
+                    try: self.chat_clients[server_name].remove(client_info)
+                    except: pass
 
     async def broadcast_status(self, server_name: str, stats: dict):
         if server_name in self.status_clients:
             data = json.dumps(stats)
-            for client in self.status_clients[server_name]:
+            for client in list(self.status_clients[server_name]):
                 try:
                     await client.send_text(data)
-                except:
-                    pass
+                except Exception as e:
+                    print(f"DEBUG: Broadcaster: Status send error: {e}")
+                    try: self.status_clients[server_name].remove(client)
+                    except: pass
 
     async def broadcast_console(self, server_name: str, line: str):
         if server_name in self.console_clients:
-            for client in self.console_clients[server_name]:
+            for client in list(self.console_clients[server_name]):
                 try:
                     await client.send_text(line)
-                except:
-                    pass
+                except Exception as e:
+                    print(f"DEBUG: Broadcaster: Console send error: {e}")
+                    try: self.console_clients[server_name].remove(client)
+                    except: pass
 
 broadcaster = Broadcaster()

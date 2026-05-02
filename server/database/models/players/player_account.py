@@ -26,6 +26,12 @@ class PlayerAccount(Base):
     total_blocks_broken = Column(Integer, default=0)
     total_blocks_placed = Column(Integer, default=0)
     best_kill_streak = Column(Integer, default=0)
+    
+    # Nuevas estadísticas detalladas
+    total_player_kills = Column(Integer, default=0)
+    total_hostile_kills = Column(Integer, default=0)
+    total_genocide_score = Column(Integer, default=0)
+    
     highlights = Column(JSON, default=[]) 
     
     # Tokens para premium

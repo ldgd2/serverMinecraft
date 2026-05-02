@@ -646,8 +646,9 @@ class _ChatTabState extends State<_ChatTab> {
   final _scrollCtrl = ScrollController();
   static final int _sessionSalt = DateTime.now().millisecondsSinceEpoch;
 
-  Color _getSenderColor(String name, bool isAdmin) {
+  Color _getSenderColor(String? name, bool isAdmin) {
     if (isAdmin) return AppColors.gold;
+    if (name == null || name.isEmpty) return AppColors.textMuted;
     
     final List<Color> colors = [
       AppColors.diamond,
@@ -713,8 +714,8 @@ class _ChatTabState extends State<_ChatTab> {
                 itemBuilder: (context, index) {
                   final msg = sp.chatMessages[index];
                   final chatType = msg['chat_type'] ?? (msg['is_system'] == true ? 'system' : 'received');
-                  final sender = msg['sender'];
-                  final text = msg['message'];
+                  final sender = msg['sender']?.toString() ?? (chatType == 'system' ? 'System' : 'Unknown');
+                  final text = msg['message']?.toString() ?? '';
                   
                   // System / Join / Leave messages (Centered)
                   if (chatType == 'join' || chatType == 'leave' || chatType == 'system' || chatType == 'achievement') {
@@ -907,15 +908,12 @@ class _PlayersTabState extends State<_PlayersTab> {
         return ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                SectionHeader(title: 'ONLINE PLAYERS (${sp.onlinePlayers.length})'),
-                IconButton(
-                  icon: const Icon(Icons.refresh, size: 20, color: AppColors.textSecondary),
-                  onPressed: () => sp.loadPlayers(widget.server.name),
-                ),
-              ],
+            SectionHeader(
+              title: 'ONLINE PLAYERS (${sp.onlinePlayers.length})',
+              trailing: IconButton(
+                icon: const Icon(Icons.refresh, size: 20, color: AppColors.textSecondary),
+                onPressed: () => sp.loadPlayers(widget.server.name),
+              ),
             ),
             const SizedBox(height: 8),
             if (sp.onlinePlayers.isEmpty)
@@ -1133,7 +1131,7 @@ class _PlayerListItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final name = player['username'] ?? player['name'] ?? 'Unknown';
+    final name = player['username']?.toString() ?? player['name']?.toString() ?? 'Unknown';
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       child: InkWell(
@@ -1159,7 +1157,7 @@ class _PlayerListItem extends StatelessWidget {
                   children: [
                     Text(name, style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
                     if (!isBanned && player['ip'] != null)
-                      Text(player['ip'], style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
+                      Text(player['ip'].toString(), style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
                   ],
                 ),
               ),
@@ -1224,16 +1222,13 @@ class _ModsTabState extends State<_ModsTab> {
           child: ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  SectionHeader(title: 'INSTALLED MODS (${sp.installedMods.length})'),
-                  IconButton(
-                    icon: const Icon(Icons.upload_file, color: AppColors.gold),
-                    onPressed: () => _pickAndUploadMod(context, sp),
-                    tooltip: 'Upload Mod',
-                  ),
-                ],
+              SectionHeader(
+                title: 'INSTALLED MODS (${sp.installedMods.length})',
+                trailing: IconButton(
+                  icon: const Icon(Icons.upload_file, color: AppColors.gold),
+                  onPressed: () => _pickAndUploadMod(context, sp),
+                  tooltip: 'Upload Mod',
+                ),
               ),
               const SizedBox(height: 12),
               if (sp.installedMods.isEmpty && !sp.isLoadingMods)
@@ -1401,7 +1396,7 @@ class _ModListItem extends StatelessWidget {
             ),
           ),
           title: Text(
-            mod['name'],
+            mod['name']?.toString() ?? mod['filename']?.toString() ?? 'Unknown',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
