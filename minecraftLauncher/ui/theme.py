@@ -4,10 +4,29 @@ Minecraft Launcher - Theme & Asset Path Helpers
 import os
 import tkinter.font as tkfont
 
-# ── Asset root ─────────────────────────────────────────────────────────────────
+import sys
+
+# ── Resource path helper for PyInstaller ──────────────────────────────────────
+def resource_path(relative_path):
+    """ Get absolute path to resource, works for dev and for PyInstaller """
+    try:
+        # PyInstaller creates a temp folder and stores path in _MEIPASS
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+
+    # If the relative path starts with 'ui/', we adjust it since _UI_DIR is already inside 'ui'
+    if relative_path.startswith("ui/"):
+        relative_path = relative_path[3:]
+        
+    return os.path.join(base_path, "minecraftLauncher", "ui", relative_path)
+
+# Base directory for the UI package
 _UI_DIR = os.path.dirname(os.path.abspath(__file__))
-_GUI_DIR = os.path.join(_UI_DIR, "gui")
-_ASSETS_DIR = os.path.join(_UI_DIR, "assets")
+
+# Re-calculate directories using resource_path
+_GUI_DIR = resource_path("gui")
+_ASSETS_DIR = resource_path("assets")
 
 def _a(*parts):
     return os.path.join(_ASSETS_DIR, *parts)

@@ -5,7 +5,12 @@ a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
-    datas=[('ui/assets', 'ui/assets')],
+    datas=[
+        ('ui/assets', 'minecraftLauncher/ui/assets'),
+        ('ui/gui', 'minecraftLauncher/ui/gui'),
+        ('data', 'minecraftLauncher/data'),
+        ('config', 'minecraftLauncher/config'),
+    ],
     hiddenimports=[
         'tkinter',
         'tkinter.messagebox',
