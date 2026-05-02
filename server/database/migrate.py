@@ -45,7 +45,21 @@ def create_database():
             print("\n[INIT] Database initialized and stamped successfully ✓")
         else:
             print(f"[INIT] Stamping failed ✗")
-            print(result.stderr)
+            err = result.stderr or result.stdout
+            if "Multiple heads" in err or "Multiple head revisions" in err:
+                print("[INIT] Detected multiple heads in DB. Attempting forced clean...")
+                try:
+                    conn = get_engine().connect()
+                    from sqlalchemy import text
+                    conn.execute(text("DELETE FROM alembic_version"))
+                    # Re-try stamping
+                    subprocess.run([sys.executable, "-m", "alembic", "stamp", "head"], cwd=PROJECT_ROOT)
+                    conn.commit()
+                    print("[INIT] Forced clean successful.")
+                except Exception as ex:
+                    print(f"[INIT] Forced clean failed: {ex}")
+            else:
+                print(err)
             return False
             
     except Exception as e:
@@ -75,7 +89,22 @@ def run_migrations():
             print("\n[MIGRATE] Migrations completed successfully ✓")
         else:
             print(f"[MIGRATE] Migration failed ✗")
-            print(result.stderr)
+            err = result.stderr or result.stdout
+            if "Multiple head revisions" in err or "Multiple heads" in err:
+                print("[MIGRATE] Detected multiple heads in DB. Attempting forced clean...")
+                try:
+                    from database.connection import get_engine
+                    from sqlalchemy import text
+                    with get_engine().connect() as conn:
+                        conn.execute(text("DELETE FROM alembic_version"))
+                        conn.commit()
+                    # After cleaning, we must stamp to a valid head or re-run
+                    subprocess.run([sys.executable, "-m", "alembic", "stamp", "head"], cwd=PROJECT_ROOT)
+                    print("[MIGRATE] Forced clean successful. Please try again.")
+                except Exception as ex:
+                    print(f"[MIGRATE] Forced clean failed: {ex}")
+            else:
+                print(err)
             return False
     except Exception as e:
         print(f"[MIGRATE] Error running migrations: {e}")
