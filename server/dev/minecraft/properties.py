@@ -288,22 +288,12 @@ def setup_skinrestorer_auto(server_name: str):
         ]
 
         # --- DATABASE SYNC: Force SkinRestorer to use our PostgreSQL ---
-        from core.config import settings
-        db_url = os.environ.get("DATABASE_URL", "postgresql://user:pass@localhost/dbname")
-        
-        # Parse simple URL (postgresql://user:pass@host:port/db)
         try:
-            # Using basic string splits to avoid extra dependencies
-            parts = db_url.split("://")[1].split("@")
-            user_pass = parts[0].split(":")
-            host_port_db = parts[1].split("/")
-            host_port = host_port_db[0].split(":")
-            
-            db_user = user_pass[0]
-            db_pass = user_pass[1] if len(user_pass) > 1 else ""
-            db_host = host_port[0]
-            db_port = int(host_port[1]) if len(host_port) > 1 else 5432
-            db_name = host_port_db[1]
+            db_host = os.environ.get("DB_HOST", "localhost")
+            db_port = int(os.environ.get("DB_PORT", 5432))
+            db_name = os.environ.get("DB_NAME", "mine_db")
+            db_user = os.environ.get("DB_USER", "postgres")
+            db_pass = os.environ.get("DB_PASSWORD", "")
 
             config["storage"] = {
                 "type": "POSTGRESQL",
