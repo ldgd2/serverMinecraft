@@ -139,16 +139,9 @@ async def receive_event(event: dict, user: User = Depends(verify_api_key)):
     event_type = event.get("type", "unknown")
     logger.info(f"[MineBridge] Evento de {user.username}: {player} -> {event_type}")
     
-    # Notificar a la App (Chat de sistema)
-    msg = f"{player} {event_type.replace('_', ' ')}"
-    if event_type == "death" and event.get("cause"):
-        msg = f"{player} murió por {event.get('cause')}"
-        
-    await broadcaster.broadcast_chat(user.username, "System", msg, is_system=True)
-
-    # Procesar logros y estado del jugador
+    # PROCESAR LOGROS Y ESTADO DEL JUGADOR
     with SessionLocal() as db:
-        # Obtener el servidor
+        # 1. Obtener el servidor
         server_name = event.get("server_name")
         if server_name:
             server = db.query(Server).filter(Server.name == server_name).first()
@@ -158,6 +151,15 @@ async def receive_event(event: dict, user: User = Depends(verify_api_key)):
                 server = db.query(Server).first()
 
         if server:
+            # 2. Notificar a la App (Chat de sistema) usando el nombre del servidor
+            msg = f"{player} {event_type.replace('_', ' ')}"
+            if event_type == "death" and event.get("cause"):
+                msg = f"{player} murió por {event.get('cause')}"
+                
+            await broadcaster.broadcast_chat(server.name, "System", msg, is_system=True)
+            
+            # 3. Procesar logros
+            # ... rest of logic
             player_obj = PlayerService.get_player_by_name(db, server, player)
             if player_obj:
                 if event_type == "join":
@@ -226,20 +228,23 @@ async def receive_chat(chat: dict, db: Session = Depends(get_db), user: User = D
     message = chat.get("message", "")
     logger.info(f"[MineBridge] Chat sync for {user.username}: <{player_name}> {message}")
     
-    # Retransmitir a la App en tiempo real
-    await broadcaster.broadcast_chat(user.username, player_name, message)
-
-    # --- PROCESAR LOGROS DE CHAT ---
-    # Obtener el servidor
+    # 1. Obtener el servidor primero para saber a qué canal de la App transmitir
     server_name = chat.get("server_name")
+    server = None
     if server_name:
         server = db.query(Server).filter(Server.name == server_name).first()
-    else:
+    
+    if not server:
+        # Fallback al primero del usuario o primero global
         server = db.query(Server).filter(Server.user_id == user.id).first()
         if not server:
             server = db.query(Server).first()
 
     if server:
+        # 2. Retransmitir a la App en tiempo real usando el canal del servidor
+        await broadcaster.broadcast_chat(server.name, player_name, message)
+
+        # 3. --- PROCESAR LOGROS DE CHAT ---
         player = PlayerService.get_player_by_name(db, server, player_name)
         if player:
             AchievementService.process_stat_update(db, player, "chat_message", 1)

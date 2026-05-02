@@ -39,43 +39,50 @@ class Broadcaster:
             if websocket in clients: clients.remove(websocket)
 
     async def broadcast_chat(self, server_name: str, sender: str, message: str, is_system: bool = False, **kwargs):
-        if server_name in self.chat_clients:
-            for client_info in list(self.chat_clients[server_name]):
-                client = client_info["ws"]
-                client_user = client_info["username"]
-                
-                final_chat_type = kwargs.get("chat_type", "received")
-                if not is_system and sender and client_user:
-                    if sender == client_user:
-                        final_chat_type = "sent"
-                    else:
-                        final_chat_type = "received"
-                
-                data = json.dumps({
-                    "type": "chat",
-                    "sender": sender,
-                    "message": message,
-                    "is_system": is_system,
-                    "chat_type": final_chat_type
-                })
-                
-                try:
-                    await client.send_text(data)
-                except Exception as e:
-                    print(f"DEBUG: Broadcaster: Chat send error to {client_user}: {e}")
-                    try: self.chat_clients[server_name].remove(client_info)
-                    except: pass
+        clients = self.chat_clients.get(server_name, [])
+        if not clients:
+            return
+
+        for client_info in list(clients):
+            client = client_info["ws"]
+            client_user = client_info["username"]
+            
+            final_chat_type = kwargs.get("chat_type", "received")
+            if not is_system and sender and client_user:
+                if sender == client_user:
+                    final_chat_type = "sent"
+                else:
+                    final_chat_type = "received"
+            
+            data = json.dumps({
+                "type": "chat",
+                "sender": sender,
+                "message": message,
+                "is_system": is_system,
+                "chat_type": final_chat_type
+            })
+            
+            try:
+                await client.send_text(data)
+                # print(f"DEBUG: Broadcaster: Sent chat to {client_user} in {server_name}")
+            except Exception as e:
+                print(f"DEBUG: Broadcaster: Chat send error to {client_user}: {e}")
+                try: self.chat_clients[server_name].remove(client_info)
+                except: pass
 
     async def broadcast_status(self, server_name: str, stats: dict):
-        if server_name in self.status_clients:
-            data = json.dumps(stats)
-            for client in list(self.status_clients[server_name]):
-                try:
-                    await client.send_text(data)
-                except Exception as e:
-                    print(f"DEBUG: Broadcaster: Status send error: {e}")
-                    try: self.status_clients[server_name].remove(client)
-                    except: pass
+        clients = self.status_clients.get(server_name, [])
+        if not clients:
+            return
+
+        data = json.dumps(stats)
+        for client in list(clients):
+            try:
+                await client.send_text(data)
+            except Exception as e:
+                print(f"DEBUG: Broadcaster: Status send error: {e}")
+                try: self.status_clients[server_name].remove(client)
+                except: pass
 
     async def broadcast_console(self, server_name: str, line: str):
         if server_name in self.console_clients:
