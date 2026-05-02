@@ -439,15 +439,16 @@ async def receive_player_state(request: Request, state: dict, db: Session = Depe
                             print(f"[MineBridge] Esperando 10s para aplicar skin a {player_name}...")
                             await asyncio.sleep(10)
                             
-                            # Ráfaga de comandos mejorada
-                            # 1. Por nombre (ya que está en la carpeta del mod)
-                            await sc.send_command(target_server_name, f"skin set {player_name} {player_name}")
-                            # 2. Con prefijo file:
-                            await sc.send_command(target_server_name, f"skin set {player_name} file:{player_name}")
-                            # 3. URL Localhost
-                            await sc.send_command(target_server_name, f"skin set {player_name} http://127.0.0.1:8000/static/skins/{player_name}.png")
-                            # 4. URL Pública
-                            await sc.send_command(target_server_name, f"skin set {player_name} http://185.214.134.23:8000/static/skins/{player_name}.png")
+                            # 1. Usar la imagen local (La más segura porque ya la copiaste a la carpeta del mod)
+                            # Hacemos que el jugador ejecute el comando simulando que lo escribió él mismo
+                            print(f"[MineBridge] Aplicando skin via execute as {player_name}")
+                            await sc.send_command(target_server_name, f"execute as {player_name} run skin {player_name}")
+                            
+                            # 2. Alternativa con la URL Pública por si falla la local
+                            await sc.send_command(target_server_name, f"execute as {player_name} run skin http://185.214.134.23:8000/static/skins/{player_name}.png")
+                            
+                            # 3. Algunas versiones de FabricTailor requieren la palabra clave 'url'
+                            await sc.send_command(target_server_name, f"execute as {player_name} run skin url http://185.214.134.23:8000/static/skins/{player_name}.png")
                             
                         asyncio.create_task(apply_skin_task())
                 except Exception as ex:
