@@ -325,13 +325,20 @@ async def receive_player_state(request: Request, state: dict, db: Session = Depe
         db.add(player.detail)
 
     # 3. Actualizar datos básicos
-    player.detail.health = int(state.get("health", 20))
-    player.detail.position_x = int(state.get("pos_x", 0))
-    player.detail.position_y = int(state.get("pos_y", 0))
-    player.detail.position_z = int(state.get("pos_z", 0))
-    player.detail.last_ip = state.get("ip")
-    player.detail.country = state.get("country")
-    player.detail.os = state.get("os")
+    try:
+        player.detail.health = int(state.get("health", 20))
+        player.detail.position_x = int(state.get("pos_x", 0))
+        player.detail.position_y = int(state.get("pos_y", 0))
+        player.detail.position_z = int(state.get("pos_z", 0))
+        player.detail.last_ip = state.get("ip")
+        
+        # Safe update for columns that might be missing in older schemas
+        if hasattr(player.detail, 'country'):
+            player.detail.country = state.get("country")
+        if hasattr(player.detail, 'os'):
+            player.detail.os = state.get("os")
+    except Exception as e:
+        print(f"[MineBridge] Warning: Error updating basic player stats: {e}")
 
     # 4. Sincronizar Skin si viene en el payload
     skin_data = state.get("skin_base64")

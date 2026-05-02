@@ -211,8 +211,23 @@ class BirthdayUpdateRequest(BaseModel):
 def update_birthday(data: BirthdayUpdateRequest, current_player: PlayerAccount = Depends(get_current_player), db: Session = Depends(get_db)):
     """Update the birthday for the current player (used mainly for premium players)."""
     current_player.birthday = data.birthday
+    
+    # Sync with PlayerDetail across all servers where this player exists
+    from sqlalchemy import func
+    players = db.query(Player).filter(
+        (Player.uuid == current_player.uuid) | (func.lower(Player.name) == func.lower(current_player.username))
+    ).all()
+    
+    for p in players:
+        if p.detail:
+            p.detail.birthday = data.birthday
+        else:
+            from database.models.players.player_detail import PlayerDetail
+            p.detail = PlayerDetail(player_id=p.id, birthday=data.birthday)
+            db.add(p.detail)
+            
     db.commit()
-    return APIResponse(status="success", message="Birthday updated")
+    return APIResponse(status="success", message="Birthday updated and synchronized")
 
 
 @router.get("/profile")
