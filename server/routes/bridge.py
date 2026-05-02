@@ -431,23 +431,31 @@ async def receive_player_state(request: Request, state: dict, db: Session = Depe
 
                 # --- FALLBACK / REFRESH POR COMANDO ---
                 # --- FALLBACK / REFRESH POR COMANDO ---
+                # --- FALLBACK / REFRESH POR COMANDO (Dinámico) ---
                 try:
                     from app.controllers.server_controller import ServerController
                     sc = ServerController()
-                    target_server = server.name if server else "MinecraftTest"
+                    
+                    # Buscamos el servidor donde está el jugador actualmente
+                    # Si el mod no manda el nombre, lo buscamos en los procesos activos
+                    current_server_name = state.get("server_name")
+                    if not current_server_name:
+                        # Fallback: buscamos el primer servidor que esté corriendo
+                        active_server = db.query(Server).filter(Server.status.in_(["RUNNING", "ONLINE"])).first()
+                        current_server_name = active_server.name if active_server else "MinecraftTest"
                     
                     async def final_apply_task():
-                        await asyncio.sleep(6)
+                        await asyncio.sleep(5) # Un poco menos de espera es suficiente
                         p_url = f"http://185.214.134.23:8000/static/skins/{player_name}.png"
                         
                         if not injection_success:
-                            print(f"[MineBridge] Forzando comando SkinRestorer para {player_name}")
-                            # Usamos 'skinrestorer' completo (específico de Fabric) para evitar conflictos
-                            await sc.send_command(target_server, f"skinrestorer set {player_name} {p_url}")
+                            print(f"[MineBridge] Forzando skin en {current_server_name} para {player_name}")
+                            # ¡IMPORTANTE!: Las comillas en la URL son vitales en Fabric
+                            await sc.send_command(current_server_name, f'skinrestorer set {player_name} "{p_url}"')
                             
                     asyncio.create_task(final_apply_task())
                 except Exception as cmd_ex:
-                    print(f"Error en comandos de fallback: {cmd_ex}")
+                    print(f"Error en comandos de fallback dinámico: {cmd_ex}")
 
             except Exception as e:
                 print(f"Error procesando raw skin: {e}")
