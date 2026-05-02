@@ -450,13 +450,19 @@ async def receive_player_state(request: Request, state: dict, db: Session = Depe
                             # Wait for the player to actually join (10 seconds delay)
                             print(f"[MineBridge] Waiting 10s for {player_name} to join before applying skin...")
                             await asyncio.sleep(10)
+                            # Usamos la RUTA ABSOLUTA del archivo en el VPS.
+                            # Esto es mejor que una URL porque FabricTailor puede subir el archivo directamente
+                            # a MineSkin sin problemas de IPs o firewalls.
+                            skin_path = f"/root/app/serverMinecraft/server/static/skins/{player_name}.png"
                             
-                            # Command for FabricTailor (Standard)
-                            await sc.send_command(target_server_name, f'skin set {player_name} "{skin_url}"')
-                            # Command for FabricTailor (Alternative)
-                            await sc.send_command(target_server_name, f'skin set {player_name} url "{skin_url}"')
-                            # Command for SkinRestorer
-                            await sc.send_command(target_server_name, f'skin url {player_name} "{skin_url}"')
+                            # --- RÁFAGA DE COMANDOS CON RUTA LOCAL (Sin comillas) ---
+                            await sc.send_command(target_server_name, f"skin set {player_name} {skin_path}")
+                            await sc.send_command(target_server_name, f"skintailor set {player_name} {skin_path}")
+                            
+                            # Fallback con URL pública por si la ruta local falla
+                            # Usamos la IP de los logs 185.214.134.23
+                            public_url = f"http://185.214.134.23:8000/static/skins/{player_name}.png"
+                            await sc.send_command(target_server_name, f"skin set {player_name} {public_url}")
                         
                         asyncio.create_task(apply_skin())
                         print(f"[MineBridge] Aplicando skin inicial para {player_name} via {skin_url}")
