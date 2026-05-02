@@ -173,6 +173,62 @@ def bind(ip: str, file: str = typer.Option(DEFAULT_PROPERTIES_FILE, help="Path t
     """Bind server to a specific IP."""
     set_property("server-ip", ip, file)
 
+def setup_minebridge_mod_auto(server_name: str, app_url: str):
+    """Configures the MineBridge mod minebridge.json with API keys and Backend URL."""
+    console.print(f"[cyan]⚙️  Configuring MineBridge Mod for {server_name}...[/cyan]")
+    
+    # 1. Get an API Key from DB
+    from database.connection import SessionLocal
+    from database.models.user import User
+    from dev.security.manager import get_fernet
+    
+    db = SessionLocal()
+    api_key = "PENDING"
+    try:
+        # Find first admin with a key
+        admin = db.query(User).filter(User.is_admin == True, User.api_key_encrypted != None).first()
+        if admin:
+            f = get_fernet()
+            api_key = f.decrypt(admin.api_key_encrypted.encode()).decode()
+        else:
+            # Generate one for the first admin if none exists
+            admin = db.query(User).filter(User.is_admin == True).first()
+            if admin:
+                import secrets
+                import hashlib
+                raw_key = secrets.token_urlsafe(32)
+                f = get_fernet()
+                admin.api_key_encrypted = f.encrypt(raw_key.encode()).decode()
+                admin.api_key_hashed = hashlib.sha256(raw_key.encode()).hexdigest()
+                db.commit()
+                api_key = raw_key
+                console.print("[yellow]! No API Key found. Generated a new one for admin.[/yellow]")
+    except Exception as e:
+        console.print(f"[red]! Error retrieving API key: {e}[/red]")
+    finally:
+        db.close()
+
+    # 2. Path to minebridge.json
+    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    config_dir = os.path.join(base_dir, "servers", server_name, "config")
+    os.makedirs(config_dir, exist_ok=True)
+    config_path = os.path.join(config_dir, "minebridge.json")
+
+    # 3. Write Config
+    try:
+        import json
+        config = {
+            "backend_url": app_url,
+            "api_key": api_key,
+            "server_ip": "auto",
+            "server_name": server_name
+        }
+        with open(config_path, "w") as f:
+            json.dump(config, f, indent=2)
+        console.print(f"[bold green]✓ MineBridge Mod configured for {server_name}![/bold green]")
+    except Exception as e:
+        console.print(f"[red]! Failed to write minebridge.json: {e}[/red]")
+
 @app.command("setup-skins")
 def setup_skinrestorer_auto(server_name: str):
     """Detects public IP and configures SkinRestorer for the specified server."""
@@ -236,6 +292,9 @@ def setup_skinrestorer_auto(server_name: str):
             
         console.print(f"[bold green]✓ SkinRestorer configured successfully in {server_name}![/bold green]")
         console.print(f"[dim]Provider: MineManager -> {app_url}[/dim]")
+        
+        # 4. Also setup MineBridge Mod Config
+        setup_minebridge_mod_auto(server_name, app_url)
         
     except Exception as e:
         console.print(f"[bold red]Error updating JSON: {e}[/bold red]")

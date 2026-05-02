@@ -32,20 +32,45 @@ def run_ultimate_setup():
         border_style="magenta"
     ))
 
+    # --- STEP 0: Dependencies ---
+    console.print("\n[bold cyan]STEP 0: Installing Dependencies[/bold cyan]")
+    try:
+        import subprocess
+        python_exe = sys.executable
+        req_path = os.path.join(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")), "requirements.txt")
+        subprocess.run([python_exe, "-m", "pip", "install", "-r", req_path], check=True)
+        subprocess.run([python_exe, "-m", "pip", "install", "Pillow"], check=True)
+        console.print("[green]✓ Dependencies are up to date.[/green]")
+    except Exception as e:
+        console.print(f"[yellow]! Warning during dependency update: {e}[/yellow]")
+
     # --- STEP 1: Environment & IP ---
     console.print("\n[bold cyan]STEP 1: Environment & Network Configuration[/bold cyan]")
     run_universal_wizard()
     sync_public_ip()
     
-    # --- STEP 2: RCON Configuration ---
-    console.print("\n[bold cyan]STEP 2: RCON Auto-Configuration[/bold cyan]")
+    # --- STEP 2: Minecraft Basics (EULA) ---
+    console.print("\n[bold cyan]STEP 2: Auto-Accept EULA for all servers[/bold cyan]")
+    servers_dir = os.path.join(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")), "servers")
+    if os.path.exists(servers_dir):
+        servers = [d for d in os.listdir(servers_dir) if os.path.isdir(os.path.join(servers_dir, d))]
+        for server in servers:
+            eula_path = os.path.join(servers_dir, server, "eula.txt")
+            try:
+                with open(eula_path, "w") as f:
+                    f.write("eula=true\n")
+                console.print(f"[dim]✓ EULA accepted for {server}[/dim]")
+            except:
+                pass
+    
+    # --- STEP 3: RCON Configuration ---
+    console.print("\n[bold cyan]STEP 3: RCON Auto-Configuration[/bold cyan]")
     if Prompt.confirm("Do you want to configure RCON (Console access from App) for all servers?", default=True):
         setup_rcon_logic()
 
-    # --- STEP 3: Skin Synchronization ---
-    console.print("\n[bold cyan]STEP 3: SkinRestorer API Integration[/bold cyan]")
-    if Prompt.confirm("Do you want to auto-configure SkinRestorer for all existing servers?", default=True):
-        servers_dir = os.path.join(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")), "servers")
+    # --- STEP 4: Skin & Mod Synchronization ---
+    console.print("\n[bold cyan]STEP 4: SkinRestorer & MineBridge Mod Integration[/bold cyan]")
+    if Prompt.confirm("Do you want to auto-configure Skins and Mod settings for all servers?", default=True):
         if os.path.exists(servers_dir):
             servers = [d for d in os.listdir(servers_dir) if os.path.isdir(os.path.join(servers_dir, d))]
             for server in servers:
@@ -53,21 +78,19 @@ def run_ultimate_setup():
                     setup_skinrestorer_auto(server)
                 except Exception as e:
                     console.print(f"[yellow]! Failed to setup skins for {server}: {e}[/yellow]")
-        else:
-            console.print("[dim]No servers found to configure skins.[/dim]")
-
-    # --- STEP 4: App Linkage ---
-    console.print("\n[bold cyan]STEP 4: Mobile App Synchronization[/bold cyan]")
-    # Already done in sync_public_ip() but let's confirm
-    console.print("[green]✓ Mobile App environment updated via sync_public_ip.[/green]")
+    
+    # --- STEP 5: App Linkage ---
+    console.print("\n[bold cyan]STEP 5: Mobile App Synchronization[/bold cyan]")
+    console.print("[green]✓ Mobile App environment updated.[/green]")
 
     console.print("\n" + "="*60)
-    console.print(Panel("[bold green]✨ CONFIGURATION COMPLETE ✨[/bold green]\n\n"
-                  "Everything is now synchronized:\n"
-                  "1. Backend .env is configured with public IP.\n"
-                  "2. Minecraft servers have RCON and Skins pointing to your API.\n"
-                  "3. Mobile app is linked to the correct VPS address.\n\n"
-                  "[bold yellow]Next Step:[/bold yellow] Restart the backend service (mine.py option 10).", 
+    console.print(Panel("[bold green]✨ ULTIMATE CONFIGURATION COMPLETE ✨[/bold green]\n\n"
+                  "1. All dependencies installed.\n"
+                  "2. EULA accepted for all instances.\n"
+                  "3. RCON configured (Console enabled).\n"
+                  "4. Skins & Mod synced with API.\n"
+                  "5. App linked to VPS IP.\n\n"
+                  "[bold yellow]Final Step:[/bold yellow] Restart the backend (Option 10) and then the Minecraft servers.", 
                   border_style="green"))
     console.print("="*60 + "\n")
 
