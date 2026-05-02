@@ -439,6 +439,9 @@ async def receive_player_state(request: Request, state: dict, db: Session = Depe
                         # Try multiple common mod commands to apply the skin
                         # sc is already instantiated as ServerController() above
                         
+                        # Capture name BEFORE the delay to avoid DetachedInstanceError
+                        target_server_name = server.name
+
                         # We use a helper to send to the specific server
                         async def apply_skin():
                             # Wait for the player to actually join (10 seconds delay)
@@ -446,10 +449,10 @@ async def receive_player_state(request: Request, state: dict, db: Session = Depe
                             await asyncio.sleep(10)
                             
                             # Command for FabricTailor
-                            print(f"[MineBridge] Sending skin commands for {player_name}")
-                            await sc.send_command(server.name, f"skin set {player_name} {skin_url}")
+                            print(f"[MineBridge] Sending skin commands for {player_name} to server {target_server_name}")
+                            await sc.send_command(target_server_name, f"skin set {player_name} {skin_url}")
                             # Command for SkinRestorer
-                            await sc.send_command(server.name, f"skin url {player_name} {skin_url}")
+                            await sc.send_command(target_server_name, f"skin url {player_name} {skin_url}")
                         
                         asyncio.create_task(apply_skin())
                         print(f"[MineBridge] Aplicando skin inicial para {player_name} via {skin_url}")
