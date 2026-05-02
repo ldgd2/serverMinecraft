@@ -1,22 +1,24 @@
 """add skin texture to player_details
 
 Revision ID: a1b2c3d4e5f6
-Revises: 227578bb994e
+Revises: c80744b50a6e, 227578bb994e
 Create Date: 2026-05-02
 
-Reemplaza las tablas separadas de SkinRestorer con columnas en player_details
-y VIEWs para compatibilidad con el mod.
+Merge de cabezas + añade skin_value y skin_signature a player_details.
+Reemplaza tablas separadas de SkinRestorer con columnas en player_details
+y VIEWs para compatibilidad con el mod (sin tablas extra).
 """
+from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
-revision = 'a1b2c3d4e5f6'
-down_revision = '227578bb994e'
-branch_labels = None
-depends_on = None
+revision: str = 'a1b2c3d4e5f6'
+down_revision: Union[str, tuple] = ('c80744b50a6e', '227578bb994e')
+branch_labels: Union[str, Sequence[str], None] = None
+depends_on: Union[str, Sequence[str], None] = None
 
 
-def upgrade():
+def upgrade() -> None:
     # Añadir columnas de textura firmada a player_details
     op.add_column('player_details', sa.Column('skin_url', sa.String(), nullable=True))
     op.add_column('player_details', sa.Column('skin_value', sa.Text(), nullable=True))
@@ -48,7 +50,7 @@ def upgrade():
     """)
 
 
-def downgrade():
+def downgrade() -> None:
     op.execute('DROP VIEW IF EXISTS "Players"')
     op.execute('DROP VIEW IF EXISTS "Skins"')
     op.drop_column('player_details', 'skin_signature')
