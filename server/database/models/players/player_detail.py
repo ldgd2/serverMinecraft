@@ -15,6 +15,7 @@ class PlayerDetail(Base):
     os = Column(String, nullable=True)
     skin_base64 = Column(String, nullable=True)
     skin_last_update = Column(DateTime, nullable=True)
+    birthday = Column(String, nullable=True)
 
     health = Column(Integer, default=20)
     xp_level = Column(Integer, default=0)

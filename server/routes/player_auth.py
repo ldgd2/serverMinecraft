@@ -27,6 +27,7 @@ router = APIRouter(prefix="/player-auth", tags=["Player Auth"])
 class PlayerRegisterRequest(BaseModel):
     username: str
     password: str
+    birthday: Optional[str] = None
 
 class PlayerLoginRequest(BaseModel):
     username: str
@@ -112,6 +113,7 @@ def register_player(data: PlayerRegisterRequest, db: Session = Depends(get_db)):
         hashed_password=get_password_hash(data.password),
         uuid=generate_offline_uuid(username),  # Correct Minecraft Offline UUID
         account_type="nopremium",
+        birthday=data.birthday
     )
     db.add(account)
     db.commit()
@@ -124,6 +126,7 @@ def register_player(data: PlayerRegisterRequest, db: Session = Depends(get_db)):
         "username": account.username,
         "uuid": account.uuid,
         "account_type": account.account_type,
+        "birthday": account.birthday
     })
 
 
@@ -156,6 +159,7 @@ def login_player(data: PlayerLoginRequest, db: Session = Depends(get_db)):
         "username": account.username,
         "uuid": account.uuid,
         "account_type": account.account_type,
+        "birthday": account.birthday
     })
 
 
@@ -198,7 +202,17 @@ def login_premium_player(data: PremiumLoginRequest, db: Session = Depends(get_db
         "username": account.username,
         "uuid": account.uuid,
         "account_type": account.account_type,
+        "birthday": account.birthday
     })
+class BirthdayUpdateRequest(BaseModel):
+    birthday: str
+
+@router.post("/update-birthday")
+def update_birthday(data: BirthdayUpdateRequest, current_player: PlayerAccount = Depends(get_current_player), db: Session = Depends(get_db)):
+    """Update the birthday for the current player (used mainly for premium players)."""
+    current_player.birthday = data.birthday
+    db.commit()
+    return APIResponse(status="success", message="Birthday updated")
 
 
 @router.get("/profile")

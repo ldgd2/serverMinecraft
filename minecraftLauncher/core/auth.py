@@ -52,10 +52,12 @@ class AuthController:
             print(f"[Auth] Error inesperado: {str(e)}")
             return {"status": "ERROR", "message": f"Error inesperado: {str(e)}"}
 
-    def register_no_premium(self, username, password):
+    def register_no_premium(self, username, password, birthday=None):
         """Registra un nuevo jugador No-Premium."""
         url = f"{self.api_url}/player-auth/register"
         payload = {"username": username, "password": password}
+        if birthday:
+            payload["birthday"] = birthday
         try:
              res = requests.post(url, json=payload, timeout=10)
              if res.status_code == 200:
@@ -83,6 +85,17 @@ class AuthController:
             return res.status_code == 200
         except:
              return False
+
+    def update_birthday(self, birthday: str, token: str):
+        """Envía el cumpleaños al servidor (útil para premium o usuarios que omitieron)."""
+        url = f"{self.api_url}/player-auth/update-birthday"
+        payload = {"birthday": birthday}
+        headers = {"Authorization": f"Bearer {token}"}
+        try:
+            res = requests.post(url, json=payload, headers=headers, timeout=10)
+            return res.status_code == 200
+        except Exception:
+            return False
 
     def get_premium_login_url(self):
         """Genera la URL para el inicio de sesión OAuth de Microsoft."""

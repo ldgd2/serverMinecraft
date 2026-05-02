@@ -18,6 +18,7 @@ class PlayerAccount(Base):
     # Identidad Minecraft
     uuid = Column(String, nullable=True, unique=True, index=True)  # UUID oficial de Mojang (premium)
     account_type = Column(String, default="nopremium")  # "nopremium", "premium", "guest"
+    birthday = Column(String, nullable=True)
     
     # Estadísticas globales (cross-server)
     total_playtime_seconds = Column(Integer, default=0)

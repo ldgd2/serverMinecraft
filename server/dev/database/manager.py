@@ -363,8 +363,15 @@ def fix_schema_cmd():
         with engine.connect() as conn:
             for query in queries:
                 console.print(f"Running: [dim]{query}[/dim]")
-                conn.execute(text(query))
-                conn.commit()
+                try:
+                    conn.execute(text(query))
+                    conn.commit()
+                except Exception as ex:
+                    if "already exists" in str(ex).lower() or "duplicate column" in str(ex).lower():
+                        console.print(f"[yellow]Column already exists, skipping.[/yellow]")
+                    else:
+                        console.print(f"[red]Error on query: {ex}[/red]")
+                        
         console.print("[bold green]✓ Database schema repaired successfully.[/bold green]")
     except Exception as e:
         console.print(f"[bold red]✗ Failed to repair schema: {e}[/bold red]")

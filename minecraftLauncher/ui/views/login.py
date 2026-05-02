@@ -314,9 +314,32 @@ class LoginView(tk.Frame):
                     data.get("access_token", ""), data.get("refresh_token", "")
                 )
                 if player_token:
-                    config.set("player_token", player_token)
+                    # player_token is actually a dict from our new backend login_premium_player if we modified auth.py to return it.
+                    # Wait, notify_premium_login_backend only returned the token string previously.
+                    # I need to update notify_premium_login_backend to return the full payload or just save the birthday here if possible.
+                    pass
+            # I will modify notify_premium_login_backend later to return the dict instead of string if needed.
+            
+            # Actually, _handle_ms_result is pure Microsoft OAuth result!
+            # The backend notification happens in the thread. So the birthday is returned BY THE BACKEND.
+            # So I will move the config.set("birthday") to inside that thread!
+            
+            def _notify_and_store_v2():
+                res = self._auth.notify_premium_login_backend(
+                    data["name"], data["uuid"],
+                    data.get("access_token", ""), data.get("refresh_token", "")
+                )
+                if isinstance(res, dict) and res.get("status") == "success":
+                    backend_data = res.get("data", {})
+                    config.set("player_token", backend_data.get("access_token", ""))
+                    config.set("birthday", backend_data.get("birthday", ""))
+                elif isinstance(res, str):
+                    config.set("player_token", res) # fallback
+                
+                # Check birthday immediately after
+                self.after(0, self.app.check_birthday_events)
 
-            threading.Thread(target=_notify_and_store, daemon=True).start()
+            threading.Thread(target=_notify_and_store_v2, daemon=True).start()
 
             self._set_status(f"Bienvenido, {data['name']}! (Premium)", Colors.PREMIUM_GREEN)
             self.after(700, self._fire_success)
@@ -353,47 +376,100 @@ class LoginView(tk.Frame):
             config.set("player_token",  data.get("token", ""))  # JWT del jugador (sin cifrar, para la API)
             config.set("auth_type",     "nopremium")
             config.set("account_type",  "server")
+            config.set("birthday",      data.get("birthday", ""))
             config.set("logged_in",     True)
             config.set("guest_username", "")
             self._set_status(f"Bienvenido, {server_username}! (Servidor)", Colors.PREMIUM_GREEN)
             self.after(600, self._fire_success)
+            self.after(800, self.app.check_birthday_events)
         elif result.get("status") == "RENAME":
             self._set_status("Usuario renombrado por el servidor. Intenta de nuevo.", Colors.YELLOW)
         else:
             self._set_status(result.get("message", "Error de autenticacion."), Colors.NOPREMIUM_RED)
 
     def _do_servidor_register(self):
-        username = self._srv_user.get().strip()
-        password = self._srv_pass.get().strip()
-        if not username or not password:
-            self._set_status("Introduce usuario y contrasena para registrarte.", Colors.NOPREMIUM_RED)
-            return
+        """Open a dedicated overlay window for registration."""
+        reg_win = tk.Toplevel(self)
+        reg_win.title("Registrar Nueva Cuenta")
+        reg_win.geometry("400x450")
+        reg_win.resizable(False, False)
+        reg_win.configure(bg=Colors.PANEL_DARK)
+        reg_win.transient(self)
+        reg_win.grab_set()
 
-        self._set_status("Registrando...", Colors.GRAY_TEXT)
-        self._srv_reg_btn.configure_state(True)
+        # Center on parent
+        x = self.winfo_rootx() + (self.winfo_width() // 2) - 200
+        y = self.winfo_rooty() + (self.winfo_height() // 2) - 225
+        reg_win.geometry(f"+{x}+{y}")
 
-        def do():
-            r = self._auth.register_no_premium(username, password)
-            self.after(0, lambda: self._handle_register_result(r))
+        tk.Label(reg_win, text="Registro de Cuenta", fg=Colors.WHITE, 
+                 bg=Colors.PANEL_DARK, font=mc_font(14, bold=True)).pack(pady=(20, 10))
 
-        threading.Thread(target=do, daemon=True).start()
+        # Username
+        tk.Label(reg_win, text="Usuario:", fg=Colors.GRAY_TEXT, bg=Colors.PANEL_DARK, font=mc_font(9)).pack(anchor="w", padx=40)
+        reg_user = MinecraftInput(reg_win, placeholder="Nombre de usuario", width=320, height=36)
+        reg_user.pack(pady=(0, 10))
+        
+        # Password
+        tk.Label(reg_win, text="Contrasena:", fg=Colors.GRAY_TEXT, bg=Colors.PANEL_DARK, font=mc_font(9)).pack(anchor="w", padx=40)
+        reg_pass = MinecraftInput(reg_win, placeholder="Contrasena secreta", width=320, height=36, show="*")
+        reg_pass.pack(pady=(0, 10))
 
-    def _handle_register_result(self, result):
-        self._srv_reg_btn.configure_state(False)
+        # Birthday
+        tk.Label(reg_win, text="Fecha de nacimiento:", fg=Colors.GRAY_TEXT, bg=Colors.PANEL_DARK, font=mc_font(9)).pack(anchor="w", padx=40)
+        from ui.widgets import MinecraftDatePicker
+        reg_bday = MinecraftDatePicker(reg_win, bg=Colors.PANEL_DARK)
+        reg_bday.pack(pady=(5, 20))
+
+        status_var = tk.StringVar()
+        tk.Label(reg_win, textvariable=status_var, fg=Colors.NOPREMIUM_RED, bg=Colors.PANEL_DARK, font=mc_font(9), wraplength=320).pack(pady=(0, 10))
+
+        def _submit_registration():
+            username = reg_user.get().strip()
+            password = reg_pass.get().strip()
+            birthday = reg_bday.get()
+            
+            if not username or not password:
+                status_var.set("Usuario y contrasena son obligatorios.")
+                return
+            
+            status_var.set("Registrando...")
+            reg_btn.configure_state(True)
+            
+            def do():
+                result = self._auth.register_no_premium(username, password, birthday)
+                self.after(0, lambda: _handle(result))
+            threading.Thread(target=do, daemon=True).start()
+
+        def _handle(result):
+            reg_btn.configure_state(False)
+            if result.get("status") == "OK":
+                status_var.set("¡Cuenta creada con éxito! Iniciando sesión...")
+                self.after(1000, reg_win.destroy)
+                self._handle_register_result(result, reg_user.get().strip())
+            else:
+                status_var.set(result.get("message", "Error al registrar."))
+
+        reg_btn = MinecraftButton(reg_win, text="Crear Cuenta", width=200, height=40, command=_submit_registration)
+        reg_btn.pack(pady=10)
+
+    def _handle_register_result(self, result, requested_username=""):
         if result.get("status") == "OK":
-            # Auto-login after successful registration
             data = result.get("data", {})
-            if data.get("access_token"):
-                server_username = data.get("username") or self._srv_user.get()
+            if data.get("access_token") or data.get("token"):
+                token = data.get("access_token") or data.get("token")
+                server_username = data.get("username") or requested_username
                 config.set("username",     server_username)
                 config.set("uuid",         data.get("uuid", ""))
-                config.set("auth_token",   encrypt_data(data.get("access_token", "")))
-                config.set("player_token", data.get("access_token", ""))
+                config.set("auth_token",   encrypt_data(token))
+                config.set("player_token", token)
                 config.set("auth_type",    "nopremium")
                 config.set("account_type", "server")
+                config.set("birthday",     data.get("birthday", ""))
                 config.set("logged_in",    True)
                 self._set_status(f"Cuenta creada. Bienvenido, {server_username}!", Colors.PREMIUM_GREEN)
                 self.after(700, self._fire_success)
+                self.after(900, self.app.check_birthday_events)
             else:
                 self._set_status("Cuenta creada. Ya puedes iniciar sesion.", Colors.PREMIUM_GREEN)
         else:

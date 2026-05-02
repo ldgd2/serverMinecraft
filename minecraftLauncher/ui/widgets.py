@@ -758,3 +758,61 @@ class SectionHeader(tk.Label):
         super().__init__(master, text=text, bg=bg,
                          fg=Colors.WHITE, font=mc_font(size),
                          anchor="w", **kwargs)
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  MinecraftDatePicker
+# ─────────────────────────────────────────────────────────────────────────────
+
+class MinecraftDatePicker(tk.Frame):
+    """
+    A Minecraft-styled date picker using +/- buttons to select Day and Month.
+    """
+    def __init__(self, master, bg=Colors.PANEL_DARK, **kwargs):
+        super().__init__(master, bg=bg, **kwargs)
+        
+        self.day = tk.IntVar(value=1)
+        self.month = tk.IntVar(value=1)
+
+        # Labels
+        tk.Label(self, text="Dia", bg=bg, fg=Colors.GRAY_TEXT, font=mc_font(9)).grid(row=0, column=1)
+        tk.Label(self, text="Mes", bg=bg, fg=Colors.GRAY_TEXT, font=mc_font(9)).grid(row=0, column=4)
+
+        # Day
+        MinecraftButton(self, text="-", width=30, height=30, font_size=14, command=lambda: self._adj_day(-1)).grid(row=1, column=0, padx=(0,4))
+        self.lbl_day = tk.Label(self, text="01", bg=bg, fg=Colors.WHITE, font=mc_font(12), width=3)
+        self.lbl_day.grid(row=1, column=1)
+        MinecraftButton(self, text="+", width=30, height=30, font_size=14, command=lambda: self._adj_day(1)).grid(row=1, column=2, padx=(4,15))
+
+        # Month
+        MinecraftButton(self, text="-", width=30, height=30, font_size=14, command=lambda: self._adj_month(-1)).grid(row=1, column=3, padx=(0,4))
+        self.lbl_month = tk.Label(self, text="01", bg=bg, fg=Colors.WHITE, font=mc_font(12), width=3)
+        self.lbl_month.grid(row=1, column=4)
+        MinecraftButton(self, text="+", width=30, height=30, font_size=14, command=lambda: self._adj_month(1)).grid(row=1, column=5, padx=(4,0))
+
+    def _adj_day(self, delta):
+        max_days = self._get_max_days(self.month.get())
+        new_val = self.day.get() + delta
+        if new_val < 1: new_val = max_days
+        if new_val > max_days: new_val = 1
+        self.day.set(new_val)
+        self.lbl_day.config(text=f"{new_val:02d}")
+
+    def _adj_month(self, delta):
+        new_val = self.month.get() + delta
+        if new_val < 1: new_val = 12
+        if new_val > 12: new_val = 1
+        self.month.set(new_val)
+        self.lbl_month.config(text=f"{new_val:02d}")
+        # Adjust day if it exceeds max for new month
+        max_days = self._get_max_days(new_val)
+        if self.day.get() > max_days:
+            self.day.set(max_days)
+            self.lbl_day.config(text=f"{max_days:02d}")
+
+    def _get_max_days(self, month):
+        if month in [4, 6, 9, 11]: return 30
+        if month == 2: return 29 # Allow 29th for birthdays
+        return 31
+
+    def get(self):
+        return f"{self.month.get():02d}-{self.day.get():02d}"

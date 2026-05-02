@@ -53,6 +53,7 @@ class LauncherApp(tk.Tk):
         # Start on the right screen
         if config.get("logged_in"):
             self.show_home_view()
+            self.after(500, self.check_birthday_events)
         else:
             self.show_login_view()
 
@@ -158,6 +159,110 @@ class LauncherApp(tk.Tk):
         self._hide(self.home_view)
         self.current_view = None
         self.show_login_view()
+
+    # ── Birthday Logic ────────────────────────────────────────────────────────
+    
+    def check_birthday_events(self):
+        acc_type = config.get("account_type")
+        if acc_type == "guest": return
+        
+        bday = config.get("birthday")
+        
+        if not bday and acc_type == "premium":
+            self._prompt_for_birthday()
+        elif bday:
+            self._check_if_birthday_today(bday)
+            
+    def _prompt_for_birthday(self):
+        from ui.widgets import MinecraftDatePicker, MinecraftButton
+        from core.auth import AuthController
+        
+        prompt = tk.Toplevel(self)
+        prompt.title("¡Falta tu Cumpleanos!")
+        prompt.geometry("400x300")
+        prompt.configure(bg=Colors.PANEL_DARK)
+        prompt.resizable(False, False)
+        prompt.transient(self)
+        prompt.grab_set()
+        
+        x = self.winfo_rootx() + (self.winfo_width() // 2) - 200
+        y = self.winfo_rooty() + (self.winfo_height() // 2) - 150
+        prompt.geometry(f"+{x}+{y}")
+        
+        tk.Label(prompt, text="¿Cuándo es tu cumpleaños?", fg=Colors.YELLOW, bg=Colors.PANEL_DARK, font=mc_font(14, bold=True)).pack(pady=(20, 10))
+        tk.Label(prompt, text="Para darte premios especiales en tu día.", fg=Colors.GRAY_TEXT, bg=Colors.PANEL_DARK, font=mc_font(9)).pack(pady=(0, 15))
+        
+        picker = MinecraftDatePicker(prompt, bg=Colors.PANEL_DARK)
+        picker.pack(pady=10)
+        
+        def save():
+            new_bday = picker.get()
+            config.set("birthday", new_bday)
+            
+            # Send to backend
+            def _send():
+                auth = AuthController()
+                token = config.get("player_token")
+                if token:
+                    auth.update_birthday(new_bday, token)
+            
+            import threading
+            threading.Thread(target=_send, daemon=True).start()
+            
+            prompt.destroy()
+            self._check_if_birthday_today(new_bday)
+            
+        MinecraftButton(prompt, text="Guardar", width=150, height=35, command=save).pack(pady=20)
+
+    def _check_if_birthday_today(self, bday_str):
+        import datetime
+        import random
+        try:
+            # Expected format MM-DD or YYYY-MM-DD (fallback)
+            parts = bday_str.split("-")
+            if len(parts) == 3:
+                month_idx, day_idx = 1, 2
+            elif len(parts) == 2:
+                month_idx, day_idx = 0, 1
+            else:
+                return
+            
+            today = datetime.date.today()
+            if today.month == int(parts[month_idx]) and today.day == int(parts[day_idx]):
+                
+                # We show a message only once per day (to not annoy if they login multiple times)
+                last_congrats = config.get("last_birthday_congrats")
+                if last_congrats == str(today): return
+                
+                config.set("last_birthday_congrats", str(today))
+                
+                messages = [
+                    "¡Feliz cumpleaños! Ojalá encuentres muchos diamantes hoy.",
+                    "¡Feliz nivel nuevo en la vida real! Sigue minando.",
+                    "¡Que tengas un día épico! Cuidado con los Creepers.",
+                    "¡Feliz cumple! Hoy los zombies no te atacarán... (es broma, sí lo harán)."
+                ]
+                msg = random.choice(messages)
+                
+                # Show custom popup
+                from ui.widgets import MinecraftButton
+                win = tk.Toplevel(self)
+                win.title("¡Feliz Cumpleanos!")
+                win.geometry("450x200")
+                win.configure(bg=Colors.PANEL_DARK)
+                win.resizable(False, False)
+                win.transient(self)
+                
+                x = self.winfo_rootx() + (self.winfo_width() // 2) - 225
+                y = self.winfo_rooty() + (self.winfo_height() // 2) - 100
+                win.geometry(f"+{x}+{y}")
+                
+                tk.Label(win, text="🎂 ¡FELIZ CUMPLEAÑOS! 🎂", fg=Colors.PREMIUM_GREEN, bg=Colors.PANEL_DARK, font=mc_font(16, bold=True)).pack(pady=(20, 10))
+                tk.Label(win, text=msg, fg=Colors.WHITE, bg=Colors.PANEL_DARK, font=mc_font(10), wraplength=400, justify="center").pack(pady=(0, 20))
+                
+                MinecraftButton(win, text="¡Gracias!", width=150, height=35, command=win.destroy).pack()
+        except Exception as e:
+            print("Error checking birthday:", e)
 
     # ── Window events ─────────────────────────────────────────────────────────
 
