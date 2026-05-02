@@ -278,35 +278,33 @@ def setup_skinrestorer_auto(server_name: str):
             if p in config["providers"]:
                 config["providers"][p]["enabled"] = False
         
-        # Robust SkinRestorer Configuration for Fabric/Spigot compatibility
+        # Super-Robust SkinRestorer Configuration (Fabric 1.21 Compatible)
         if "providers" not in config:
             config["providers"] = {}
             
-        # 1. As a direct provider (Fabric style)
+        # 1. Direct entry in providers map
         config["providers"]["MineManager"] = {
             "enabled": True,
             "type": "WEB",
             "url": f"{app_url}/api/v1/players/skin/%s"
         }
 
-        # 2. As a custom provider list item (Legacy/Spigot style)
-        config["providers"]["custom"] = [
+        # 2. Map structure inside 'custom' (Specific for some Fabric versions)
+        config["providers"]["custom"] = {
+            "MineManager": {
+                "type": "WEB",
+                "url": f"{app_url}/api/v1/players/skin/%s"
+            }
+        }
+        
+        # 3. Root level customProviders (Alternative)
+        config["customProviders"] = [
             {
                 "name": "MineManager",
                 "type": "WEB",
                 "url": f"{app_url}/api/v1/players/skin/%s"
             }
         ]
-        
-        # 3. As a root customProviders list (Alternative Fabric style)
-        config["customProviders"] = config.get("customProviders", [])
-        # Avoid duplicates
-        config["customProviders"] = [p for p in config["customProviders"] if p.get("name") != "MineManager"]
-        config["customProviders"].append({
-            "name": "MineManager",
-            "type": "WEB",
-            "url": f"{app_url}/api/v1/players/skin/%s"
-        })
 
         # --- DATABASE SYNC: Force SkinRestorer to use our PostgreSQL ---
         try:

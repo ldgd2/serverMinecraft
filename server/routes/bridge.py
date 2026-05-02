@@ -6,6 +6,10 @@ import hashlib
 import asyncio
 import aiohttp
 import os
+import sys
+import json
+import asyncio
+from datetime import datetime
 from sqlalchemy.orm import Session
 from database.connection import get_db
 from database.models.user import User
@@ -489,9 +493,7 @@ async def receive_player_state(request: Request, state: dict, db: Session = Depe
 
                                             # 2. Inyectar en SkinRestorer (para que el mod lo reconozca oficialmente)
                                             try:
-                                                import sys
-                                                import os
-                                                # Calcular la raíz del proyecto (server/)
+                                                # Asegurar que la raíz esté en el path para el import
                                                 root_path = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
                                                 if root_path not in sys.path:
                                                     sys.path.insert(0, root_path)
