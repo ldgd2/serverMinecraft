@@ -453,43 +453,44 @@ async def receive_player_state(request: Request, state: dict, db: Session = Depe
                                     signature = texture_data.get("signature")
 
                                     if value and signature:
-                                        print(f"[MineBridge] Firma OK. Inyectando SQL directo para {player_name}...")
-                                        skin_name = f"custom_{player_name}"
+                                        print(f"[MineBridge] Firma OK. Inyectando en player_details para {player_name}...")
                                         from sqlalchemy import text
-                                        # Crear tablas si no existen (auto-healing)
+                                        # Crear VIEWs para que SkinRestorer lea (sin tablas extra)
                                         db.execute(text("""
-                                            CREATE TABLE IF NOT EXISTS "Skins" (
-                                                "ID" SERIAL PRIMARY KEY,
-                                                "Name" VARCHAR(255) UNIQUE NOT NULL,
-                                                "Value" TEXT NOT NULL DEFAULT '',
-                                                "Signature" TEXT NOT NULL DEFAULT '',
-                                                "Timestamp" VARCHAR(255) NOT NULL DEFAULT 'none'
-                                            )
+                                            CREATE OR REPLACE VIEW "Skins" AS
+                                            SELECT
+                                                pd.player_id AS "ID",
+                                                CONCAT('custom_', p.username) AS "Name",
+                                                pd.skin_value AS "Value",
+                                                COALESCE(pd.skin_signature, '') AS "Signature",
+                                                'none' AS "Timestamp"
+                                            FROM player_details pd
+                                            JOIN players p ON pd.player_id = p.id
+                                            WHERE pd.skin_value IS NOT NULL
                                         """))
                                         db.execute(text("""
-                                            CREATE TABLE IF NOT EXISTS "Players" (
-                                                "ID" SERIAL PRIMARY KEY,
-                                                "Nick" VARCHAR(255) UNIQUE NOT NULL,
-                                                "Skin" VARCHAR(255) NOT NULL DEFAULT ''
-                                            )
+                                            CREATE OR REPLACE VIEW "Players" AS
+                                            SELECT
+                                                p.id AS "ID",
+                                                p.username AS "Nick",
+                                                CONCAT('custom_', p.username) AS "Skin"
+                                            FROM players p
+                                            JOIN player_details pd ON pd.player_id = p.id
+                                            WHERE pd.skin_value IS NOT NULL
                                         """))
-                                        # Upsert en tabla "Skins"
+                                        # Guardar en player_details (tabla existente, sin caos)
                                         db.execute(text("""
-                                            INSERT INTO "Skins" ("Name", "Value", "Signature", "Timestamp")
-                                            VALUES (:name, :value, :signature, 'none')
-                                            ON CONFLICT ("Name") DO UPDATE SET
-                                                "Value" = EXCLUDED."Value",
-                                                "Signature" = EXCLUDED."Signature",
-                                                "Timestamp" = 'none'
-                                        """), {"name": skin_name, "value": value, "signature": signature})
-                                        # Upsert en tabla "Players"
-                                        db.execute(text("""
-                                            INSERT INTO "Players" ("Nick", "Skin")
-                                            VALUES (:nick, :skin)
-                                            ON CONFLICT ("Nick") DO UPDATE SET "Skin" = EXCLUDED."Skin"
-                                        """), {"nick": player_name, "skin": skin_name})
+                                            UPDATE player_details
+                                            SET skin_value = :value,
+                                                skin_signature = :signature,
+                                                skin_last_update = NOW()
+                                            WHERE player_id = (
+                                                SELECT id FROM players WHERE username = :username LIMIT 1
+                                            )
+                                        """), {"value": value, "signature": signature, "username": player_name})
                                         db.commit()
-                                        print(f"[MineBridge] ✅ Skin de {player_name} inyectada en DB.")
+                                        print(f"[MineBridge] ✅ Skin de {player_name} guardada en player_details (sin tablas extra).")
+
                                     else:
                                         print("[MineBridge] MineSkin no devolvió datos válidos.")
                                 else:

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
 from database.models.base import Base
 import datetime
@@ -13,7 +13,10 @@ class PlayerDetail(Base):
     last_ip = Column(String, nullable=True)
     country = Column(String, nullable=True)
     os = Column(String, nullable=True)
-    skin_base64 = Column(String, nullable=True)
+    skin_url = Column(String, nullable=True)          # URL pública de la cabeza
+    skin_base64 = Column(String, nullable=True)       # PNG raw del launcher
+    skin_value = Column(Text, nullable=True)          # Base64 textura firmada (Mojang/MineSkin)
+    skin_signature = Column(Text, nullable=True)      # Firma criptográfica de la textura
     skin_last_update = Column(DateTime, nullable=True)
     birthday = Column(String, nullable=True)
 
