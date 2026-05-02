@@ -2,6 +2,7 @@ from fastapi import WebSocket
 from typing import Dict, List
 import json
 import asyncio
+import time
 
 class Broadcaster:
     def __init__(self):
@@ -10,6 +11,7 @@ class Broadcaster:
         # server_name -> list of (websocket, username)
         self.chat_clients: Dict[str, List[Dict]] = {}
         self.status_clients: Dict[str, List[WebSocket]] = {}
+        self.last_messages: Dict[str, dict] = {} # For deduplication
 
     async def connect(self, server_name: str, websocket: WebSocket, client_type: str, username: str = None):
         server_name = server_name.lower()
@@ -52,6 +54,21 @@ class Broadcaster:
 
     async def broadcast_chat(self, server_name: str, sender: str, message: str, is_system: bool = False, **kwargs):
         server_name = server_name.lower()
+        
+        # Deduplicación: Si es el mismo mensaje en < 1 segundo, ignorar
+        msg_key = f"{server_name}:{sender}:{message}"
+        now = time.time()
+        if msg_key in self.last_messages:
+            last_time = self.last_messages[msg_key]
+            if now - last_time < 1.0:
+                print(f"DEBUG: Broadcaster: Ignoring duplicate message: {msg_key}")
+                return
+        self.last_messages[msg_key] = now
+        
+        # Limpiar caché de mensajes antiguos cada cierto tiempo (opcional, pero buena práctica)
+        if len(self.last_messages) > 100:
+            self.last_messages = {k: v for k, v in self.last_messages.items() if now - v < 5.0}
+
         clients = self.chat_clients.get(server_name, [])
         if not clients:
             return
