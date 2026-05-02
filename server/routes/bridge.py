@@ -436,7 +436,7 @@ async def receive_player_state(request: Request, state: dict, db: Session = Depe
 
                     if server and player_name and skin_url:
                         # Try multiple common mod commands to apply the skin
-                        from core.websocket_server import server_controller as sc
+                        # sc is already instantiated as ServerController() above
                         
                         # We use a helper to send to the specific server
                         async def apply_skin():

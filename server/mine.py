@@ -200,7 +200,8 @@ def show_menu():
             subprocess.run([python_exe, script_path, "rcon_setup"])
         elif choice == "14":
             console.print("[cyan]Installing/Updating dependencies from requirements.txt...[/cyan]")
-            subprocess.run([python_exe, "-m", "pip", "install", "-r", "requirements.txt"])
+            req_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "requirements.txt")
+            subprocess.run([python_exe, "-m", "pip", "install", "-r", req_path])
             subprocess.run([python_exe, "-m", "pip", "install", "Pillow"]) # Ensure Pillow is explicitly installed
             console.print("[bold green]✓ Dependencies updated.[/bold green]")
             Prompt.ask("\n[dim]Press Enter to continue...[/dim]")
