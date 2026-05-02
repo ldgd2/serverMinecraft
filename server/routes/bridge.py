@@ -433,23 +433,25 @@ async def receive_player_state(request: Request, state: dict, db: Session = Depe
                 try:
                     from app.controllers.server_controller import ServerController
                     sc = ServerController()
-                    server = db.query(Server).filter(Server.status == "RUNNING").first()
                     
-                    if server:
-                        async def final_apply_task():
-                            await asyncio.sleep(8)
-                            p_url = f"http://185.214.134.23:8000/static/skins/{player_name}.png"
-                            
-                            if not injection_success:
-                                print(f"[MineBridge] Intentando comandos de consola para {player_name}")
-                                await sc.send_command(server.name, f'sr set {player_name} "{p_url}"')
-                                await sc.send_command(server.name, f'skin set {player_name} "{p_url}"')
-                                await sc.send_command(server.name, f'fabrictailor set {player_name} "{p_url}"')
-                            
-                            await sc.send_command(server.name, f"sr update {player_name}")
-                            await sc.send_command(server.name, f"skintailor update {player_name}")
+                    # Si no encontramos el server por estado, usamos el nombre por defecto
+                    target_server = server.name if server else "MinecraftTest"
+                    
+                    async def final_apply_task():
+                        await asyncio.sleep(6) # 6s para asegurar que el jugador terminó de entrar
+                        p_url = f"http://185.214.134.23:8000/static/skins/{player_name}.png"
+                        
+                        if not injection_success:
+                            print(f"[MineBridge] Forzando comando SkinRestorer para {player_name}")
+                            # SkinRestorer firmará la URL automáticamente vía MineSkin
+                            await sc.send_command(target_server, f"sr set {player_name} {p_url}")
+                            await asyncio.sleep(2)
+                            await sc.send_command(target_server, f"sr update {player_name}")
+                        else:
+                            # Si ya inyectamos en DB, solo refrescamos el visual
+                            await sc.send_command(target_server, f"sr update {player_name}")
 
-                        asyncio.create_task(final_apply_task())
+                    asyncio.create_task(final_apply_task())
                 except Exception as cmd_ex:
                     print(f"Error en comandos de fallback: {cmd_ex}")
 
