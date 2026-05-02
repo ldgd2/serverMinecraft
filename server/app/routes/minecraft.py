@@ -4,6 +4,9 @@ from database.connection import get_db
 from app.services.achievements.processor import AchievementProcessor
 from database.models.players.player import Player
 from database.models.players.player_detail import PlayerDetail
+from database.models.server import Server
+from database.models.server_chat import ServerChat
+from core.broadcaster import broadcaster
 from pydantic import BaseModel
 import logging
 
@@ -28,7 +31,7 @@ class MinecraftChat(BaseModel):
 
 @router.post("/event")
 async def receive_minecraft_event(
-    event: MinecraftEvent, 
+    request: Request,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db)
 ):
@@ -36,6 +39,11 @@ async def receive_minecraft_event(
     Endpoint para recibir eventos de logros (bloques, muertes, etc.)
     """
     try:
+        body = await request.json()
+        logger.info(f"📥 Received Minecraft Event: {body}")
+        
+        event = MinecraftEvent(**body)
+        
         background_tasks.add_task(
             AchievementProcessor.process_event,
             db,
@@ -45,12 +53,48 @@ async def receive_minecraft_event(
         )
         return {"status": "received"}
     except Exception as e:
-        logger.error(f"Error processing minecraft event: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"❌ Error processing minecraft event: {e}")
+        # Intentar sacar el body crudo para debug si falló el parseo
+        try:
+            raw_body = await request.body()
+            logger.error(f"Raw body that failed: {raw_body.decode()}")
+        except: pass
+        raise HTTPException(status_code=422, detail=str(e))
 
 @router.post("/chat")
-async def handle_minecraft_chat(event: dict, db: Session = Depends(get_db)):
-    # Lógica de chat básica
+async def handle_minecraft_chat(chat: MinecraftChat, db: Session = Depends(get_db)):
+    """
+    Endpoint para sincronizar el chat y eventos de sistema (join/leave)
+    """
+    logger.info(f"💬 Received Minecraft Chat/System Event: {chat.player_name}: {chat.message} ({chat.type})")
+    
+    # 1. Intentar encontrar el servidor (Heurística: primer servidor si no sabemos cual es)
+    # En producción idealmente el Mod enviaría su Server ID
+    server = db.query(Server).first()
+    if not server:
+        return {"status": "error", "message": "No server found"}
+
+    # 2. Guardar en historial si es chat
+    if chat.type == "chat":
+        new_chat = ServerChat(
+            server_id=server.id,
+            username=chat.player_name,
+            message=chat.message,
+            type="received"
+        )
+        db.add(new_chat)
+        db.commit()
+
+    # 3. Retransmitir a la App en tiempo real
+    # El broadcaster usa el nombre del servidor como canal
+    is_system = chat.type in ['join', 'leave', 'achievement']
+    await broadcaster.broadcast_chat(
+        server.name, 
+        chat.player_name if not is_system else "System", 
+        chat.message,
+        is_system=is_system
+    )
+
     return {"status": "ok"}
 
 @router.post("/player_state")

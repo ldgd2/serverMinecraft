@@ -14,14 +14,25 @@ import java.util.concurrent.CompletableFuture;
 public class AchievementClient {
     private static final HttpClient client = HttpClient.newHttpClient();
 
+    private static String getBaseUrl() {
+        String url = ModConfig.getBackendUrl();
+        if (url == null || url.isEmpty() || url.equals("PENDING")) return null;
+        return url.endsWith("/") ? url : url + "/";
+    }
+
     private static String getApiUrl() {
-        return ModConfig.getBackendUrl() + "/api/minecraft/event";
+        String base = getBaseUrl();
+        if (base == null) return null;
+        return base + "api/minecraft/event";
     }
 
     /**
      * Envía un mensaje de chat o evento de sistema al backend.
      */
     public static void sendChatMessage(String playerUuid, String playerName, String message, String type) {
+        String base = getBaseUrl();
+        if (base == null) return;
+        
         CompletableFuture.runAsync(() -> {
             try {
                 JsonObject json = new JsonObject();
@@ -31,8 +42,10 @@ public class AchievementClient {
                 json.addProperty("type", type); // 'chat', 'join', 'leave', 'achievement'
 
                 HttpRequest request = HttpRequest.newBuilder()
-                        .uri(URI.create(ModConfig.getBackendUrl() + "/api/minecraft/chat"))
+                        .uri(URI.create(base + "api/minecraft/chat"))
+                        .version(HttpClient.Version.HTTP_1_1)
                         .header("Content-Type", "application/json")
+                        .header("X-API-Key", ModConfig.getApiKey())
                         .POST(HttpRequest.BodyPublishers.ofString(json.toString()))
                         .build();
 
@@ -44,6 +57,9 @@ public class AchievementClient {
     }
 
     public static void sendEvent(String playerUuid, String eventKey, int increment) {
+        String url = getApiUrl();
+        if (url == null) return;
+
         CompletableFuture.runAsync(() -> {
             try {
                 JsonObject json = new JsonObject();
@@ -52,8 +68,10 @@ public class AchievementClient {
                 json.addProperty("increment", increment);
 
                 HttpRequest request = HttpRequest.newBuilder()
-                        .uri(URI.create(getApiUrl()))
+                        .uri(URI.create(url))
+                        .version(HttpClient.Version.HTTP_1_1)
                         .header("Content-Type", "application/json")
+                        .header("X-API-Key", ModConfig.getApiKey())
                         .POST(HttpRequest.BodyPublishers.ofString(json.toString()))
                         .build();
 

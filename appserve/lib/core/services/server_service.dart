@@ -130,4 +130,9 @@ class ServerService {
       data: formData,
     );
   }
+
+  Future<List<Map<String, dynamic>>> getChatHistory(String name) async {
+    final res = await _client.get('/servers/$name/chat');
+    return List<Map<String, dynamic>>.from(res.data['data'] ?? []);
+  }
 }

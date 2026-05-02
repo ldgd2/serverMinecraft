@@ -136,9 +136,25 @@ class ServerProvider extends ChangeNotifier {
     _connectToConsole(name);
     _connectToStatus(name);
     _connectToChat(name);
+    await loadChatHistory(name);
     
     _isLoading = false;
     notifyListeners();
+  }
+
+  Future<void> loadChatHistory(String name) async {
+    try {
+      final history = await _serverService.getChatHistory(name);
+      _chatMessages = List<Map<String, dynamic>>.from(history.map((m) => {
+        'sender': m['user'],
+        'message': m['text'],
+        'is_system': m['type'] == 'system' || m['type'] == 'join' || m['type'] == 'leave' || m['type'] == 'achievement',
+        'time': DateTime.fromMillisecondsSinceEpoch(m['time']).toIso8601String(),
+      }));
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Load Chat History Error: $e');
+    }
   }
 
   void _closeWebSockets() {

@@ -11,6 +11,7 @@ from app.services.audit_service import AuditService
 from database.schemas import ServerCreate, ServerUpdate, ServerResponse, ServerStats, ModSearchConnect, ServerCommandRequest, BanRequest, UpdateBanRequest, ChatRequest, EventRequest, CinematicRequest, ParanoiaRequest, SpecialEventRequest
 from database.models.user import User
 from database.models.server import Server
+from database.models.server_chat import ServerChat
 from routes.auth import get_current_user
 from core.responses import APIResponse
 from core.broadcaster import broadcaster
@@ -710,7 +711,20 @@ async def send_chat_message(
 
 
 
-# --- MasterBridge Data Endpoints Removed ---
+@router.get("/{name}/chat")
+async def get_chat_history(name: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Get the last 100 chat messages for a server"""
+    server = db.query(Server).filter(Server.name == name).first()
+    if not server:
+        raise HTTPException(status_code=404, detail="Server not found")
+    
+    messages = db.query(ServerChat).filter(ServerChat.server_id == server.id)\
+                 .order_by(ServerChat.timestamp.desc())\
+                 .limit(100).all()
+    
+    # Reverse to get chronological order
+    mapped = [m.to_dict() for m in reversed(messages)]
+    return APIResponse(status="success", message="Chat history retrieved", data=mapped)
 # (Endpoints previously under /{name}/masterbridge/ have been deleted)
 
 @router.get("/{name}/export")
