@@ -432,16 +432,16 @@ async def receive_player_state(request: Request, state: dict, db: Session = Depe
                     print(f"[MineBridge] No-Premium: sin firma. MineSkin se encargará.")
 
                 # --- INYECCIÓN GLOBAL: MineSkin para No-Premium ---
-                # --- ESTRATEGIA DE INYECCIÓN GLOBAL (MineSkin + DB) ---
                 async def signature_and_inject_task():
                     if injection_success:
-                        return # Si ya se inyectó (Premium), no hacemos nada
+                        return  # Premium ya inyectado, nada que hacer
                     
                     import aiohttp
+                    import datetime as _dt
                     p_url = f"http://185.214.134.23:8000/static/skins/{player_name}.png"
                     
                     try:
-                        print(f"[MineBridge] No-Premium detectado para {player_name}. Solicitando firma a MineSkin...")
+                        print(f"[MineBridge] No-Premium: solicitando firma a MineSkin para {player_name}...")
                         async with aiohttp.ClientSession() as session:
                             async with session.post(
                                 "https://api.mineskin.org/generate/url",
@@ -454,30 +454,37 @@ async def receive_player_state(request: Request, state: dict, db: Session = Depe
                                     signature = texture_data.get("signature")
                                     
                                     if value and signature:
-                                        print(f"[MineBridge] ¡Firma obtenida para No-Premium! Inyectando...")
+                                        print(f"[MineBridge] Firma OK. Inyectando en DB para {player_name}...")
+                                        # Inyección INLINE: sin imports externos que puedan fallar
                                         try:
-                                            from core.skinrestorer_bridge import SkinRestorerBridge
+                                            from database.models.skinrestorer import SkinRestorerSkin, SkinRestorerPlayer
                                         except ImportError:
-                                            from server.core.skinrestorer_bridge import SkinRestorerBridge
-                                            
-                                        bridge = SkinRestorerBridge(db)
-                                        bridge.save_skin(player_name, value, signature)
+                                            from server.database.models.skinrestorer import SkinRestorerSkin, SkinRestorerPlayer
                                         
-                                        # Refresco visual
-                                        try:
-                                            from app.controllers.server_controller import ServerController
-                                            sc = ServerController()
-                                            current_server = state.get("server_name") or "MinecraftTest"
-                                            await sc.send_command(current_server, f"skin update {player_name}")
-                                        except: pass
+                                        skin_name = f"custom_{player_name}"
+                                        # Upsert Skin
+                                        skin_rec = db.query(SkinRestorerSkin).filter(SkinRestorerSkin.Name == skin_name).first()
+                                        if not skin_rec:
+                                            skin_rec = SkinRestorerSkin(Name=skin_name)
+                                            db.add(skin_rec)
+                                        skin_rec.Value = value
+                                        skin_rec.Signature = signature
+                                        skin_rec.Timestamp = "none"
+                                        # Upsert Player mapping
+                                        p_map = db.query(SkinRestorerPlayer).filter(SkinRestorerPlayer.Nick == player_name).first()
+                                        if not p_map:
+                                            p_map = SkinRestorerPlayer(Nick=player_name)
+                                            db.add(p_map)
+                                        p_map.Skin = skin_name
+                                        db.commit()
+                                        print(f"[MineBridge] ✅ Skin de {player_name} inyectada en DB (No-Premium).")
                                     else:
-                                        print("[MineBridge] MineSkin no devolvió datos para No-Premium.")
+                                        print("[MineBridge] MineSkin no devolvió datos válidos.")
                                 else:
-                                    print(f"[MineBridge] MineSkin API falló (Status {resp.status}).")
+                                    print(f"[MineBridge] MineSkin API status: {resp.status}.")
                     except Exception as e:
-                        print(f"[MineBridge] Error en proceso No-Premium: {e}")
+                        print(f"[MineBridge] Error inyección No-Premium: {e}")
 
-                # Lanzamos la tarea solo si es necesario
                 asyncio.create_task(signature_and_inject_task())
 
             except Exception as e:
