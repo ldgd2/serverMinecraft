@@ -14,21 +14,26 @@ class Broadcaster:
     async def connect(self, server_name: str, websocket: WebSocket, client_type: str, username: str = None):
         server_name = server_name.lower()
         await websocket.accept()
+        
         if client_type == "console":
             if server_name not in self.console_clients: self.console_clients[server_name] = []
-            self.console_clients[server_name].append(websocket)
-            print(f"[BROADCASTER] {client_type} client joined room: {server_name}")
+            if websocket not in self.console_clients[server_name]:
+                self.console_clients[server_name].append(websocket)
+                print(f"[BROADCASTER] {client_type} client joined room: {server_name}")
         elif client_type == "chat":
             if server_name not in self.chat_clients: self.chat_clients[server_name] = []
-            self.chat_clients[server_name].append({
-                "ws": websocket,
-                "username": username
-            })
-            print(f"[BROADCASTER] {client_type} client '{username}' joined room: {server_name}")
+            # Evitar duplicados (mismo socket)
+            if not any(c["ws"] == websocket for c in self.chat_clients[server_name]):
+                self.chat_clients[server_name].append({
+                    "ws": websocket,
+                    "username": username
+                })
+                print(f"[BROADCASTER] {client_type} client '{username}' joined room: {server_name}")
         elif client_type == "status":
             if server_name not in self.status_clients: self.status_clients[server_name] = []
-            self.status_clients[server_name].append(websocket)
-            print(f"[BROADCASTER] {client_type} client joined room: {server_name}")
+            if websocket not in self.status_clients[server_name]:
+                self.status_clients[server_name].append(websocket)
+                print(f"[BROADCASTER] {client_type} client joined room: {server_name}")
 
     def disconnect(self, server_name: str, websocket: WebSocket, client_type: str):
         server_name = server_name.lower()

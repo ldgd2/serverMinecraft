@@ -776,6 +776,9 @@ class _ChatTabState extends State<_ChatTab> {
                                sender.toLowerCase() == currentUsername?.toLowerCase();
                   final isOtherAdmin = chatType == 'sent' && !isMe;
 
+                  // Debug log para ver qué está llegando a la UI
+                  debugPrint('Rendering Bubble: sender=$sender, isMe=$isMe, chatType=$chatType, current=$currentUsername');
+
                   return Align(
                     alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
                     child: Container(
