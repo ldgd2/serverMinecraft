@@ -433,12 +433,14 @@ async def receive_player_state(request: Request, state: dict, db: Session = Depe
                 # --- FALLBACK / REFRESH POR COMANDO ---
                 # --- ESTRATEGIA DE INYECCIÓN GLOBAL (MineSkin + DB) ---
                 async def signature_and_inject_task():
+                    if injection_success:
+                        return # Si ya se inyectó (Premium), no hacemos nada
+                    
                     import aiohttp
                     p_url = f"http://185.214.134.23:8000/static/skins/{player_name}.png"
                     
                     try:
-                        # 1. Pedimos a MineSkin que firme nuestra URL
-                        print(f"[MineBridge] Solicitando firma a MineSkin para {player_name}...")
+                        print(f"[MineBridge] No-Premium detectado para {player_name}. Solicitando firma a MineSkin...")
                         async with aiohttp.ClientSession() as session:
                             async with session.post(
                                 "https://api.mineskin.org/generate/url",
@@ -451,27 +453,30 @@ async def receive_player_state(request: Request, state: dict, db: Session = Depe
                                     signature = texture_data.get("signature")
                                     
                                     if value and signature:
-                                        print(f"[MineBridge] ¡Firma obtenida! Inyectando en DB Global...")
-                                        from core.skinrestorer_bridge import SkinRestorerBridge
+                                        print(f"[MineBridge] ¡Firma obtenida para No-Premium! Inyectando...")
+                                        try:
+                                            from core.skinrestorer_bridge import SkinRestorerBridge
+                                        except ImportError:
+                                            from server.core.skinrestorer_bridge import SkinRestorerBridge
+                                            
                                         bridge = SkinRestorerBridge(db)
                                         bridge.save_skin(player_name, value, signature)
                                         
-                                        # 2. Refresco opcional por comando (ahora con el alias 'skin')
+                                        # Refresco visual
                                         try:
                                             from app.controllers.server_controller import ServerController
                                             sc = ServerController()
                                             current_server = state.get("server_name") or "MinecraftTest"
-                                            # 'skin update' es el comando más ligero una vez que la DB tiene los datos
                                             await sc.send_command(current_server, f"skin update {player_name}")
                                         except: pass
                                     else:
-                                        print("[MineBridge] MineSkin no devolvió firma válida.")
+                                        print("[MineBridge] MineSkin no devolvió datos para No-Premium.")
                                 else:
-                                    print(f"[MineBridge] Error en MineSkin API: {resp.status}")
+                                    print(f"[MineBridge] MineSkin API falló (Status {resp.status}).")
                     except Exception as e:
-                        print(f"[MineBridge] Error en el proceso de firma global: {e}")
+                        print(f"[MineBridge] Error en proceso No-Premium: {e}")
 
-                # Lanzamos la tarea en segundo plano
+                # Lanzamos la tarea solo si es necesario
                 asyncio.create_task(signature_and_inject_task())
 
             except Exception as e:
