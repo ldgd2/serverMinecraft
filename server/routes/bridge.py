@@ -446,27 +446,33 @@ async def receive_player_state(request: Request, state: dict, db: Session = Depe
                     if injection_success:
                         return  # Premium ya inyectado
 
-                    # Usar la URL base detectada arriba o del env
-                    app_url = os.environ.get("APP_URL")
-                    if not app_url:
-                        host = request.headers.get("host", "localhost:8000")
-                        protocol = "https" if request.url.scheme == "https" else "http"
-                        app_url = f"{protocol}://{host}"
-                    
-                    p_url = f"{app_url}/static/skins/{player_name}.png"
+                    # Usar la skin guardada localmente para subirla a MineSkin
+                    skin_path = f"static/skins/{player_name}.png"
+                    if not os.path.exists(skin_path):
+                        print(f"[MineBridge] Error: No se encontró la skin en {skin_path}")
+                        return
 
                     try:
-                        print(f"[MineBridge] No-Premium: solicitando firma a MineSkin para {player_name}...")
-                        async with aiohttp.ClientSession() as session:
-                            async with session.post(
-                                "https://api.mineskin.org/generate/url",
-                                json={"url": p_url, "name": player_name}
-                            ) as resp:
-                                if resp.status == 200:
-                                    data = await resp.json()
-                                    texture_data = data.get("data", {}).get("texture", {})
-                                    value = texture_data.get("value")
-                                    signature = texture_data.get("signature")
+                        print(f"[MineBridge] No-Premium: subiendo skin a MineSkin para {player_name}...")
+                        data = aiohttp.FormData()
+                        # Abrir el archivo en cada intento
+                        with open(skin_path, 'rb') as skin_file:
+                            data.add_field('file', skin_file, filename=f"{player_name}.png", content_type='image/png')
+                            data.add_field('visibility', '0') # Public
+                            
+                            async with aiohttp.ClientSession() as session:
+                                async with session.post(
+                                    "https://api.mineskin.org/generate/upload",
+                                    data=data
+                                ) as resp:
+                                    if resp.status == 200:
+                                        data_json = await resp.json()
+                                        texture_data = data_json.get("data", {}).get("texture", {})
+                                        value = texture_data.get("value")
+                                        signature = texture_data.get("signature")
+                                    else:
+                                        print(f"[MineBridge] MineSkin API error: {resp.status}")
+                                        return
 
                                     if value and signature:
                                         print(f"[MineBridge] Firma OK. Inyectando en player_details para {player_name}...")

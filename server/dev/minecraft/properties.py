@@ -281,7 +281,8 @@ def setup_skinrestorer_auto(server_name: str):
         config["providers"]["custom"] = [
             {
                 "name": "MineManager",
-                "type": "WEB",
+                "type": "web",
+                "client": "web",
                 "url": f"{app_url}/api/v1/players/skin/%s"
             }
         ]
