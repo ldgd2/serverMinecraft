@@ -412,52 +412,46 @@ async def receive_player_state(request: Request, state: dict, db: Session = Depe
                 player.detail.skin_url = public_head_url
                 player.detail.skin_base64 = skin_data
                 player.detail.skin_last_update = datetime.datetime.utcnow()
-                db.commit() 
+                db.commit()
+                # --- INYECCIÓN EN SKINRESTORER (Híbrido Robusto) ---
+                skin_signature = state.get("skin_signature")
+                injection_success = False
                 
-                # --- APLICAR EN EL JUEGO ---
+                if skin_signature:
+                    try:
+                        from server.core.skinrestorer_bridge import set_skin_in_skinrestorer
+                        # Usamos la sesión de base de datos actual (ORM) - ¡Mucho más limpio!
+                        injection_success = set_skin_in_skinrestorer(db, player_name, skin_data, skin_signature)
+                        if injection_success:
+                            print(f"[MineBridge] Skin de {player_name} inyectada exitosamente vía ORM.")
+                    except Exception as db_ex:
+                        print(f"[MineBridge] Error en inyección ORM: {db_ex}")
+                else:
+                    print(f"[MineBridge] No se detectó firma para {player_name}. Tratando como jugador Premium/Default.")
+
+                # --- FALLBACK / REFRESH POR COMANDO ---
                 try:
-                    import shutil
                     from app.controllers.server_controller import ServerController
                     sc = ServerController()
+                    server = db.query(Server).filter(Server.status == "RUNNING").first()
                     
-                    server = db.query(Server).filter(Server.name == server_name).first()
-                    if not server:
-                        server = db.query(Server).filter(Server.status == "RUNNING").first()
-                    if not server:
-                        server = db.query(Server).first()
-
                     if server:
-                        target_server_name = server.name
-                        backend_skin_path = f"/root/app/serverMinecraft/server/static/skins/{player_name}.png"
-                        mod_skins_dir = f"/root/app/serverMinecraft/server/servers/{target_server_name}/config/fabrictailor/skins"
-                        os.makedirs(mod_skins_dir, exist_ok=True)
-                        mod_skin_path = os.path.join(mod_skins_dir, f"{player_name}.png")
-                        
-                        if os.path.exists(backend_skin_path):
-                            shutil.copy2(backend_skin_path, mod_skin_path)
-                            print(f"[MineBridge] Skin inyectada en mod: {mod_skin_path}")
+                        async def final_apply_task():
+                            await asyncio.sleep(8)
+                            p_url = f"http://185.214.134.23:8000/static/skins/{player_name}.png"
+                            
+                            if not injection_success:
+                                print(f"[MineBridge] Intentando comandos de consola para {player_name}")
+                                await sc.send_command(server.name, f'sr set {player_name} "{p_url}"')
+                                await sc.send_command(server.name, f'skin set {player_name} "{p_url}"')
+                                await sc.send_command(server.name, f'fabrictailor set {player_name} "{p_url}"')
+                            
+                            await sc.send_command(server.name, f"sr update {player_name}")
+                            await sc.send_command(server.name, f"skintailor update {player_name}")
 
-                        async def apply_skin_task():
-                            print(f"[MineBridge] Esperando 10s para aplicar skin a {player_name}...")
-                            await asyncio.sleep(10)
-                            
-                            public_skin_url = f"http://185.214.134.23:8000/static/skins/{player_name}.png"
-                            
-                            # 1. SkinRestorer (El estándar de la industria para servidores Offline)
-                            # Este comando funciona en consola perfectamente si SkinRestorer está instalado.
-                            print(f"[MineBridge] Intentando aplicar skin via SkinRestorer para {player_name}")
-                            await sc.send_command(target_server_name, f"sr set {player_name} {public_skin_url}")
-                            await sc.send_command(target_server_name, f"sr update {player_name}")
-                            
-                            # 2. Comando genérico 'skin set' (Soportado por muchos otros mods)
-                            await sc.send_command(target_server_name, f"skin set {player_name} {public_skin_url}")
-                            
-                            # 3. FabricTailor Fallback (Por si acaso, pero SkinRestorer es prioridad ahora)
-                            await sc.send_command(target_server_name, f"fabrictailor set {player_name} {public_skin_url}")
-                            
-                        asyncio.create_task(apply_skin_task())
-                except Exception as ex:
-                    print(f"Error en la ráfaga de skin: {ex}")
+                        asyncio.create_task(final_apply_task())
+                except Exception as cmd_ex:
+                    print(f"Error en comandos de fallback: {cmd_ex}")
 
             except Exception as e:
                 print(f"Error procesando raw skin: {e}")
