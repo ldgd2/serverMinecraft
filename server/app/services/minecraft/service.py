@@ -44,7 +44,15 @@ class ServerService:
             self.servers[record.name] = instance
 
     def get_process(self, name: str) -> MinecraftProcess:
-        return self.servers.get(name)
+        proc = self.servers.get(name)
+        if not proc:
+            # Fallback to case-insensitive search
+            for sname, sproc in self.servers.items():
+                if sname.lower() == name.lower():
+                    print(f"DEBUG: Found process for '{name}' via case-insensitive match: '{sname}'")
+                    return sproc
+            print(f"DEBUG: Process not found for '{name}'. Available servers: {list(self.servers.keys())}")
+        return proc
 
     def create_server(
         self, 

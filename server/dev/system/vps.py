@@ -27,9 +27,10 @@ def main(ctx: typer.Context):
             console.print("[8] Top Processes (RAM usage)")
             console.print("[9] Service Status (Systemd)")
             console.print("[10] Cleanup Blocked Ports (Kill port owner)")
+            console.print("[11] Run Database Migrations (Fix missing columns)")
             console.print("[0] Return to Main Menu")
             
-            choice = Prompt.ask("Select an option", choices=["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "0"], default="1")
+            choice = Prompt.ask("Select an option", choices=["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "0"], default="1")
             
             try:
                 if choice == "1":
@@ -52,6 +53,8 @@ def main(ctx: typer.Context):
                     check_service_status()
                 elif choice == "10":
                     cleanup_ports()
+                elif choice == "11":
+                    run_migrations()
                 elif choice == "0":
                     break
             except Exception as e:
@@ -288,3 +291,32 @@ def cleanup_ports():
             console.print(f"[red]Error cleaning port {port}: {e}[/red]")
             console.print("[dim]Note: 'lsof' might not be installed. Try 'sudo apt install lsof'[/dim]")
 
+
+@app.command("migrate")
+def run_migrations():
+    """Run database schema migrations to fix missing columns"""
+    console.print(Panel.fit("[bold blue]🗄️ Database Migration Utility[/bold blue]", border_style="blue"))
+    
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    migrate_script = os.path.join(project_root, "dev", "database", "migrate.py")
+    
+    if not os.path.exists(migrate_script):
+        console.print(f"[bold red]Error: Migration script not found at {migrate_script}[/bold red]")
+        return
+        
+    try:
+        console.print("[yellow]Running migration script...[/yellow]")
+        # Use the same python executable
+        result = subprocess.run([sys.executable, migrate_script], check=True, capture_output=True, text=True)
+        console.print(result.stdout)
+        console.print("[bold green]✓ Migration finished![/bold green]")
+        
+        restart = Confirm.ask("Do you want to restart the API service now to apply changes?", default=True)
+        if restart and sys.platform != "win32":
+            subprocess.run(["sudo", "systemctl", "restart", "mine-manager.service"], check=True)
+            console.print("[bold green]✓ Service restarted.[/bold green]")
+            
+    except subprocess.CalledProcessError as e:
+        console.print(f"[bold red]Migration failed:[/bold red]\n{e.stderr}")
+    except Exception as e:
+        console.print(f"[bold red]An unexpected error occurred: {e}[/bold red]")

@@ -441,57 +441,22 @@ async def websocket_chat(websocket: WebSocket, name: str):
     
     # Keep the logic for console-based chat fallback if needed, or just let the broadcaster handle it
     # For now, let's keep the client-to-server part
-    async def listen_to_client():
-        try:
-            while True:
-                data = await websocket.receive_json()
-                if data.get("type") == "send_chat":
-                    username = data.get("username", "Admin")
-                    message = data.get("message", "")
-                    if message:
-                        cmd = f'tellraw @a {{"text": "<{username}> {message}", "color": "yellow"}}'
-                        await server_controller.send_command(name, cmd)
-        except Exception as e:
-            broadcaster.disconnect(name, websocket, "chat")
-
-    async def broadcast_to_client():
-        try:
-            while True:
-                log_line = await queue.get()
-                match = chat_pattern.search(log_line)
-                if match:
-                    sender = match.group(1)
-                    message = match.group(2)
-                    await websocket.send_json({
-                        "type": "chat",
-                        "sender": sender,
-                        "message": message,
-                        "is_system": False
-                    })
-                elif "joined the game" in log_line:
-                    await websocket.send_json({
-                        "type": "chat",
-                        "sender": "System",
-                        "message": log_line.split("INFO]: ")[1],
-                        "is_system": True
-                    })
-                elif "left the game" in log_line:
-                    await websocket.send_json({
-                        "type": "chat",
-                        "sender": "System",
-                        "message": log_line.split("INFO]: ")[1],
-                        "is_system": True
-                    })
-        except Exception as e:
-            print(f"[WS CHAT] Broadcast error: {e}")
-
-    # Run both tasks concurrently
+    # The broadcaster already handles sending real-time chat updates to all connected clients.
+    # We only need this loop to keep the connection open and handle messages FROM the app.
     try:
-        await asyncio.gather(listen_to_client(), broadcast_to_client())
+        while True:
+            data = await websocket.receive_json()
+            if data.get("type") == "send_chat":
+                username = data.get("username", "Admin")
+                message = data.get("message", "")
+                if message:
+                    # Send message to game console
+                    await server_controller.send_chat_message(name, message, formatted=True)
     except WebSocketDisconnect:
-        pass
+        broadcaster.disconnect(name, websocket, "chat")
     except Exception as e:
-        print(f"[WS CHAT] Fatal error: {e}")
+        print(f"[WS CHAT] Error: {e}")
+        broadcaster.disconnect(name, websocket, "chat")
     finally:
         try: await websocket.close()
         except: pass
@@ -694,19 +659,40 @@ async def send_chat_message(
     db: Session = Depends(get_db), 
     current_user: User = Depends(get_current_user)
 ):
-    """Send a chat message to the game via MasterBridge or /tellraw command"""
+    """Send a chat message to the game and broadcast to all apps"""
     text = data.text
-    formatted = data.formatted  # If True, use /tellraw for admin message
-    
     if not text:
         raise HTTPException(status_code=400, detail="Missing 'text' field")
     
+    server = db.query(Server).filter(Server.name == name).first()
+    if not server:
+        raise HTTPException(status_code=404, detail="Server not found")
+        
     try:
-        success = await server_controller.send_chat_message(name, text, formatted)
-        if not success:
-            raise HTTPException(status_code=400, detail="Failed to send message. Server may not be online.")
+        # 1. Send to game console
+        success = await server_controller.send_chat_message(name, text, formatted=True)
+        
+        # 2. Persist in history
+        new_chat = ServerChat(
+            server_id=server.id,
+            username=current_user.username,
+            message=text,
+            type="sent"
+        )
+        db.add(new_chat)
+        db.commit()
+        
+        # 3. Broadcast to all connected apps
+        await broadcaster.broadcast_chat(
+            name, 
+            current_user.username, 
+            text,
+            is_system=False,
+            chat_type="sent"
+        )
+        
         AuditService.log_action(db, current_user, "SEND_CHAT", request.client.host, f"Sent chat to {name}: {text[:50]}")
-        return APIResponse(status="success", message="Chat message sent successfully", data=None)
+        return APIResponse(status="success", message="Chat message sent and broadcasted", data=None)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
