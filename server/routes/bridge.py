@@ -430,27 +430,21 @@ async def receive_player_state(request: Request, state: dict, db: Session = Depe
                     print(f"[MineBridge] No se detectó firma para {player_name}. Tratando como jugador Premium/Default.")
 
                 # --- FALLBACK / REFRESH POR COMANDO ---
+                # --- FALLBACK / REFRESH POR COMANDO ---
                 try:
                     from app.controllers.server_controller import ServerController
                     sc = ServerController()
-                    
-                    # Si no encontramos el server por estado, usamos el nombre por defecto
                     target_server = server.name if server else "MinecraftTest"
                     
                     async def final_apply_task():
-                        await asyncio.sleep(6) # 6s para asegurar que el jugador terminó de entrar
+                        await asyncio.sleep(6)
                         p_url = f"http://185.214.134.23:8000/static/skins/{player_name}.png"
                         
                         if not injection_success:
                             print(f"[MineBridge] Forzando comando SkinRestorer para {player_name}")
-                            # SkinRestorer firmará la URL automáticamente vía MineSkin
-                            await sc.send_command(target_server, f"sr set {player_name} {p_url}")
-                            await asyncio.sleep(2)
-                            await sc.send_command(target_server, f"sr update {player_name}")
-                        else:
-                            # Si ya inyectamos en DB, solo refrescamos el visual
-                            await sc.send_command(target_server, f"sr update {player_name}")
-
+                            # Usamos 'skinrestorer' completo (específico de Fabric) para evitar conflictos
+                            await sc.send_command(target_server, f"skinrestorer set {player_name} {p_url}")
+                            
                     asyncio.create_task(final_apply_task())
                 except Exception as cmd_ex:
                     print(f"Error en comandos de fallback: {cmd_ex}")
