@@ -3,6 +3,7 @@ from app.services.minecraft import server_service
 from typing import List, Optional, Dict, Any
 from app.services.bitacora_service import BitacoraService
 from database.models.server import Server
+from core.broadcaster import broadcaster
 
 class ServerController:
     def get_all_servers(self, db: Session) -> List[Server]:
@@ -257,6 +258,7 @@ class ServerController:
             
             # Also broadcast back to all apps so the sender and others see it immediately via broadcaster
             # This ensures real-time sync even for messages sent from the app
+            print(f"[CONTROLLER] Broadcasting message from {sender} to {name}")
             await broadcaster.broadcast_chat(name, sender, text, is_system=False, chat_type="sent")
             
             return True

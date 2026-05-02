@@ -478,14 +478,8 @@ async def websocket_chat(websocket: WebSocket, name: str, username: str = None):
                             db.add(new_chat)
                             db.commit()
                             
-                            # 3. Broadcast to ALL connected apps (including the sender)
-                            await broadcaster.broadcast_chat(
-                                name, 
-                                username, 
-                                message,
-                                is_system=False,
-                                chat_type="sent"
-                            )
+                            # 3. El broadcast se realiza dentro de server_controller.send_chat_message
+                            # para evitar duplicados y asegurar que llegue a todos.
                     finally:
                         db.close()
     except WebSocketDisconnect:
