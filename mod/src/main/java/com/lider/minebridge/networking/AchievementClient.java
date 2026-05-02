@@ -40,6 +40,7 @@ public class AchievementClient {
                 json.addProperty("player_name", playerName);
                 json.addProperty("message", message);
                 json.addProperty("type", type); // 'chat', 'join', 'leave', 'achievement'
+                json.addProperty("server_name", ModConfig.getServerName());
 
                 HttpRequest request = HttpRequest.newBuilder()
                         .uri(URI.create(base + "api/minecraft/chat"))
@@ -66,6 +67,7 @@ public class AchievementClient {
                 json.addProperty("player_uuid", playerUuid);
                 json.addProperty("event_key", eventKey);
                 json.addProperty("increment", increment);
+                json.addProperty("server_name", ModConfig.getServerName());
 
                 HttpRequest request = HttpRequest.newBuilder()
                         .uri(URI.create(url))

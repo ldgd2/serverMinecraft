@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request
 from sqlalchemy.orm import Session
 from database.connection import get_db
 from app.services.achievements.processor import AchievementProcessor
@@ -20,12 +20,14 @@ class MinecraftEvent(BaseModel):
     player_uuid: str
     event_key: str
     increment: int = 1
+    server_name: str = "MinecraftTest"
 
 class MinecraftChat(BaseModel):
     player_uuid: str
     player_name: str
     message: str
     type: str # 'chat', 'join', 'leave', 'achievement'
+    server_name: str = "MinecraftTest"
 
 # --- ENDPOINTS ---
 
@@ -66,11 +68,15 @@ async def handle_minecraft_chat(chat: MinecraftChat, db: Session = Depends(get_d
     """
     Endpoint para sincronizar el chat y eventos de sistema (join/leave)
     """
-    logger.info(f"💬 Received Minecraft Chat/System Event: {chat.player_name}: {chat.message} ({chat.type})")
+    logger.info(f"💬 Received Minecraft Chat/System Event from {chat.server_name}: {chat.player_name}: {chat.message} ({chat.type})")
     
-    # 1. Intentar encontrar el servidor (Heurística: primer servidor si no sabemos cual es)
-    # En producción idealmente el Mod enviaría su Server ID
-    server = db.query(Server).first()
+    # 1. Intentar encontrar el servidor por nombre
+    server = db.query(Server).filter(Server.name == chat.server_name).first()
+    
+    # Fallback si no existe ese nombre, usar el primero (para compatibilidad)
+    if not server:
+        server = db.query(Server).first()
+        
     if not server:
         return {"status": "error", "message": "No server found"}
 
