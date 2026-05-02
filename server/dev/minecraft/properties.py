@@ -168,6 +168,11 @@ def bind_public(file: str = typer.Option(DEFAULT_PROPERTIES_FILE, help="Path to 
     """Bind server to 0.0.0.0 (Publicly accessible)."""
     set_property("server-ip", "0.0.0.0", file)
 
+@app.command("bind")
+def bind(ip: str, file: str = typer.Option(DEFAULT_PROPERTIES_FILE, help="Path to server.properties")):
+    """Bind server to a specific IP."""
+    set_property("server-ip", ip, file)
+
 @app.command("setup-skins")
 def setup_skinrestorer_auto(server_name: str):
     """Detects public IP and configures SkinRestorer for the specified server."""
