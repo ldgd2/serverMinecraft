@@ -17,6 +17,11 @@ public class BackendClient {
     private final HttpClient httpClient;
     private final Gson gson;
     private WebSocket webSocket;
+    private final java.util.concurrent.CopyOnWriteArrayList<JsonObject> batchPlayerStates = new java.util.concurrent.CopyOnWriteArrayList<>();
+    private final java.util.concurrent.CopyOnWriteArrayList<JsonObject> batchEvents = new java.util.concurrent.CopyOnWriteArrayList<>();
+    private final java.util.concurrent.CopyOnWriteArrayList<JsonObject> batchStats = new java.util.concurrent.CopyOnWriteArrayList<>();
+    private final java.util.concurrent.CopyOnWriteArrayList<JsonObject> batchChats = new java.util.concurrent.CopyOnWriteArrayList<>();
+    private java.util.concurrent.ScheduledExecutorService scheduler;
 
     public BackendClient(String baseUrl, String apiKey) {
         this.baseUrl = (baseUrl == null || baseUrl.isEmpty() || baseUrl.equals("PENDING")) ? null : (baseUrl.endsWith("/") ? baseUrl : baseUrl + "/");
@@ -34,6 +39,9 @@ public class BackendClient {
         } else {
             MineBridge.LOGGER.warn("Backend configuration is PENDING. Use /minebridge set-url and set-key to initialize.");
         }
+        
+        scheduler = java.util.concurrent.Executors.newSingleThreadScheduledExecutor();
+        scheduler.scheduleAtFixedRate(this::flushBatch, 5, 5, java.util.concurrent.TimeUnit.SECONDS);
     }
 
     private void connectWebSocket() {
@@ -58,7 +66,7 @@ public class BackendClient {
         json.addProperty("message", message);
         json.addProperty("type", "chat");
         
-        postAsync("api/v1/bridge/chat", json);
+        batchChats.add(json);
     }
 
     public void notifyPlayerJoin(String player, String uuid) {
@@ -67,7 +75,7 @@ public class BackendClient {
         json.addProperty("uuid", uuid);
         json.addProperty("type", "join");
         
-        postAsync("api/v1/bridge/events", json);
+        batchEvents.add(json);
     }
 
     public void notifyPlayerLeave(String player) {
@@ -75,7 +83,7 @@ public class BackendClient {
         json.addProperty("player", player);
         json.addProperty("type", "leave");
         
-        postAsync("api/v1/bridge/events", json);
+        batchEvents.add(json);
     }
 
     public void notifyStatUpdate(String player, String stat, String value) {
@@ -90,7 +98,7 @@ public class BackendClient {
         json.addProperty("amount", amount);
         json.addProperty("type", "stat_update");
         
-        postAsync("api/v1/bridge/stats", json);
+        batchStats.add(json);
     }
 
     public void notifyPlayerDeath(String player, String cause, String killer) {
@@ -100,7 +108,7 @@ public class BackendClient {
         json.addProperty("killer", killer);
         json.addProperty("type", "death");
         
-        postAsync("api/v1/bridge/events", json);
+        batchEvents.add(json);
     }
 
     public void notifyPlayerState(String player, float health, int food, double x, double y, double z, String world) {
@@ -114,7 +122,7 @@ public class BackendClient {
         json.addProperty("world", world);
         json.addProperty("type", "player_state");
         
-        postAsync("api/v1/bridge/status/player", json);
+        batchPlayerStates.add(json);
     }
 
     public void notifyServerState(String state) {
@@ -149,7 +157,7 @@ public class BackendClient {
         
         try {
             String jsonBody = data.toString();
-            MineBridge.LOGGER.info("DEBUG: Sending POST to " + endpoint + ": " + jsonBody);
+            // MineBridge.LOGGER.info("DEBUG: Sending POST to " + endpoint + ": " + jsonBody);
             
             HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(baseUrl + endpoint))
@@ -168,6 +176,31 @@ public class BackendClient {
         } catch (Exception e) {
             MineBridge.LOGGER.error("Failed to send async request to " + endpoint + ": " + e.getMessage());
         }
+    }
+
+    private void flushBatch() {
+        if (baseUrl == null || apiKey == null) return;
+        if (batchPlayerStates.isEmpty() && batchEvents.isEmpty() && batchStats.isEmpty() && batchChats.isEmpty()) return;
+
+        JsonObject batch = new JsonObject();
+        
+        com.google.gson.JsonArray statesArray = new com.google.gson.JsonArray();
+        while (!batchPlayerStates.isEmpty()) { statesArray.add(batchPlayerStates.remove(0)); }
+        if (statesArray.size() > 0) batch.add("player_states", statesArray);
+
+        com.google.gson.JsonArray eventsArray = new com.google.gson.JsonArray();
+        while (!batchEvents.isEmpty()) { eventsArray.add(batchEvents.remove(0)); }
+        if (eventsArray.size() > 0) batch.add("events", eventsArray);
+
+        com.google.gson.JsonArray statsArray = new com.google.gson.JsonArray();
+        while (!batchStats.isEmpty()) { statsArray.add(batchStats.remove(0)); }
+        if (statsArray.size() > 0) batch.add("stats", statsArray);
+
+        com.google.gson.JsonArray chatsArray = new com.google.gson.JsonArray();
+        while (!batchChats.isEmpty()) { chatsArray.add(batchChats.remove(0)); }
+        if (chatsArray.size() > 0) batch.add("chats", chatsArray);
+
+        postAsync("api/v1/bridge/batch", batch);
     }
 
     public void updateBaseUrl(String newUrl) {
@@ -189,6 +222,10 @@ public class BackendClient {
     }
 
     public void close() {
+        if (scheduler != null) {
+            scheduler.shutdown();
+        }
+        flushBatch(); // flush remaining before stopping
         if (webSocket != null) {
             webSocket.sendClose(WebSocket.NORMAL_CLOSURE, "Server stopping");
         }
@@ -209,6 +246,16 @@ public class BackendClient {
                 if ("command".equals(action)) {
                     String cmd = json.get("command").getAsString();
                     executeCommand(cmd);
+                } else if ("achievement".equals(action)) {
+                    String target = json.get("player").getAsString();
+                    String title = json.get("title").getAsString();
+                    String desc = json.get("desc").getAsString();
+                    
+                    // Comandos para hacer que el logro "salte" visual y sonoramente
+                    executeCommand("title " + target + " title {\"text\":\"\\u2605 Logro Desbloqueado \\u2605\",\"color\":\"gold\",\"bold\":true}");
+                    executeCommand("title " + target + " subtitle {\"text\":\"" + title + "\",\"color\":\"yellow\"}");
+                    executeCommand("execute as " + target + " at @s run playsound ui.toast.challenge_complete master @s ~ ~ ~ 1.0 1.0");
+                    executeCommand("tellraw @a [\"\", {\"text\":\"\\uD83C\\uDFC6 \",\"color\":\"gold\"}, {\"text\":\"" + target + "\",\"color\":\"white\"}, {\"text\":\" ha conseguido el logro \",\"color\":\"gray\"}, {\"text\":\"[" + title + "]\",\"color\":\"yellow\",\"hoverEvent\":{\"action\":\"show_text\",\"contents\":\"" + desc + "\"}}]");
                 } else if ("kick".equals(action)) {
                     String target = json.get("player").getAsString();
                     String reason = json.has("reason") ? json.get("reason").getAsString() : "Kicked by admin";

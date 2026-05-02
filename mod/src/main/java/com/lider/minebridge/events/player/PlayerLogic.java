@@ -13,6 +13,8 @@ import net.minecraft.text.Text;
 
 public class PlayerLogic {
 
+    private static final java.util.Set<String> sessionUnlocked = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
     public static void init() {
         // CHAT
         ServerMessageEvents.CHAT_MESSAGE.register((message, sender, params) -> {
@@ -88,15 +90,19 @@ public class PlayerLogic {
     }
 
     public static void onDimensionChange(ServerPlayerEntity player, String dimensionId) {
-        AchievementClient.sendEvent(player.getUuidAsString(), "dimension_enter:" + dimensionId, 1);
+        String uuid = player.getUuidAsString();
+        if (sessionUnlocked.add(uuid + "_dim_" + dimensionId)) {
+            AchievementClient.sendEvent(uuid, "dimension_enter:" + dimensionId, 1);
+        }
     }
 
     public static void checkPhysicalAchievements(ServerPlayerEntity player) {
-        if (player.getY() >= 319) {
-            AchievementClient.sendEvent(player.getUuidAsString(), "max_height_reached", 1);
+        String uuid = player.getUuidAsString();
+        if (player.getY() >= 319 && sessionUnlocked.add(uuid + "_height")) {
+            AchievementClient.sendEvent(uuid, "max_height_reached", 1);
         }
-        if (player.experienceLevel >= 100) {
-            AchievementClient.sendEvent(player.getUuidAsString(), "xp_level", 100);
+        if (player.experienceLevel >= 100 && sessionUnlocked.add(uuid + "_xp100")) {
+            AchievementClient.sendEvent(uuid, "xp_level", 100);
         }
     }
 

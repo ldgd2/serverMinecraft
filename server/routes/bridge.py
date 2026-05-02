@@ -23,6 +23,44 @@ from database.models.players.player_detail import PlayerDetail
 from database.connection import SessionLocal
 
 router = APIRouter(prefix="/bridge", tags=["Minecraft Bridge"])
+
+@router.post("/batch")
+async def receive_batch(batch: dict, request: Request, db: Session = Depends(get_db), user: User = Depends(verify_api_key)):
+    """
+    Recibe un lote de eventos, estadísticas y estados para optimizar la conexión.
+    """
+    # logger.info(f"[MineBridge] Lote recibido de {user.username}")
+    
+    # 1. Procesar Estados de Jugadores (Solo el último de cada jugador en el lote)
+    player_states = batch.get("player_states", [])
+    if player_states:
+        # Usar un dict para quedarnos solo con el último estado de cada jugador
+        latest_states = {s.get("player"): s for s in player_states if s.get("player")}
+        for state in latest_states.values():
+            await receive_player_state(request, state, db)
+
+    # 2. Procesar Eventos
+    events = batch.get("events", [])
+    for event in events:
+        await receive_event(event, request, user)
+
+    # 3. Procesar Estadísticas
+    stats = batch.get("stats", [])
+    for stat in stats:
+        await receive_stat(stat, db, user)
+
+    # 4. Procesar Chat
+    chats = batch.get("chats", [])
+    for chat in chats:
+        await receive_chat(chat, db, user)
+
+    return {"status": "ok", "processed": {
+        "player_states": len(player_states),
+        "events": len(events),
+        "stats": len(stats),
+        "chats": len(chats)
+    }}
+
 ws_router = APIRouter(prefix="/ws", tags=["Minecraft Bridge WS"])
 logger = logging.getLogger("uvicorn")
 
@@ -44,6 +82,15 @@ class ConnectionManager:
             await self.active_connections[username].send_json({
                 "action": "command",
                 "command": command
+            })
+
+    async def send_achievement(self, username: str, player: str, title: str, desc: str):
+        if username in self.active_connections:
+            await self.active_connections[username].send_json({
+                "action": "achievement",
+                "player": player,
+                "title": title,
+                "desc": desc
             })
 
     async def send_kick(self, username: str, target: str, reason: str):
@@ -333,12 +380,30 @@ async def receive_player_state(request: Request, state: dict, db: Session = Depe
         player.detail = PlayerDetail(player_id=player.id)
         db.add(player.detail)
 
-    # 3. Actualizar datos básicos
+    # 3. Actualizar datos básicos y calcular progresos
     try:
+        x = state.get("pos_x", 0)
+        y = state.get("pos_y", 0)
+        z = state.get("pos_z", 0)
+
+        last_x = player.detail.position_x or 0
+        last_y = player.detail.position_y or 0
+        last_z = player.detail.position_z or 0
+        
+        dist = ((x - last_x)**2 + (y - last_y)**2 + (z - last_z)**2)**0.5
+        
+        if 0.1 < dist < 100:  # Evitar teleports
+            AchievementService.process_stat_update(db, player, "distance_travelled", int(dist))
+
+        # CALCULAR TIEMPO (Cada update son ~5 segundos)
+        AchievementService.process_stat_update(db, player, "playtime_seconds", 5)
+        AchievementService.process_stat_update(db, player, "session_time_seconds", 5)
+
         player.detail.health = int(state.get("health", 20))
-        player.detail.position_x = int(state.get("pos_x", 0))
-        player.detail.position_y = int(state.get("pos_y", 0))
-        player.detail.position_z = int(state.get("pos_z", 0))
+        player.detail.position_x = int(x)
+        player.detail.position_y = int(y)
+        player.detail.position_z = int(z)
+        player.detail.total_playtime_seconds = (player.detail.total_playtime_seconds or 0) + 5
         player.detail.last_ip = state.get("ip")
         
         # Safe update for columns that might be missing in older schemas

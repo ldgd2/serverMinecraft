@@ -33,6 +33,40 @@ class MinecraftChat(BaseModel):
 
 # --- ENDPOINTS ---
 
+@router.post("/batch")
+async def receive_batch(
+    request: Request,
+    batch: dict,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db)
+):
+    """
+    Endpoint para procesar eventos y chats en lote para optimizar rendimiento.
+    """
+    events = batch.get("events", [])
+    for event_data in events:
+        try:
+            event = MinecraftEvent(**event_data)
+            background_tasks.add_task(
+                AchievementProcessor.process_event,
+                db,
+                event.player_uuid,
+                event.event_key,
+                event.increment
+            )
+        except Exception as e:
+            logger.error(f"❌ Error processing batched minecraft event: {e}")
+
+    chats = batch.get("chats", [])
+    for chat_data in chats:
+        try:
+            chat = MinecraftChat(**chat_data)
+            await handle_minecraft_chat(chat, db)
+        except Exception as e:
+            logger.error(f"❌ Error processing batched minecraft chat: {e}")
+
+    return {"status": "ok", "processed": {"events": len(events), "chats": len(chats)}}
+
 @router.post("/event")
 async def receive_minecraft_event(
     request: Request,

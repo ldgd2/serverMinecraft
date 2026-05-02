@@ -125,9 +125,24 @@ class AchievementProcessor:
                     db.add(new_ach)
                     db.commit()
 
-                    # Notificar al servidor vía RCON (opcional pero genial)
-                    msg = f'tellraw @a ["", {{"text":"🏆 ","color":"gold"}}, {{"text":"{player.name}","color":"white"}}, {{"text":" ha conseguido el logro ","color":"gray"}}, {{"text":"[{ach.name}]","color":"yellow","hoverEvent":{{"action":"show_text","contents":"{ach.description}"}}}}]'
+                    # Notificar al servidor vía WebSocket para que el Mod haga saltar el logro
                     try:
-                        rcon_service.send_command(msg)
-                    except:
-                        pass
+                        from server.routes.bridge import manager
+                        from database.models.server import Server
+                        from database.models.user import User
+                        import asyncio
+                        
+                        # Buscar el username del dueño del servidor
+                        server = db.query(Server).filter(Server.id == player.server_id).first()
+                        if server:
+                            admin = db.query(User).filter(User.id == server.user_id).first()
+                            if admin:
+                                # Necesitamos programarlo en el event loop principal
+                                try:
+                                    loop = asyncio.get_running_loop()
+                                    loop.create_task(manager.send_achievement(admin.username, player.name, ach.name, ach.description))
+                                except RuntimeError:
+                                    # Si no hay loop corriendo (ej. hilo síncrono), usamos un hilo nuevo
+                                    asyncio.run(manager.send_achievement(admin.username, player.name, ach.name, ach.description))
+                    except Exception as e:
+                        logger.error(f"Error enviando logro por WS: {e}")

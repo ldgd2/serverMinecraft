@@ -13,6 +13,14 @@ import java.util.concurrent.CompletableFuture;
  */
 public class AchievementClient {
     private static final HttpClient client = HttpClient.newHttpClient();
+    private static final java.util.concurrent.CopyOnWriteArrayList<JsonObject> batchEvents = new java.util.concurrent.CopyOnWriteArrayList<>();
+    private static final java.util.concurrent.CopyOnWriteArrayList<JsonObject> batchChats = new java.util.concurrent.CopyOnWriteArrayList<>();
+    private static java.util.concurrent.ScheduledExecutorService scheduler;
+
+    static {
+        scheduler = java.util.concurrent.Executors.newSingleThreadScheduledExecutor();
+        scheduler.scheduleAtFixedRate(AchievementClient::flushBatch, 5, 5, java.util.concurrent.TimeUnit.SECONDS);
+    }
 
     private static String getBaseUrl() {
         String url = ModConfig.getBackendUrl();
@@ -30,61 +38,59 @@ public class AchievementClient {
      * Envía un mensaje de chat o evento de sistema al backend.
      */
     public static void sendChatMessage(String playerUuid, String playerName, String message, String type) {
-        String base = getBaseUrl();
-        if (base == null) return;
+        JsonObject json = new JsonObject();
+        json.addProperty("player_uuid", playerUuid);
+        json.addProperty("player_name", playerName);
+        json.addProperty("message", message);
+        json.addProperty("type", type); // 'chat', 'join', 'leave', 'achievement'
+        json.addProperty("server_name", ModConfig.getServerName());
         
-        CompletableFuture.runAsync(() -> {
-            try {
-                JsonObject json = new JsonObject();
-                json.addProperty("player_uuid", playerUuid);
-                json.addProperty("player_name", playerName);
-                json.addProperty("message", message);
-                json.addProperty("type", type); // 'chat', 'join', 'leave', 'achievement'
-                json.addProperty("server_name", ModConfig.getServerName());
-
-                HttpRequest request = HttpRequest.newBuilder()
-                        .uri(URI.create(base + "api/minecraft/chat"))
-                        .version(HttpClient.Version.HTTP_1_1)
-                        .header("Content-Type", "application/json")
-                        .header("X-API-Key", ModConfig.getApiKey())
-                        .POST(HttpRequest.BodyPublishers.ofString(json.toString()))
-                        .build();
-
-                client.sendAsync(request, HttpResponse.BodyHandlers.ofString());
-            } catch (Exception e) {
-                System.err.println("[MineBridge] Error enviando chat: " + e.getMessage());
-            }
-        });
+        batchChats.add(json);
     }
 
     public static void sendEvent(String playerUuid, String eventKey, int increment) {
-        String url = getApiUrl();
-        if (url == null) return;
+        JsonObject json = new JsonObject();
+        json.addProperty("player_uuid", playerUuid);
+        json.addProperty("event_key", eventKey);
+        json.addProperty("increment", increment);
+        json.addProperty("server_name", ModConfig.getServerName());
+        
+        batchEvents.add(json);
+    }
+
+    private static void flushBatch() {
+        String base = getBaseUrl();
+        if (base == null) return;
+        if (batchEvents.isEmpty() && batchChats.isEmpty()) return;
+
+        JsonObject batch = new JsonObject();
+        
+        com.google.gson.JsonArray eventsArray = new com.google.gson.JsonArray();
+        while (!batchEvents.isEmpty()) { eventsArray.add(batchEvents.remove(0)); }
+        if (eventsArray.size() > 0) batch.add("events", eventsArray);
+
+        com.google.gson.JsonArray chatsArray = new com.google.gson.JsonArray();
+        while (!batchChats.isEmpty()) { chatsArray.add(batchChats.remove(0)); }
+        if (chatsArray.size() > 0) batch.add("chats", chatsArray);
 
         CompletableFuture.runAsync(() -> {
             try {
-                JsonObject json = new JsonObject();
-                json.addProperty("player_uuid", playerUuid);
-                json.addProperty("event_key", eventKey);
-                json.addProperty("increment", increment);
-                json.addProperty("server_name", ModConfig.getServerName());
-
                 HttpRequest request = HttpRequest.newBuilder()
-                        .uri(URI.create(url))
+                        .uri(URI.create(base + "api/minecraft/batch"))
                         .version(HttpClient.Version.HTTP_1_1)
                         .header("Content-Type", "application/json")
                         .header("X-API-Key", ModConfig.getApiKey())
-                        .POST(HttpRequest.BodyPublishers.ofString(json.toString()))
+                        .POST(HttpRequest.BodyPublishers.ofString(batch.toString()))
                         .build();
 
                 client.sendAsync(request, HttpResponse.BodyHandlers.ofString())
                       .thenAccept(response -> {
-                          if (response.statusCode() != 200) {
-                              System.err.println("[MineBridge] Error enviando evento: " + response.body());
+                          if (response.statusCode() >= 400) {
+                              System.err.println("[MineBridge] Error enviando batch: " + response.body());
                           }
                       });
             } catch (Exception e) {
-                System.err.println("[MineBridge] Error critico de red: " + e.getMessage());
+                System.err.println("[MineBridge] Error critico de red en batch: " + e.getMessage());
             }
         });
     }

@@ -26,6 +26,11 @@ public abstract class PlayerAdvancementTrackerMixin {
                     "advancement",
                     advId
                 );
+                
+                // Mapeo específico para Piglin Barter
+                if (advId.contains("distract_piglin")) {
+                    com.lider.minebridge.networking.AchievementClient.sendEvent(this.owner.getUuidAsString(), "piglin_barter", 1);
+                }
             }
         }
     }

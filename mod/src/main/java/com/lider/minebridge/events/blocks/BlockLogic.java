@@ -28,8 +28,24 @@ public class BlockLogic {
 
                 // CULTIVOS AGRÍCOLAS
                 if (id.contains("wheat") || id.contains("carrots") || id.contains("potatoes") || id.contains("nether_wart") || id.contains("sugar_cane") || id.contains("sweet_berry_bush")) {
-                    AchievementClient.sendEvent(serverPlayer.getUuidAsString(), "crop_harvested", 1);
-                    AchievementClient.sendEvent(serverPlayer.getUuidAsString(), "crop:minecraft:" + id, 1);
+                    boolean isMature = false;
+                    if (block instanceof net.minecraft.block.CropBlock crop) {
+                        isMature = crop.isMature(state);
+                    } else if (block instanceof net.minecraft.block.NetherWartBlock) {
+                        isMature = state.get(net.minecraft.block.NetherWartBlock.AGE) == 3;
+                    } else if (block instanceof net.minecraft.block.SweetBerryBushBlock) {
+                        isMature = state.get(net.minecraft.block.SweetBerryBushBlock.AGE) == 3;
+                    } else if (block instanceof net.minecraft.block.SugarCaneBlock || id.contains("sugar_cane")) {
+                        isMature = true; // La caña de azúcar cuenta por defecto al romperse
+                    }
+
+                    if (isMature) {
+                        String cropId = id;
+                        if (id.equals("sweet_berry_bush")) cropId = "sweet_berries";
+                        
+                        AchievementClient.sendEvent(serverPlayer.getUuidAsString(), "crop_harvested", 1);
+                        AchievementClient.sendEvent(serverPlayer.getUuidAsString(), "crop:minecraft:" + cropId, 1);
+                    }
                 }
             }
         });

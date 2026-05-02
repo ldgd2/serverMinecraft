@@ -8,29 +8,38 @@ import net.minecraft.world.World;
 
 public class MemeLogic {
 
+    private static int tickCounter = 0;
+    private static final java.util.Set<String> sessionUnlocked = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
     public static void init() {
         ServerTickEvents.END_SERVER_TICK.register(server -> {
+            tickCounter++;
+            if (tickCounter < 100) return; // Solo revisar cada 5 segundos
+            tickCounter = 0;
+
             for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
+                String uuid = player.getUuidAsString();
+                
                 // 1. EL MONTE EVEREST (Altura 320)
-                if (player.getY() >= 319) {
+                if (player.getY() >= 319 && sessionUnlocked.add(uuid + "_height")) {
                     AchievementClient.sendEvent(player.getUuidAsString(), "max_height_reached", 1);
                 }
 
                 // 2. PARALISIS DEL MIEDO (Warden)
-                if (player.hasStatusEffect(StatusEffects.DARKNESS)) {
-                    AchievementClient.sendEvent(player.getUuidAsString(), "warden_darkness_effect", 1);
+                if (player.hasStatusEffect(StatusEffects.DARKNESS) && sessionUnlocked.add(uuid + "_darkness")) {
+                    AchievementClient.sendEvent(uuid, "warden_darkness_effect", 1);
                 }
 
                 // 3. FARMACIA ANDANTE (10 efectos activos)
-                if (player.getStatusEffects().size() >= 10) {
-                    AchievementClient.sendEvent(player.getUuidAsString(), "active_effects_count", 10);
+                if (player.getStatusEffects().size() >= 10 && sessionUnlocked.add(uuid + "_pharmacy")) {
+                    AchievementClient.sendEvent(uuid, "active_effects_count", 10);
                 }
 
                 // 4. DISTANCIA MONTADO (General y Strider)
                 if (player.getVehicle() != null) {
-                    AchievementClient.sendEvent(player.getUuidAsString(), "distance_mounted", 1);
+                    AchievementClient.sendEvent(uuid, "distance_mounted", 100); // 100 ticks
                     if (player.getVehicle().getType().getTranslationKey().contains("strider") && player.getVehicle().isInLava()) {
-                        AchievementClient.sendEvent(player.getUuidAsString(), "strider_lava_distance", 1);
+                        AchievementClient.sendEvent(uuid, "strider_lava_distance", 100);
                     }
                 }
 
@@ -39,8 +48,8 @@ public class MemeLogic {
                     int count = server.getPlayerManager().getPlayerList().stream()
                         .filter(p -> p != player && p.getPos().distanceTo(player.getPos()) < 8.0)
                         .collect(java.util.stream.Collectors.toList()).size();
-                    if (count >= 5) {
-                        AchievementClient.sendEvent(player.getUuidAsString(), "hold_cake_near_players", 1);
+                    if (count >= 5 && sessionUnlocked.add(uuid + "_cake")) {
+                        AchievementClient.sendEvent(uuid, "hold_cake_near_players", 1);
                     }
                 }
             }

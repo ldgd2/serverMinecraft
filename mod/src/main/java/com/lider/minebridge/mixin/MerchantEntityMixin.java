@@ -18,7 +18,11 @@ public abstract class MerchantEntityMixin {
     private void onTrade(TradeOffer offer, CallbackInfo ci) {
         MerchantEntity merchant = (MerchantEntity) (Object) this;
         if (merchant.getCustomer() instanceof ServerPlayerEntity player) {
-            AchievementClient.sendEvent(player.getUuidAsString(), "villager_trade", 1);
+            com.lider.minebridge.events.economy.EconomyLogic.onTradeCompleted(
+                player.getUuidAsString(), 
+                offer.getOriginalFirstBuyItem(), 
+                offer.getSellItem()
+            );
             if (merchant instanceof WanderingTraderEntity) {
                 MemeLogic.onWanderingTraderTrade(player);
             }
