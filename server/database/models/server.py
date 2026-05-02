@@ -13,6 +13,7 @@ class Server(Base):
     ram_mb = Column(Integer, default=2048)
     status = Column(String, default="OFFLINE")
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True) # Associated admin
     
     # Server settings
     online_mode = Column(Boolean, default=False) 

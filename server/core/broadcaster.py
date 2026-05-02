@@ -31,13 +31,14 @@ class Broadcaster:
         if websocket in clients:
             clients.remove(websocket)
 
-    async def broadcast_chat(self, server_name: str, sender: str, message: str, is_system: bool = False):
+    async def broadcast_chat(self, server_name: str, sender: str, message: str, is_system: bool = False, **kwargs):
         if server_name in self.chat_clients:
             data = json.dumps({
                 "type": "chat",
                 "sender": sender,
                 "message": message,
-                "is_system": is_system
+                "is_system": is_system,
+                "chat_type": kwargs.get("chat_type", "received")
             })
             for client in self.chat_clients[server_name]:
                 try:

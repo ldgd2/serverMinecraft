@@ -149,6 +149,7 @@ class ServerProvider extends ChangeNotifier {
         'sender': m['user'],
         'message': m['text'],
         'is_system': m['type'] == 'system' || m['type'] == 'join' || m['type'] == 'leave' || m['type'] == 'achievement',
+        'chat_type': m['type'],
         'time': DateTime.fromMillisecondsSinceEpoch(m['time']).toIso8601String(),
       }));
       notifyListeners();
@@ -426,6 +427,7 @@ class ServerProvider extends ChangeNotifier {
             'sender': data['sender'],
             'message': data['message'],
             'is_system': data['is_system'] ?? false,
+            'chat_type': data['chat_type'] ?? 'received',
             'time': DateTime.now().toIso8601String(),
           });
           if (_chatMessages.length > 200) _chatMessages.removeAt(0);

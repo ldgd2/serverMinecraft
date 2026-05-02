@@ -806,6 +806,10 @@ class MinecraftProcess:
                             return {"status": "OFFLINE", "cpu": 0, "ram": 0, "players": 0}
                     elif has_done:
                         status_from_log = "ONLINE"
+                    elif "Preparing level" in tail or "Preparing start region" in tail:
+                        status_from_log = "PREPARING"
+                    elif "Loading Minecraft" in tail:
+                        status_from_log = "LOADING"
                     else:
                         status_from_log = "STARTING"
                     

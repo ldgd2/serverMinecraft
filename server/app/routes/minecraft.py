@@ -42,6 +42,10 @@ async def receive_minecraft_event(
     """
     try:
         body = await request.json()
+        if not body:
+             logger.warning("📥 Received empty body in /event")
+             return {"status": "ignored", "reason": "empty body"}
+             
         logger.info(f"📥 Received Minecraft Event: {body}")
         
         event = MinecraftEvent(**body)
@@ -80,25 +84,73 @@ async def handle_minecraft_chat(chat: MinecraftChat, db: Session = Depends(get_d
     if not server:
         return {"status": "error", "message": "No server found"}
 
-    # 2. Guardar en historial si es chat
-    if chat.type == "chat":
-        new_chat = ServerChat(
-            server_id=server.id,
-            username=chat.player_name,
-            message=chat.message,
-            type="received"
-        )
-        db.add(new_chat)
+    # 2. Registrar jugador si es un evento de join
+    if chat.type == "join":
+        # Buscar si ya existe por UUID
+        player = db.query(Player).filter(
+            Player.uuid == chat.player_uuid,
+            Player.server_id == server.id
+        ).first()
+        
+        # Fallback por nombre si no tiene UUID (jugadores no-premium o mod desactualizado)
+        if not player:
+            player = db.query(Player).filter(
+                Player.name.ilike(chat.player_name),
+                Player.server_id == server.id
+            ).first()
+
+        if not player:
+            logger.info(f"🆕 Creating new player record for {chat.player_name}")
+            player = Player(
+                server_id=server.id,
+                uuid=chat.player_uuid,
+                name=chat.player_name
+            )
+            db.add(player)
+            db.flush() # Para tener el ID disponible
+            
+            # Inicializar detalles
+            if not player.detail:
+                player.detail = PlayerDetail(player_id=player.id)
+                db.add(player.detail)
+        else:
+            # Actualizar datos si ya existe
+            player.name = chat.player_name
+            if chat.player_uuid and chat.player_uuid != "unknown":
+                player.uuid = chat.player_uuid
+        
         db.commit()
 
-    # 3. Retransmitir a la App en tiempo real
+    # 3. Guardar en historial (Chat, Join, Leave, Achievement)
+    chat_mapping = {
+        "chat": "received",
+        "join": "join",
+        "leave": "leave",
+        "achievement": "achievement"
+    }
+    
+    db_type = chat_mapping.get(chat.type, "received")
+    
+    new_chat = ServerChat(
+        server_id=server.id,
+        username=chat.player_name if chat.type == "chat" else "System",
+        message=chat.message if chat.type == "chat" else f"{chat.player_name} " + 
+               ("ha entrado al servidor" if chat.type == "join" else 
+                "ha salido del servidor" if chat.type == "leave" else chat.message),
+        type=db_type
+    )
+    db.add(new_chat)
+    db.commit()
+
+    # 4. Retransmitir a la App en tiempo real
     # El broadcaster usa el nombre del servidor como canal
     is_system = chat.type in ['join', 'leave', 'achievement']
     await broadcaster.broadcast_chat(
         server.name, 
         chat.player_name if not is_system else "System", 
         chat.message,
-        is_system=is_system
+        is_system=is_system,
+        chat_type=chat.type if is_system else "received"
     )
 
     return {"status": "ok"}
@@ -153,17 +205,55 @@ async def handle_player_state(state: dict, db: Session = Depends(get_db)):
 @router.post("/send-to-game")
 async def send_to_game(
     user_name: str,
-    message: str
+    message: str,
+    server_name: str = None,
+    db: Session = Depends(get_db)
 ):
     """
     Envía un mensaje desde la App hacia el chat del juego usando RCON.
     """
     try:
         from app.services.minecraft.rcon import rcon_service
+        
+        # 1. Encontrar el servidor
+        if server_name:
+            server = db.query(Server).filter(Server.name == server_name).first()
+        else:
+            server = db.query(Server).first()
+            
+        if not server:
+            raise HTTPException(status_code=404, detail="Server not found")
+
+        # 2. Guardar en historial como mensaje 'sent'
+        new_chat = ServerChat(
+            server_id=server.id,
+            username=user_name,
+            message=message,
+            type="sent"
+        )
+        db.add(new_chat)
+        db.commit()
+
+        # 3. Notificar a otros clientes de la App (broadcaster)
+        await broadcaster.broadcast_chat(
+            server.name, 
+            user_name, 
+            message,
+            is_system=False,
+            chat_type="sent"
+        )
+
+        # 4. Enviar al juego vía RCON
         # Formateamos el mensaje para que destaque en el juego
         rcon_msg = f'tellraw @a ["", {{"text":"[APP] ","color":"dark_gray"}}, {{"text":"{user_name}: ","color":"dark_aqua"}}, {{"text":"{message}","color":"gray"}}]'
-        rcon_service.send_command(rcon_msg)
+        success = rcon_service.send_command(rcon_msg, server_name=server.name)
+        
+        if not success:
+            # Si falló el envío al juego, pero se guardó en la DB, al menos la App lo ve.
+            # Pero informamos del error.
+            return {"status": "partial_success", "message": "Saved to history but failed to send to game (Server offline?)"}
+
         return {"status": "sent"}
     except Exception as e:
-        logger.error(f"Error sending message to game via RCON: {e}")
+        logger.error(f"Error sending message to game: {e}")
         raise HTTPException(status_code=500, detail=str(e))

@@ -142,7 +142,8 @@ def create_server(
             cpu_cores=server_data.cpu_cores,
             disk_mb=server_data.disk_mb,
             max_players=server_data.max_players,
-            status="CREATING"
+            status="CREATING",
+            user_id=current_user.id
         )
         db.add(new_server)
         db.commit()

@@ -95,7 +95,7 @@ class RconService:
             else:
                 # Tomar cualquier proceso que esté ONLINE
                 process = None
-                for name, proc in server_service._processes.items():
+                for name, proc in server_service.servers.items():
                     if proc._status == "ONLINE":
                         process = proc
                         break
@@ -140,10 +140,14 @@ class RconService:
         # --- Intento 3: Fallback — escribir en stdin de cualquier proceso vivo ---
         try:
             from app.services.minecraft import server_service
-            for name, proc in server_service._processes.items():
+            for name, proc in server_service.servers.items():
                 if proc.is_process_alive():
                     if proc.process and proc.process.stdin:
-                        asyncio.ensure_future(proc.write(command))
+                        try:
+                            loop = asyncio.get_running_loop()
+                            loop.create_task(proc.write(command))
+                        except RuntimeError:
+                            asyncio.run(proc.write(command))
                         logger.info(f"[RCON] Usando proceso '{name}' como fallback")
                         return True
         except Exception as e:

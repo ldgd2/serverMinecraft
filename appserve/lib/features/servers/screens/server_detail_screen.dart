@@ -689,39 +689,107 @@ class _ChatTabState extends State<_ChatTab> {
                 itemCount: sp.chatMessages.length,
                 itemBuilder: (context, index) {
                   final msg = sp.chatMessages[index];
-                  final isSystem = msg['is_system'] == true;
+                  final chatType = msg['chat_type'] ?? (msg['is_system'] == true ? 'system' : 'received');
                   final sender = msg['sender'];
                   final text = msg['message'];
+                  
+                  // System / Join / Leave messages (Centered)
+                  if (chatType == 'join' || chatType == 'leave' || chatType == 'system' || chatType == 'achievement') {
+                    IconData icon = Icons.info_outline;
+                    Color iconColor = AppColors.textMuted;
+                    
+                    if (chatType == 'join') {
+                      icon = Icons.login_rounded;
+                      iconColor = AppColors.online;
+                    } else if (chatType == 'leave') {
+                      icon = Icons.logout_rounded;
+                      iconColor = AppColors.offline;
+                    } else if (chatType == 'achievement') {
+                      icon = Icons.emoji_events_outlined;
+                      iconColor = AppColors.gold;
+                    }
 
-                  // Check if it's the user's message (formatted as <$Username> by backend)
-                  final auth = context.read<AuthProvider>();
-                  final isMe = sender == '\$${auth.user?.username}';
-
-                  if (isSystem) {
                     return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      padding: const EdgeInsets.symmetric(vertical: 8),
                       child: Center(
-                        child: Text(text, style: const TextStyle(color: AppColors.textMuted, fontSize: 11, fontStyle: FontStyle.italic)),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: AppColors.backgroundOverlay.withOpacity(0.3),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: AppColors.border.withOpacity(0.5)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(icon, size: 12, color: iconColor),
+                              const SizedBox(width: 6),
+                              Text(
+                                text,
+                                style: TextStyle(
+                                  color: iconColor.withOpacity(0.8),
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     );
                   }
 
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 2),
-                    child: RichText(
-                      text: TextSpan(
-                        style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
-                        children: [
-                          TextSpan(
-                            text: '<$sender> ',
-                            style: TextStyle(
-                              color: isMe ? AppColors.gold : AppColors.diamond,
-                              fontWeight: FontWeight.bold,
-                            ),
+                  final isMe = chatType == 'sent';
+
+                  return Align(
+                    alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+                    child: Container(
+                      margin: EdgeInsets.fromLTRB(isMe ? 60 : 0, 4, isMe ? 0 : 60, 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: isMe ? AppColors.grassGreen.withOpacity(0.15) : AppColors.backgroundElevated,
+                        borderRadius: BorderRadius.only(
+                          topLeft: const Radius.circular(16),
+                          topRight: const Radius.circular(16),
+                          bottomLeft: Radius.circular(isMe ? 16 : 4),
+                          bottomRight: Radius.circular(isMe ? 4 : 16),
+                        ),
+                        border: Border.all(
+                          color: isMe ? AppColors.grassGreen.withOpacity(0.4) : AppColors.border,
+                          width: 1,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.1),
+                            blurRadius: 4,
+                            offset: const Offset(0, 2),
                           ),
-                          TextSpan(
-                            text: text,
-                            style: TextStyle(color: isMe ? AppColors.gold : AppColors.textPrimary),
+                        ],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (!isMe)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 4),
+                              child: Text(
+                                sender,
+                                style: const TextStyle(
+                                  color: AppColors.diamond,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 11,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ),
+                          Text(
+                            text,
+                            style: TextStyle(
+                              color: isMe ? AppColors.grassGreenGlow : AppColors.textPrimary,
+                              fontSize: 14,
+                              height: 1.3,
+                            ),
                           ),
                         ],
                       ),

@@ -151,7 +151,16 @@ async def receive_event(event: dict, user: User = Depends(verify_api_key)):
         
         # Usamos una sesion nueva para evitar conflictos con el request principal si fuera necesario
         with SessionLocal() as db:
-            server = db.query(Server).filter(Server.user_id == user.id).first()
+            # Intentar encontrar por server_name si viniera en el payload (no viene en el mod actual pero lo preparamos)
+            server_name = event.get("server_name")
+            if server_name:
+                server = db.query(Server).filter(Server.name == server_name).first()
+            else:
+                # Fallback al primer servidor del usuario o el primero global
+                server = db.query(Server).filter(Server.user_id == user.id).first()
+                if not server:
+                    server = db.query(Server).first()
+
             if server:
                 player_obj = PlayerService.get_player_by_name(db, server, player)
                 if player_obj:
@@ -174,8 +183,16 @@ async def receive_stat(stat: dict, db: Session = Depends(get_db), user: User = D
         # Obtener el primer servidor del usuario (o el que corresponda)
         # En una arquitectura multi-servidor real, el Mod debería enviar su ID o nombre de instancia
         # Por ahora, buscamos al jugador en los servidores de este administrador
-        from database.models import Server
-        server = db.query(Server).filter(Server.user_id == user.id).first()
+        # Obtener el servidor (priorizar server_name si el mod lo envía)
+        server_name = stat.get("server_name")
+        if server_name:
+            server = db.query(Server).filter(Server.name == server_name).first()
+        else:
+            # Fallback al primero del usuario o primero global
+            server = db.query(Server).filter(Server.user_id == user.id).first()
+            if not server:
+                server = db.query(Server).first()
+
         if server:
             player = PlayerService.get_player_by_name(db, server, player_name)
             if player:
