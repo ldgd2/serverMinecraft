@@ -196,7 +196,7 @@ def show_menu():
         elif choice == "12":
             subprocess.run([python_exe, script_path, "security"])
         elif choice == "13":
-            subprocess.run([python_exe, script_path, "rcon-setup"])
+            subprocess.run([python_exe, script_path, "rcon_setup"])
         elif choice == "0":
             console.print("[bold cyan]Goodbye![/bold cyan]")
             sys.exit(0)

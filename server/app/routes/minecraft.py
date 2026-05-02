@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
-from ..database.config import get_db
-from ..services.achievements.processor import AchievementProcessor
-from ..database.models.players.player_stats import PlayerStats
+from database.connection import get_db
+from app.services.achievements.processor import AchievementProcessor
+from database.models.players.player_stat import PlayerStat
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/api/minecraft", tags=["minecraft-integration"])
