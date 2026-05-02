@@ -54,7 +54,7 @@ class AchievementProcessor:
                 # Verificar si ya lo tiene desbloqueado
                 exists = db.query(PlayerAchievement).filter(
                     PlayerAchievement.player_uuid == player_uuid,
-                    AchievementAchievement.achievement_id == ach.id
+                    PlayerAchievement.achievement_id == ach.id
                 ).first()
 
                 if not exists:

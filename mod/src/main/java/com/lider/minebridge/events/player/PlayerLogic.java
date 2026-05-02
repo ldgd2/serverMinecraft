@@ -70,9 +70,12 @@ public class PlayerLogic {
             }
         }
 
-        // 5. SELF TNT DEATH (Mi momento ha llegado)
+        // 5. SELF TNT DEATH & BED EXPLOSIONS (Darwin Awards)
         if (deathMsgStr.contains("explosion") || deathMsgStr.contains("blew up")) {
             AchievementClient.sendEvent(player.getUuidAsString(), "self_tnt_death", 1);
+        }
+        if (deathMsgStr.contains("intentional game design")) {
+            AchievementClient.sendEvent(player.getUuidAsString(), "nether_bed_explosion", 1);
         }
 
         // 6. VOID DEATH WITH FULL INVENTORY (No me quiero ir Sr. Stark)

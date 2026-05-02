@@ -305,11 +305,25 @@ class MinecraftProcess:
             self.process.stdin.write(f"{command}\n".encode())
             await self.process.stdin.drain()
         else:
+            # Fallback: intenta RCON TCP para procesos recuperados sin stdin
+            try:
+                from app.services.minecraft.rcon import _RconClient
+                import os
+                host = os.getenv("RCON_HOST", "127.0.0.1")
+                port = int(os.getenv("RCON_PORT", "25575"))
+                password = os.getenv("RCON_PASSWORD", "")
+                if password:
+                    client = _RconClient(host, port, password)
+                    client.send(command)
+                    return
+            except Exception as rcon_err:
+                pass  # RCON no disponible, mostrar warning
             msg = f"WARNING: Cannot write to {self.name} (Recovered process has no stdin access). Please restart the server from the manager to regain control."
             print(msg)
             # Add to console subscribers so user sees it
             for q in self.log_subscribers:
                 await q.put(f"[MANAGER] {msg}")
+
 
     def _add_activity(self, type: str, user: str, reason: str = None, timestamp: str = None):
          if not hasattr(self, 'recent_activity'): self.recent_activity = []

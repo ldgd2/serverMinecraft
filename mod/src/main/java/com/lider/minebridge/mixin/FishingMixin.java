@@ -12,7 +12,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(FishingBobberEntity.class)
 public abstract class FishingMixin {
 
-    @Inject(method = "use", at = @At(value = "INVOKE", target = "Lnet/minecraft/entity/projectile/FishingBobberEntity;remove(Lnet/minecraft/entity/Entity$RemovalReason;)V"))
+    @Inject(method = "use", at = @At("RETURN"))
     private void onFishCaught(ItemStack usedItem, CallbackInfoReturnable<Integer> cir) {
         FishingBobberEntity bobber = (FishingBobberEntity)(Object)this;
         if (bobber.getOwner() instanceof ServerPlayerEntity player) {

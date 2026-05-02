@@ -11,7 +11,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-@Mixin(MerchantEntity.class)
+@Mixin({net.minecraft.entity.passive.VillagerEntity.class, net.minecraft.entity.passive.WanderingTraderEntity.class})
 public abstract class MerchantEntityMixin {
 
     @Inject(method = "afterUsing", at = @At("HEAD"))

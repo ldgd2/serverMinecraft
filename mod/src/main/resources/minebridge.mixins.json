@@ -6,22 +6,17 @@
   "mixins": [
     "ServerPlayerEntityMixin",
     "PlayerAdvancementTrackerMixin",
-    "BedBlockMixin",
     "LivingEntityMixin",
     "BlockItemMixin",
     "FishingMixin",
-    "MerchantResultSlotMixin",
     "BrewingStandBlockEntityMixin",
     "EnchantmentScreenHandlerMixin",
-    "PiglinBrainMixin",
-    "PlayerEntityMixin",
     "SheepEntityMixin",
     "TameableEntityMixin",
     "ProjectileEntityMixin",
-    "PaintingEntityMixin",
     "InventoryMixin",
+    "ItemEntityMixin",
     "MerchantEntityMixin",
-    "JukeboxBlockMixin",
     "AnvilScreenHandlerMixin"
   ],
   "injectors": {

@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
 from ..database.config import get_db
 from ..services.achievements.processor import AchievementProcessor
+from ..database.models.players.player_stats import PlayerStats
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/api/minecraft", tags=["minecraft-integration"])
@@ -51,9 +52,15 @@ async def handle_minecraft_chat(event: dict, db: Session = Depends(get_db)):
 async def handle_player_state(state: dict, db: Session = Depends(get_db)):
     """
     Recibe el estado del jugador (pos, salud, etc.) y calcula distancia/tiempo.
+    El mod envía: pos_x, pos_y, pos_z, player (nombre), health, food, world.
     """
-    player_uuid = state.get("player_name") # Por ahora usamos nombre como ID
-    if not player_uuid: return {"error": "no uuid"}
+    player_uuid = state.get("player")  # El mod envía el nombre en el campo "player"
+    if not player_uuid: return {"error": "no player"}
+
+    # Claves reales que envía el mod Java
+    x = state.get("pos_x", 0)
+    y = state.get("pos_y", 0)
+    z = state.get("pos_z", 0)
 
     # 1. Obtener stats actuales
     stats = db.query(PlayerStats).filter(PlayerStats.player_uuid == player_uuid).first()
@@ -63,22 +70,22 @@ async def handle_player_state(state: dict, db: Session = Depends(get_db)):
         db.flush()
 
     # 2. CALCULAR DISTANCIA (Pitágoras entre pos anterior y actual)
-    last_x = stats.counters.get("_last_x", state["x"])
-    last_y = stats.counters.get("_last_y", state["y"])
-    last_z = stats.counters.get("_last_z", state["z"])
+    last_x = stats.counters.get("_last_x", x)
+    last_y = stats.counters.get("_last_y", y)
+    last_z = stats.counters.get("_last_z", z)
     
-    dist = ((state["x"]-last_x)**2 + (state["y"]-last_y)**2 + (state["z"]-last_z)**2)**0.5
+    dist = ((x - last_x)**2 + (y - last_y)**2 + (z - last_z)**2)**0.5
     
-    if dist > 0.1 and dist < 100: # Evitar teleports o micro-movimientos
+    if dist > 0.1 and dist < 100:  # Evitar teleports o micro-movimientos
         AchievementProcessor.process_event(db, player_uuid, "distance_travelled", int(dist))
 
     # 3. CALCULAR TIEMPO (Cada update son ~5 segundos)
     AchievementProcessor.process_event(db, player_uuid, "playtime_seconds", 5)
 
     # 4. Actualizar última posición conocida
-    stats.counters["_last_x"] = state["x"]
-    stats.counters["_last_y"] = state["y"]
-    stats.counters["_last_z"] = state["z"]
+    stats.counters["_last_x"] = x
+    stats.counters["_last_y"] = y
+    stats.counters["_last_z"] = z
     db.commit()
 
     return {"status": "ok"}

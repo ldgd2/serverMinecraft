@@ -13,10 +13,10 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class InventoryMixin {
 
     @Inject(method = "increaseStat", at = @At("HEAD"))
-    private void onStatIncreased(net.minecraft.stat.Stat<?> stat, int amount, CallbackInfo ci) {
+    private void onStatIncreased(net.minecraft.util.Identifier stat, int amount, CallbackInfo ci) {
         if ((Object)this instanceof ServerPlayerEntity player) {
             // Esto captura muchísimos eventos nativos de MC
-            String statId = stat.getValue().toString().replace(":", ".");
+            String statId = stat.toString().replace(":", ".");
             // AchievementClient.sendEvent(player.getUuidAsString(), "stat." + statId, amount);
         }
     }

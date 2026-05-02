@@ -14,6 +14,7 @@ from ui.views.home      import HomeView
 from ui.views.settings  import SettingsView
 from ui.views.skins     import SkinsView
 from ui.views.downloads import DownloadsView
+from ui.views.profile   import ProfileView
 
 
 class LauncherApp(tk.Tk):
@@ -43,6 +44,7 @@ class LauncherApp(tk.Tk):
         self.home_view      = HomeView(     self.container, app=self)
         self.settings_view  = SettingsView( self.container, app=self)
         self.skins_view     = SkinsView(    self.container, app=self)
+        self.profile_view   = ProfileView(  self.container, app=self)
         self.downloads_view = DownloadsView(self.container, app=self,
                                              on_download_complete=self.home_view.sync_launch_settings)
 
@@ -131,6 +133,10 @@ class LauncherApp(tk.Tk):
         self.show_view(self.skins_view, "skins")
         # Refresh preview after slide-in
         self.after(400, lambda: self.skins_view.on_show() if hasattr(self.skins_view, 'on_show') else None)
+
+    def show_profile_view(self, **_):
+        self.show_view(self.profile_view, "profile")
+        self.after(400, lambda: self.profile_view.on_show() if hasattr(self.profile_view, 'on_show') else None)
 
     def show_downloads_view(self, **_):
         self.show_view(self.downloads_view, "downloads")

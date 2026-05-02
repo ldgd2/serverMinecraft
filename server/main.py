@@ -36,6 +36,7 @@ class EnvFileHandler(FileSystemEventHandler):
 # Router Imports
 # Router Imports
 from routes import auth, servers, system, files, mods, worlds, audit, versions, players, player_auth, bridge, backups
+from app.routes.minecraft import router as minecraft_router
 
 app = FastAPI(title="Minecraft Server Manager")
 
@@ -122,6 +123,8 @@ api_v1_router.include_router(bridge.router)
 api_v1_router.include_router(bridge.ws_router)
 
 app.include_router(api_v1_router)
+# Minecraft mod bridge - mounted directly (mod calls /api/minecraft/*, not /api/v1/...)
+app.include_router(minecraft_router)
 
 @app.on_event("startup")
 async def startup_event():

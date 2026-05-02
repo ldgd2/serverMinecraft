@@ -15,9 +15,9 @@ public abstract class PlayerAdvancementTrackerMixin {
     
     @Shadow private ServerPlayerEntity owner;
 
-    @Inject(method = "grantCriterion", at = @At(value = "INVOKE", target = "Lnet/minecraft/advancement/PlayerAdvancementTracker;onStatusUpdate(Lnet/minecraft/advancement/AdvancementEntry;)V"))
+    @Inject(method = "grantCriterion", at = @At("RETURN"))
     private void onAdvancementGrant(AdvancementEntry advancement, String criterionName, CallbackInfoReturnable<Boolean> cir) {
-        if (this.owner != null && !this.owner.getWorld().isClient) {
+        if (cir.getReturnValue() && this.owner != null && !this.owner.getWorld().isClient) {
             String advId = advancement.id().toString();
             // We only send if it's a real advancement (not recipes, etc. unless desired)
             if (advId.contains("adventure") || advId.contains("nether") || advId.contains("end") || advId.contains("husbandry") || advId.contains("story")) {

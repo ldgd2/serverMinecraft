@@ -16,7 +16,6 @@ from config.manager import config
 from core.versions import get_installed_versions
 from core.launcher import launch_minecraft, filter_versions
 from core.info import VERSION
-from ui.views.profile import PlayerProfilePanel
 
 
 LOADER_TYPES = ["Vanilla", "Fabric", "Forge"]
@@ -299,17 +298,8 @@ class HomeView(tk.Frame):
             self.app.show_downloads_view()
 
     def _show_profile(self):
-        if self._profile_panel and self._profile_panel.winfo_exists():
-            self._profile_panel.pack_forget()
-            self._profile_panel.destroy()
-            self._profile_panel = None
-            return
-        self._profile_panel = PlayerProfilePanel(
-            self,
-            on_close=lambda: setattr(self, '_profile_panel', None),
-            width=380,
-        )
-        self._profile_panel.place(relx=0.98, rely=0.02, anchor="ne", width=380, relheight=0.95)
+        if self.app:
+            self.app.show_profile_view()
 
     # ── Public update methods ─────────────────────────────────────────────────
 

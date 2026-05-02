@@ -25,7 +25,7 @@ public abstract class ServerPlayerEntityMixin {
     }
 
     @Inject(method = "teleport", at = @At("HEAD"))
-    private void onDimensionChange(ServerWorld destination, double x, double y, double z, java.util.Set<net.minecraft.network.packet.s2c.play.PositionFlag> flags, float yaw, float pitch, CallbackInfo ci) {
+    private void onDimensionChange(ServerWorld destination, double x, double y, double z, java.util.Set<net.minecraft.network.packet.s2c.play.PositionFlag> flags, float yaw, float pitch, CallbackInfoReturnable<?> cir) {
         ServerPlayerEntity player = (ServerPlayerEntity) (Object) this;
         String dimId = destination.getRegistryKey().getValue().toString();
         PlayerLogic.onDimensionChange(player, dimId);

@@ -14,16 +14,22 @@ import java.util.Map;
 public class ItemLogic {
 
     public static void init() {
+        // DETECTOR DE USO DE OBJETOS
         UseItemCallback.EVENT.register((player, world, hand) -> {
             ItemStack stack = player.getStackInHand(hand);
             if (!world.isClient) {
-                // Lógica de comida "edgy"
+                
+                // CONSUMO GENÉRICO DE COMIDA (1.21.1 Component System)
+                if (stack.get(net.minecraft.component.DataComponentTypes.FOOD) != null) {
+                    AchievementClient.sendEvent(player.getUuidAsString(), "food_eaten", 1);
+                }
+
+                // CASOS ESPECÍFICOS (Pobres y Super Pollo)
                 if (stack.getItem() == Items.COOKED_BEEF) {
                     List<ServerPlayerEntity> nearby = world.getEntitiesByClass(ServerPlayerEntity.class, player.getBoundingBox().expand(8.0), p -> p != player);
                     if (!nearby.isEmpty()) AchievementClient.sendEvent(player.getUuidAsString(), "eat_steak_near_player", 1);
                 }
 
-                // Lógica de acumuladores (Pollo Campero)
                 if (stack.getItem() == Items.COOKED_CHICKEN && stack.getCount() >= 64) {
                     AchievementClient.sendEvent(player.getUuidAsString(), "cooked_chicken_stack", 1);
                 }

@@ -12,18 +12,21 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(SheepEntity.class)
 public abstract class SheepEntityMixin {
 
-    @Inject(method = "sheared", at = @At("HEAD"))
-    private void onSheared(PlayerEntity player, net.minecraft.item.ItemStack item, net.minecraft.world.World world, net.minecraft.util.math.BlockPos pos, CallbackInfo ci) {
-        if (!player.getWorld().isClient) {
-            AchievementClient.sendEvent(player.getUuidAsString(), "sheep_sheared", 1);
-        }
-    }
-
     @Inject(method = "interactMob", at = @At("HEAD"))
     private void onInteract(PlayerEntity player, net.minecraft.util.Hand hand, CallbackInfoReturnable<net.minecraft.util.ActionResult> cir) {
-        SheepEntity sheep = (SheepEntity) (Object) this;
-        if (sheep.getColor() == net.minecraft.util.DyeColor.PINK) {
-            AchievementClient.sendEvent(player.getUuidAsString(), "pink_sheep_found", 1);
+        if (!player.getWorld().isClient) {
+            SheepEntity sheep = (SheepEntity) (Object) this;
+            
+            // Logro de encontrar oveja rosa
+            if (sheep.getColor() == net.minecraft.util.DyeColor.PINK) {
+                AchievementClient.sendEvent(player.getUuidAsString(), "pink_sheep_found", 1);
+            }
+            
+            // Logro de esquilar oveja (reemplaza la inyeccion antigua en 'sheared')
+            net.minecraft.item.ItemStack stack = player.getStackInHand(hand);
+            if (stack.isOf(net.minecraft.item.Items.SHEARS) && sheep.isShearable()) {
+                AchievementClient.sendEvent(player.getUuidAsString(), "sheep_sheared", 1);
+            }
         }
     }
 }
