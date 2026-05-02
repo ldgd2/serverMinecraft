@@ -24,6 +24,20 @@ from database.connection import SessionLocal
 
 router = APIRouter(prefix="/bridge", tags=["Minecraft Bridge"])
 
+async def verify_api_key(x_api_key: str = Header(...), db: Session = Depends(get_db)):
+    # Sacar hash de la llave recibida
+    hashed_received = hashlib.sha256(x_api_key.encode()).hexdigest()
+    
+    # Buscar usuario que tenga ese hash
+    user = db.query(User).filter(User.api_key_hashed == hashed_received).first()
+    
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid API Key"
+        )
+    return user
+
 @router.post("/batch")
 async def receive_batch(batch: dict, request: Request, db: Session = Depends(get_db), user: User = Depends(verify_api_key)):
     """
@@ -118,19 +132,7 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
-async def verify_api_key(x_api_key: str = Header(...), db: Session = Depends(get_db)):
-    # Sacar hash de la llave recibida
-    hashed_received = hashlib.sha256(x_api_key.encode()).hexdigest()
-    
-    # Buscar usuario que tenga ese hash
-    user = db.query(User).filter(User.api_key_hashed == hashed_received).first()
-    
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid API Key"
-        )
-    return user
+
 
 # --- Modelos de Datos ---
 
