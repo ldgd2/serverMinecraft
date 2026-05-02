@@ -54,7 +54,7 @@ DEFAULT_CONFIG = {
     "saved_skins":             [],          # list of paths
     "skin_variant":            "classic",   # "classic" | "slim"
     "enable_skin_sync":        False,
-    "enable_local_skin_server": False,
+    "enable_local_skin_server": True,
 
     # ── Premium / Microsoft ───────────────────────────────────────────────────
     "microsoft_client_id":  "ca6c2dc0-164d-4be0-be4a-96f89a01ac12",

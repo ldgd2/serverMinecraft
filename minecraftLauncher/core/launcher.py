@@ -152,22 +152,7 @@ def launch_minecraft(version_id, callback_dict=None):
             config.get("auth_type") != "premium" and bool(config.get("skin_path"))
         )
 
-        # Skin Sync logic: Auto-enable if skin is set and we are in a server
-        force_skin_sync = False
-        if config.get("skin_path") and config.get("server_ip") and config.get("api_url"):
-             force_skin_sync = True
-             
-        if (config.get("enable_skin_sync") or force_skin_sync) and config.get("server_ip") and config.get("api_url"):
-            from core.skin_sync import start_skin_sync_monitor
-            log_file = os.path.join(options["gameDirectory"], "logs", "latest.log")
-            start_skin_sync_monitor(
-                f_log=log_file,
-                ip=config.get("server_ip"),
-                username=options["username"],
-                uuid=options["uuid"],
-                api_url=f"{config.get('api_url')}/bridge/status/player"
-            )
-
+        
         if enable_local_server and config.get("auth_type") != "premium":
             try:
                 from core.skin_server import start_local_skin_server
@@ -237,6 +222,32 @@ def launch_minecraft(version_id, callback_dict=None):
         os.makedirs(os.path.join(profile_dir, "mods"), exist_ok=True)
         if callback_dict and 'log' in callback_dict:
             callback_dict['log'](f"Perfil: {profile_dir}")
+
+        # Calculate dynamic API URL
+        server_ip = config.get("server_ip")
+        server_port = config.get("server_port") or 8000
+        if server_port == 25565:
+            server_port = 8000
+            
+        dynamic_api_url = config.get("api_url")
+        if not dynamic_api_url and server_ip:
+            dynamic_api_url = f"http://{server_ip}:{server_port}/api/v1"
+
+        # Skin Sync logic: Auto-enable if skin is set and we are in a server
+        force_skin_sync = False
+        if config.get("skin_path") and server_ip and dynamic_api_url:
+             force_skin_sync = True
+             
+        if (config.get("enable_skin_sync") or force_skin_sync) and server_ip and dynamic_api_url:
+            from core.skin_sync import start_skin_sync_monitor
+            log_file = os.path.join(options["gameDirectory"], "logs", "latest.log")
+            start_skin_sync_monitor(
+                f_log=log_file,
+                ip=server_ip,
+                username=options["username"],
+                uuid=options["uuid"],
+                api_url=f"{dynamic_api_url}/bridge/status/player"
+            )
 
 
         if java_path and os.path.exists(java_path):

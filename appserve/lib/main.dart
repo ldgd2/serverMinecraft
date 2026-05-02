@@ -6,6 +6,9 @@ import 'core/theme/app_theme.dart';
 import 'core/providers/app_providers.dart';
 import 'core/providers/player_provider.dart';
 import 'features/auth/screens/login_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'core/constants/app_constants.dart';
+import 'core/api/api_client.dart';
 import 'features/home/screens/home_screen.dart';
 import 'features/servers/screens/create_server_screen.dart';
 
@@ -87,6 +90,15 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
   Future<void> _checkAuth() async {
     await Future.delayed(const Duration(milliseconds: 1800));
     if (!mounted) return;
+    
+    // Load dynamic server URL before anything else
+    final prefs = await SharedPreferences.getInstance();
+    final savedUrl = prefs.getString(AppConstants.serverUrlKey);
+    if (savedUrl != null && savedUrl.isNotEmpty) {
+      AppConstants.baseUrl = savedUrl;
+      ApiClient.instance.setBaseUrl(savedUrl);
+    }
+    
     final auth = context.read<AuthProvider>();
     final player = context.read<PlayerProvider>();
     final loggedIn = await auth.tryAutoLogin();

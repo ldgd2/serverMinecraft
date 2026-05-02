@@ -286,18 +286,25 @@ async def receive_status(status: dict, user: User = Depends(verify_api_key)):
     return {"status": "ok"}
 
 @router.post("/status/player")
-async def receive_player_state(state: dict, db: Session = Depends(get_db), user: User = Depends(verify_api_key)):
+async def receive_player_state(state: dict, db: Session = Depends(get_db)):
     # print(f"DEBUG: Received Bridge Player State: {state}")
     player_name = state.get("player")
     if not player_name:
         return {"error": "no player"}
 
-    # 1. Obtener el servidor (priorizar server_name si el mod lo envía)
+    # 1. Obtener el servidor usando el server_id o server_name del payload
+    server = None
+    server_id = state.get("server_id")
     server_name = state.get("server_name")
-    if server_name:
+    
+    if server_id:
+        server = db.query(Server).filter(Server.id == server_id).first()
+    elif server_name:
         server = db.query(Server).filter(Server.name == server_name).first()
-    else:
-        server = db.query(Server).filter(Server.user_id == user.id).first()
+        
+    if not server:
+        # Fallback al primer servidor existente si no se especifica
+        server = db.query(Server).first()
         if not server:
             server = db.query(Server).first()
 

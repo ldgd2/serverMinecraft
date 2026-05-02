@@ -4,7 +4,7 @@ class AppConstants {
   AppConstants._();
 
   // API
-  static String get baseUrl => dotenv.get('API_URL', fallback: 'http://localhost:8000/api/v1');
+  static String baseUrl = dotenv.get('API_URL', fallback: 'http://localhost:8000/api/v1');
   static const String tokenKey = 'auth_token';
   static const String userKey = 'user_data';
   static const String serverUrlKey = 'server_url';

@@ -5,6 +5,9 @@ import 'package:appserve/core/providers/app_providers.dart';
 import 'package:appserve/core/theme/app_colors.dart';
 import 'package:appserve/shared/widgets/mc_button.dart';
 import 'package:appserve/shared/widgets/mc_text_field.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:appserve/core/constants/app_constants.dart';
+import 'package:appserve/core/api/api_client.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -38,17 +41,29 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings, color: AppColors.textMuted),
+            tooltip: 'Server Connection Settings',
+            onPressed: () => _showSettingsDialog(context),
+          ),
+        ],
+      ),
       body: Container(
         decoration: const BoxDecoration(gradient: AppColors.backgroundGradient),
         child: SafeArea(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 40),
+            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 20),
             child: Form(
               key: _formKey,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 10),
 
                   // === LOGO AREA ===
                   _buildLogo(),
@@ -70,6 +85,52 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  void _showSettingsDialog(BuildContext context) async {
+    // I need to fetch the current URL.
+    final prefs = await SharedPreferences.getInstance();
+    final currentUrl = prefs.getString(AppConstants.serverUrlKey) ?? AppConstants.baseUrl;
+    final ctrl = TextEditingController(text: currentUrl);
+
+    if (!context.mounted) return;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.backgroundCard,
+        title: const Text('Server Connection', style: TextStyle(color: AppColors.textPrimary)),
+        content: TextField(
+          controller: ctrl,
+          style: const TextStyle(color: AppColors.textPrimary),
+          decoration: const InputDecoration(
+            labelText: 'API URL',
+            hintText: 'http://your-ip:8000/api/v1',
+            labelStyle: TextStyle(color: AppColors.textMuted),
+            enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.border)),
+            focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.gold)),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel', style: TextStyle(color: AppColors.textMuted)),
+          ),
+          TextButton(
+            onPressed: () async {
+              final newUrl = ctrl.text.trim();
+              if (newUrl.isNotEmpty) {
+                await prefs.setString(AppConstants.serverUrlKey, newUrl);
+                AppConstants.baseUrl = newUrl;
+                ApiClient.instance.setBaseUrl(newUrl);
+              }
+              if (ctx.mounted) Navigator.pop(ctx);
+            },
+            child: const Text('Save', style: TextStyle(color: AppColors.gold)),
+          ),
+        ],
       ),
     );
   }
