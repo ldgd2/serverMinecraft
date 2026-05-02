@@ -157,12 +157,13 @@ def show_menu():
         table.add_row("12", "Security", "Key Manager", "Generate/View Admin API Keys")
         table.add_row("13", "RCON", "Setup", "Configurar RCON para App→Minecraft (auto contraseña)")
         table.add_row("14", "System", "Update Deps", "Install/Update python requirements (Pillow, etc)")
+        table.add_row("15", "ULTIMATE", "SETUP", "Configura TODO de una vez (IP, RCON, Skins, App)")
         table.add_row("0", "Exit", "Quit", "Close the CLI")
         
         console.print(table)
         console.print("\n")
 
-        choice = Prompt.ask("[bold yellow]❯ Select an option[/bold yellow]", choices=["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "0"], default="1")
+        choice = Prompt.ask("[bold yellow]❯ Select an option[/bold yellow]", choices=["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "0"], default="1")
         import subprocess
         script_path = os.path.abspath(__file__)
         python_exe = sys.executable
@@ -204,6 +205,10 @@ def show_menu():
             subprocess.run([python_exe, "-m", "pip", "install", "-r", req_path])
             subprocess.run([python_exe, "-m", "pip", "install", "Pillow"]) # Ensure Pillow is explicitly installed
             console.print("[bold green]✓ Dependencies updated.[/bold green]")
+            Prompt.ask("\n[dim]Press Enter to continue...[/dim]")
+        elif choice == "15":
+            setup_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "dev", "setup", "ultimate.py")
+            subprocess.run([python_exe, setup_path])
             Prompt.ask("\n[dim]Press Enter to continue...[/dim]")
         elif choice == "0":
             console.print("[bold cyan]Goodbye![/bold cyan]")

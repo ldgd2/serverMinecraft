@@ -9,9 +9,20 @@ from rich.prompt import Prompt
 from rich.panel import Panel
 
 # Ensure parent is in sys.path
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+if BASE_DIR not in sys.path:
+    sys.path.append(BASE_DIR)
 
-from dev.utils.core import update_env_variable
+try:
+    from dev.utils.core import update_env_variable
+except ImportError:
+    # Fallback for direct execution
+    def update_env_variable(key, value):
+        env_path = os.path.join(os.getcwd(), ".env")
+        # Simple append if the core utility is missing
+        with open(env_path, "a") as f:
+            f.write(f"{key}={value}\n")
+        return
 
 app = typer.Typer(help="Universal Environment Configurator")
 console = Console()
