@@ -178,16 +178,25 @@ def get_online_players(server_name: str, db: Session = Depends(get_db)):
         }
     )
 
-@router.get("/skin/{username}")
-async def get_player_skin_data(username: str, db: Session = Depends(get_db)):
+@router.get("/skin/{identifier}")
+async def get_player_skin_data(identifier: str, db: Session = Depends(get_db)):
     """
     Endpoint público para que SkinRestorer (Fabric) obtenga la skin.
-    Retorna JSON con 'value' y 'signature'.
+    Acepta nombre o UUID.
     """
     from database.models.players.player import Player
     from database.models.players.player_detail import PlayerDetail
+    import uuid
 
-    player = db.query(Player).filter(Player.name == username).first()
+    # Intentar buscar por UUID si el formato es válido
+    player = None
+    try:
+        val = uuid.UUID(identifier, version=4)
+        player = db.query(Player).filter(Player.uuid == str(val)).first()
+    except ValueError:
+        # Si no es UUID, buscar por nombre
+        player = db.query(Player).filter(Player.name == identifier).first()
+
     if not player or not player.detail:
         raise HTTPException(status_code=404, detail="Player not found")
 
