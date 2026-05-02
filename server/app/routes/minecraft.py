@@ -140,6 +140,26 @@ async def handle_minecraft_chat(chat: MinecraftChat, db: Session = Depends(get_d
         type=db_type
     )
     db.add(new_chat)
+
+    # 4. Registrar logro si aplica
+    if chat.type == "achievement" and player:
+        # Verificar si ya existe para este jugador en este servidor
+        # Usamos el mensaje como ID/Nombre si no viene algo más estructurado
+        exists = db.query(PlayerAchievement).filter(
+            PlayerAchievement.player_id == player.id,
+            PlayerAchievement.name == chat.message
+        ).first()
+
+        if not exists:
+            new_ach = PlayerAchievement(
+                player_id=player.id,
+                achievement_id=f"mod_{chat.message.lower().replace(' ', '_')}",
+                name=chat.message,
+                description="Logro obtenido en el juego"
+            )
+            db.add(new_ach)
+            logger.info(f"🏆 Logro registrado vía Chat: {chat.player_name} -> {chat.message}")
+    
     db.commit()
 
     # 4. Retransmitir a la App en tiempo real

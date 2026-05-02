@@ -187,8 +187,17 @@ def launch_minecraft(version_id, callback_dict=None):
         # Generate offline UUID if none exists
         uid = config.get("uuid")
         if not uid:
+            import hashlib
             import uuid
-            uid = str(uuid.uuid3(uuid.NAMESPACE_DNS, f"OfflinePlayer:{username}")).replace("-", "")
+            # Match Java's UUID.nameUUIDFromBytes(("OfflinePlayer:" + username).getBytes(UTF_8))
+            hash_md5 = hashlib.md5(f"OfflinePlayer:{username}".encode('utf-8')).digest()
+            hash_bytes = bytearray(hash_md5)
+            # Set version to 3 (MD5)
+            hash_bytes[6] = (hash_bytes[6] & 0x0f) | 0x30
+            # Set variant to RFC 4122
+            hash_bytes[8] = (hash_bytes[8] & 0x3f) | 0x80
+            uid = str(uuid.UUID(bytes=bytes(hash_bytes))).replace("-", "")
+            config.set("uuid", uid)
 
         # Generate RAM arguments safely
         ram_args = []

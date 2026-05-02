@@ -14,6 +14,7 @@ from database.connection import get_db
 from database.models.players.player_account import PlayerAccount
 from database.models.players.player_account_achievement import PlayerAccountAchievement
 from database.models.players.player import Player
+from database.models.server import Server
 from database.models.players.player_stat import PlayerStat
 from database.models.players.player_achievement import PlayerAchievement
 from app.services.auth_service import get_password_hash, verify_password, create_access_token, generate_offline_uuid
@@ -200,8 +201,11 @@ def login_premium_player(data: PremiumLoginRequest, db: Session = Depends(get_db
 @router.get("/profile")
 def get_player_profile(current: PlayerAccount = Depends(get_current_player), db: Session = Depends(get_db)):
     """Get the current player's profile, stats and achievements."""
-    # Aggregate server stats for this player (by username)
-    db_players = db.query(Player).filter(Player.name == current.username).all()
+    # Aggregate server stats for this player (by username or UUID)
+    from sqlalchemy import func
+    db_players = db.query(Player).filter(
+        (Player.uuid == current.uuid) | (func.lower(Player.name) == func.lower(current.username))
+    ).all()
     
     # Aggregating Stats
     server_stats = []
@@ -216,13 +220,20 @@ def get_player_profile(current: PlayerAccount = Depends(get_current_player), db:
             total_server_playtime += p.detail.total_playtime_seconds or 0
         
         for s in p.stats:
-            if s.stat_key == "total_kill":
+            # Aggregate kills (total_kill + any specific kill:zombie etc)
+            if s.stat_key == "total_kill" or s.stat_key.startswith("kill:"):
                 total_server_kills += s.stat_value
-            elif s.stat_key == "total_death":
+            
+            # Aggregate deaths
+            elif s.stat_key == "total_death" or s.stat_key.startswith("death"):
                 total_server_deaths += s.stat_value
-            elif s.stat_key == "total_block_broken":
+
+            # Aggregate blocks broken
+            elif s.stat_key == "total_block_broken" or s.stat_key.startswith("block_broken"):
                 total_server_blocks_broken += s.stat_value
-            elif s.stat_key == "total_block_placed":
+                
+            # Aggregate blocks placed
+            elif s.stat_key == "total_block_placed" or s.stat_key.startswith("block_placed"):
                 total_server_blocks_placed += s.stat_value
 
         server_stats.append({

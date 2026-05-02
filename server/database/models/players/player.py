@@ -18,4 +18,5 @@ class Player(Base):
     stats = relationship("PlayerStat", back_populates="player", cascade="all, delete-orphan")
     bans = relationship("PlayerBan", back_populates="player", cascade="all, delete-orphan")
     achievements = relationship("PlayerAchievement", back_populates="player", cascade="all, delete-orphan")
+    server = relationship("Server", foreign_keys=[server_id])
 

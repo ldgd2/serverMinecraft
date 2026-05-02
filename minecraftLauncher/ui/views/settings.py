@@ -241,17 +241,13 @@ class SettingsView(tk.Frame):
         lbl_jvm = tk.Label(frame, text="Argumentos JVM (Lanzador)", font=mc_font(12, bold=True), fg=Colors.WHITE, bg=Colors.PANEL_DARK, anchor="w")
         lbl_jvm.pack(fill="x", pady=(10, 5))
 
-        self.jvm_mode_var = tk.StringVar(value=config.get("jvm_mode", "auto"))
+        self.jvm_mode_var = tk.StringVar(value="manual")
         
         mode_frame = tk.Frame(frame, bg=Colors.PANEL_DARK)
         mode_frame.pack(fill="x", pady=5)
         
-        btn_auto = MinecraftButton(mode_frame, text="Modo Automático", width=160, height=30, command=lambda: self._switch_jvm_mode("auto"))
-        btn_auto.pack(side="left", padx=(0,10))
-        btn_manual = MinecraftButton(mode_frame, text="Modo Manual", width=160, height=30, command=lambda: self._switch_jvm_mode("manual"))
-        btn_manual.pack(side="left")
-        
-        self.jvm_btns = {"auto": btn_auto, "manual": btn_manual}
+        lbl_manual = tk.Label(mode_frame, text="Modo de Lanzamiento: Manual (Personalizado)", font=mc_font(10), fg=Colors.YELLOW, bg=Colors.PANEL_DARK)
+        lbl_manual.pack(side="left")
 
         # Auto Container
         self.jvm_auto_frame = tk.Frame(frame, bg=Colors.PANEL_DARK)
@@ -279,16 +275,10 @@ class SettingsView(tk.Frame):
         self._switch_jvm_mode(self.jvm_mode_var.get())
 
     def _switch_jvm_mode(self, mode):
-        self.jvm_mode_var.set(mode)
-        for m, btn in self.jvm_btns.items():
-            btn.configure_state(m == mode)
+        self.jvm_mode_var.set("manual")
         
-        if mode == "auto":
-            self.jvm_manual_frame.pack_forget()
-            self.jvm_auto_frame.pack(fill="x", pady=5)
-        else:
-            self.jvm_auto_frame.pack_forget()
-            self.jvm_manual_frame.pack(fill="x", pady=5)
+        self.jvm_auto_frame.pack_forget()
+        self.jvm_manual_frame.pack(fill="x", pady=5)
             
         # Refrescar scroll
         self.details_area.update_idletasks()

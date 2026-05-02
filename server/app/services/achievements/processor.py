@@ -15,6 +15,29 @@ class AchievementProcessor:
     """
 
     @staticmethod
+    def process_stat_update(db: Session, player: Player, stat_key: str, increment: int = 1, value: str = None):
+        """
+        Versión alternativa para el Bridge que recibe el objeto Player directamente.
+        """
+        # 1. Obtener o crear el stat específico
+        stat = db.query(PlayerStat).filter(
+            PlayerStat.player_id == player.id, 
+            PlayerStat.stat_key == stat_key
+        ).first()
+        
+        if not stat:
+            stat = PlayerStat(player_id=player.id, stat_key=stat_key, stat_value=0)
+            db.add(stat)
+            db.flush()
+            
+        # 2. Actualizar valor
+        stat.stat_value += increment
+        db.commit()
+        
+        # 3. Verificar logros
+        AchievementProcessor._check_unlocks(db, player, stat_key, stat.stat_value)
+
+    @staticmethod
     def process_event(db: Session, player_uuid: str, event_key: str, increment: int = 1):
         """
         Procesa un evento (ej: 'block_broken', 'kill:zombie') para un jugador.
@@ -25,24 +48,8 @@ class AchievementProcessor:
             logger.warning(f"Player with UUID {player_uuid} not found. Event {event_key} ignored.")
             return
 
-        # 2. Obtener o crear el stat específico
-        stat = db.query(PlayerStat).filter(
-            PlayerStat.player_id == player.id, 
-            PlayerStat.stat_key == event_key
-        ).first()
-
-        if not stat:
-            stat = PlayerStat(player_id=player.id, stat_key=event_key, stat_value=0)
-            db.add(stat)
-            db.flush()
-
-        # 3. Actualizar el valor
-        stat.stat_value += increment
-        new_val = stat.stat_value
-        db.commit()
-
-        # 4. Verificar qué logros se desbloquean con este nuevo valor
-        AchievementProcessor._check_unlocks(db, player, event_key, new_val)
+        # Reutilizar lógica
+        AchievementProcessor.process_stat_update(db, player, event_key, increment)
 
     @staticmethod
     def _check_unlocks(db: Session, player: Player, event_key: str, current_value: int):

@@ -121,7 +121,7 @@ class ServerProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> selectServer(String name) async {
+  Future<void> selectServer(String name, String username) async {
     _isLoading = true;
     notifyListeners();
     
@@ -135,7 +135,7 @@ class ServerProvider extends ChangeNotifier {
     _closeWebSockets();
     _connectToConsole(name);
     _connectToStatus(name);
-    _connectToChat(name);
+    _connectToChat(name, username);
     await loadChatHistory(name);
     
     _isLoading = false;
@@ -412,11 +412,11 @@ class ServerProvider extends ChangeNotifier {
     });
   }
 
-  void _connectToChat(String name) {
+  void _connectToChat(String name, String username) {
     _chatChannel?.sink.close();
     final wsUrl = AppConstants.baseUrl.replaceFirst('http', 'ws');
     _chatChannel = WebSocketChannel.connect(
-      Uri.parse('$wsUrl/servers/$name/chat'),
+      Uri.parse('$wsUrl/servers/$name/chat?username=$username'),
     );
 
     _chatChannel!.stream.listen((message) {

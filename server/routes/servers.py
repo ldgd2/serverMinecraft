@@ -435,9 +435,9 @@ async def startup_event():
 # Moving it to main.py is cleaner for root-level routes.
 
 @router.websocket("/{name}/chat")
-async def websocket_chat(websocket: WebSocket, name: str):
-    await broadcaster.connect(name, websocket, "chat")
-    print(f"[WS CHAT] Client connected to broadcaster chat for server: {name}")
+async def websocket_chat(websocket: WebSocket, name: str, username: str = None):
+    await broadcaster.connect(name, websocket, "chat", username=username)
+    print(f"[WS CHAT] Client connected to broadcaster chat for server: {name} as {username}")
     
     # Keep the logic for console-based chat fallback if needed, or just let the broadcaster handle it
     # For now, let's keep the client-to-server part
@@ -447,11 +447,38 @@ async def websocket_chat(websocket: WebSocket, name: str):
         while True:
             data = await websocket.receive_json()
             if data.get("type") == "send_chat":
-                username = data.get("username", "Admin")
+                username = data.get("username") or "Admin"
                 message = data.get("message", "")
                 if message:
-                    # Send message to game console
+                    # 1. Send message to game console
                     await server_controller.send_chat_message(name, message, formatted=True)
+                    
+                    # 2. Persist in history
+                    from database.models.server_chat import ServerChat
+                    from database.connection import SessionLocal
+                    db = SessionLocal()
+                    try:
+                        server = db.query(Server).filter(Server.name == name).first()
+                        if server:
+                            new_chat = ServerChat(
+                                server_id=server.id,
+                                username=username,
+                                message=message,
+                                type="sent"
+                            )
+                            db.add(new_chat)
+                            db.commit()
+                            
+                            # 3. Broadcast to ALL connected apps (including the sender)
+                            await broadcaster.broadcast_chat(
+                                name, 
+                                username, 
+                                message,
+                                is_system=False,
+                                chat_type="sent"
+                            )
+                    finally:
+                        db.close()
     except WebSocketDisconnect:
         broadcaster.disconnect(name, websocket, "chat")
     except Exception as e:

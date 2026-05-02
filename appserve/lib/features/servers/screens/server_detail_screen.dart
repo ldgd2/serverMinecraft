@@ -35,7 +35,8 @@ class _ServerDetailScreenState extends State<ServerDetailScreen>
     _tabController =
         TabController(length: 6, vsync: this, initialIndex: widget.initialTab);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<ServerProvider>().selectServer(_server.name);
+      final username = context.read<AuthProvider>().user?.username ?? 'Admin';
+      context.read<ServerProvider>().selectServer(_server.name, username);
     });
   }
 
