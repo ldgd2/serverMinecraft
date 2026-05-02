@@ -19,10 +19,11 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # Añadir columnas de textura firmada a player_details
-    op.add_column('player_details', sa.Column('skin_url', sa.String(), nullable=True))
-    op.add_column('player_details', sa.Column('skin_value', sa.Text(), nullable=True))
-    op.add_column('player_details', sa.Column('skin_signature', sa.Text(), nullable=True))
+    # Añadir columnas de textura firmada a player_details de forma segura
+    # Usamos execute con raw SQL para aprovechar IF NOT EXISTS y evitar que falle si ya las creamos manualmente
+    op.execute('ALTER TABLE player_details ADD COLUMN IF NOT EXISTS skin_url VARCHAR')
+    op.execute('ALTER TABLE player_details ADD COLUMN IF NOT EXISTS skin_value TEXT')
+    op.execute('ALTER TABLE player_details ADD COLUMN IF NOT EXISTS skin_signature TEXT')
 
     # Crear VIEWs para SkinRestorer (lee de player_details, sin tablas extra)
     op.execute("""
