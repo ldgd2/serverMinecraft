@@ -460,7 +460,7 @@ async def receive_player_state(request: Request, state: dict, db: Session = Depe
                                             CREATE OR REPLACE VIEW "Skins" AS
                                             SELECT
                                                 pd.player_id AS "ID",
-                                                CONCAT('custom_', p.username) AS "Name",
+                                                CONCAT('custom_', p.name) AS "Name",
                                                 pd.skin_value AS "Value",
                                                 COALESCE(pd.skin_signature, '') AS "Signature",
                                                 'none' AS "Timestamp"
@@ -472,8 +472,8 @@ async def receive_player_state(request: Request, state: dict, db: Session = Depe
                                             CREATE OR REPLACE VIEW "Players" AS
                                             SELECT
                                                 p.id AS "ID",
-                                                p.username AS "Nick",
-                                                CONCAT('custom_', p.username) AS "Skin"
+                                                p.name AS "Nick",
+                                                CONCAT('custom_', p.name) AS "Skin"
                                             FROM players p
                                             JOIN player_details pd ON pd.player_id = p.id
                                             WHERE pd.skin_value IS NOT NULL
@@ -485,7 +485,7 @@ async def receive_player_state(request: Request, state: dict, db: Session = Depe
                                                 skin_signature = :signature,
                                                 skin_last_update = NOW()
                                             WHERE player_id = (
-                                                SELECT id FROM players WHERE username = :username LIMIT 1
+                                                SELECT id FROM players WHERE name = :username LIMIT 1
                                             )
                                         """), {"value": value, "signature": signature, "username": player_name})
                                         db.commit()
