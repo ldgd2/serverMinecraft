@@ -416,10 +416,16 @@ async def receive_player_state(request: Request, state: dict, db: Session = Depe
                     # Obtener host dinámicamente de la request o env
                     app_url = os.environ.get("APP_URL")
                     if not app_url:
-                        host = request.headers.get("host", "localhost:8000")
-                        # Usamos http por defecto si no detectamos https
+                        host = request.headers.get("host", "127.0.0.1:8000")
+                        # If host is 0.0.0.0, it's not a valid download URL for the mod
+                        if "0.0.0.0" in host:
+                            host = host.replace("0.0.0.0", "127.0.0.1")
+                        
                         protocol = "https" if request.url.scheme == "https" else "http"
                         app_url = f"{protocol}://{host}"
+                    
+                    if not app_url.startswith("http"):
+                        app_url = f"http://{app_url}"
                     
                     skin_url = f"{app_url}/static/skins/{player_name}.png"
                     
