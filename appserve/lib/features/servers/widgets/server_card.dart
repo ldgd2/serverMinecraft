@@ -113,37 +113,7 @@ class ServerCard extends StatelessWidget {
                         onPressed: () => context
                             .read<ServerProvider>()
                             .startServer(server.name)))
-              else if (server.isOnline) ...[
-                Expanded(
-                    child: McButton(
-                        label: 'Stop',
-                        icon: Icons.stop,
-                        isDanger: true,
-                        onPressed: () => context
-                            .read<ServerProvider>()
-                            .stopServer(server.name))),
-                const SizedBox(width: 8),
-                Expanded(
-                    child: McButton(
-                        label: 'Restart',
-                        icon: Icons.refresh,
-                        isSecondary: true,
-                        onPressed: () => context
-                            .read<ServerProvider>()
-                            .restartServer(server.name))),
-              ] else if (server.isRestarting) ...[
-                const Expanded(
-                    child: McButton(
-                        label: 'Restarting...',
-                        isLoading: true,
-                        onPressed: null)),
-              ] else if (server.isStopping) ...[
-                const Expanded(
-                    child: McButton(
-                        label: 'Stopping...',
-                        isLoading: true,
-                        onPressed: null)),
-              ] else if (server.isCreating) ...[
+              else if (server.isCreating) ...[
                 Builder(builder: (context) {
                   final creationInfo = context
                       .watch<ServerProvider>()
@@ -192,12 +162,27 @@ class ServerCard extends StatelessWidget {
                     ),
                   );
                 }),
-              ] else
-                const Expanded(
+              ] else ...[
+                Expanded(
                     child: McButton(
-                        label: 'Starting...',
-                        isLoading: true,
-                        onPressed: null)),
+                        label: server.isStopping ? 'Stopping...' : 'Stop',
+                        icon: Icons.stop,
+                        isDanger: true,
+                        isLoading: server.isStopping,
+                        onPressed: server.isStopping ? null : () => context
+                            .read<ServerProvider>()
+                            .stopServer(server.name))),
+                const SizedBox(width: 8),
+                Expanded(
+                    child: McButton(
+                        label: server.isRestarting ? 'Restarting...' : 'Restart',
+                        icon: Icons.refresh,
+                        isSecondary: true,
+                        isLoading: server.isRestarting,
+                        onPressed: server.isRestarting ? null : () => context
+                            .read<ServerProvider>()
+                            .restartServer(server.name))),
+              ],
               const SizedBox(width: 8),
               McButton(
                 label: 'Console',

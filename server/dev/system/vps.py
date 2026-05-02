@@ -5,7 +5,7 @@ import subprocess
 import time
 from rich.console import Console
 from rich.panel import Panel
-from rich.prompt import Prompt
+from rich.prompt import Prompt, Confirm
 from rich.table import Table
 
 app = typer.Typer(help="VPS and Ubuntu Services Manager")

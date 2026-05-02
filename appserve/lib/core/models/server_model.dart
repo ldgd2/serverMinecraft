@@ -71,6 +71,9 @@ class ServerModel {
   bool get isCreating => status == 'CREATING';
   bool get isRestarting => status == 'RESTARTING';
   bool get isStopping => status == 'STOPPING';
+  bool get isLoading => status == 'LOADING';
+  bool get isPreparing => status == 'PREPARING';
+  bool get isError => status.toUpperCase().contains('ERROR');
 
   double get ramProgress => ramMb > 0 ? (ramUsage / ramMb).clamp(0.0, 1.0) : 0.0;
   double get diskProgress => diskMb > 0 ? (diskUsage / diskMb).clamp(0.0, 1.0) : 0.0;

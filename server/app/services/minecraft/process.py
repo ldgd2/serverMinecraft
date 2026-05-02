@@ -701,6 +701,18 @@ class MinecraftProcess:
                     elif "Stopping server" in cleaned_line or "Stopping the server" in cleaned_line:
                         self._status = "STOPPING"
                         print(f"INFO: Server {self.name} is now STOPPING")
+                    elif "Loading Minecraft" in cleaned_line or "Loading Forge" in cleaned_line or "Loading 44 mods" in cleaned_line:
+                        self._status = "LOADING"
+                        print(f"INFO: Server {self.name} is now LOADING resources")
+                    elif "Preparing level" in cleaned_line or "Preparing spawn area" in cleaned_line:
+                        self._status = "PREPARING"
+                        print(f"INFO: Server {self.name} is now PREPARING world")
+                    elif "FAILED TO BIND TO PORT" in cleaned_line or "Address already in use" in cleaned_line:
+                        self._status = "ERROR (Port Blocked)"
+                        print(f"ERROR: Server {self.name} failed to bind port!")
+                    elif "Encountered an unexpected exception" in cleaned_line or "Failed to initialize server" in cleaned_line:
+                        self._status = "ERROR (Crash)"
+                        print(f"ERROR: Server {self.name} crashed during startup!")
                     
                     event = self._parse_line_event(cleaned_line)
                     if event:

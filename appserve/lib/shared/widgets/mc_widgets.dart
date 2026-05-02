@@ -13,11 +13,14 @@ class ServerStatusBadge extends StatelessWidget {
     switch (status.toUpperCase()) {
       case 'ONLINE': return AppColors.online;
       case 'STARTING': return AppColors.starting;
+      case 'PREPARING': return AppColors.starting;
+      case 'LOADING': return AppColors.loading;
       case 'RESTARTING': return AppColors.gold;
       case 'STOPPING': return AppColors.redstone;
       case 'CREATING': return AppColors.diamond;
-      case 'ERROR': return AppColors.offline;
-      default: return AppColors.offline;
+      default: 
+        if (status.toUpperCase().contains('ERROR')) return AppColors.offline;
+        return AppColors.offline;
     }
   }
 
