@@ -278,14 +278,19 @@ def setup_skinrestorer_auto(server_name: str):
             if p in config["providers"]:
                 config["providers"][p]["enabled"] = False
         
-        # Correct structure for Custom Provider in SkinRestorer
-        config["providers"]["custom"] = [
-            {
-                "name": "MineManager",
-                "type": "web",
-                "url": f"{app_url}/api/v1/players/skin/%s"
-            }
-        ]
+        # Correct structure for Custom Provider in SkinRestorer Fabric
+        if "providers" not in config:
+            config["providers"] = {}
+            
+        config["providers"]["MineManager"] = {
+            "enabled": True,
+            "type": "WEB",
+            "url": f"{app_url}/api/v1/players/skin/%s"
+        }
+
+        # Clear old custom list if exists to avoid confusion
+        if "custom" in config["providers"]:
+            del config["providers"]["custom"]
 
         # --- DATABASE SYNC: Force SkinRestorer to use our PostgreSQL ---
         try:

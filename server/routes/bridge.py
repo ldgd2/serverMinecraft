@@ -489,14 +489,26 @@ async def receive_player_state(request: Request, state: dict, db: Session = Depe
 
                                             # 2. Inyectar en SkinRestorer (para que el mod lo reconozca oficialmente)
                                             try:
+                                                # Import dinámico y robusto para evitar "No module named 'server'"
+                                                set_skin_func = None
                                                 try:
                                                     from core.skinrestorer_bridge import set_skin_in_skinrestorer
+                                                    set_skin_func = set_skin_in_skinrestorer
                                                 except ImportError:
-                                                    from server.core.skinrestorer_bridge import set_skin_in_skinrestorer
-                                                
-                                                sr_success = set_skin_in_skinrestorer(db, player_name, value, signature)
-                                                if sr_success:
-                                                    print(f"[MineBridge] ✅ Skin de {player_name} sincronizada con SkinRestorer.")
+                                                    try:
+                                                        from server.core.skinrestorer_bridge import set_skin_in_skinrestorer
+                                                        set_skin_func = set_skin_in_skinrestorer
+                                                    except ImportError:
+                                                        try:
+                                                            from app.core.skinrestorer_bridge import set_skin_in_skinrestorer
+                                                            set_skin_func = set_skin_in_skinrestorer
+                                                        except ImportError:
+                                                            print("[MineBridge] ⚠️ No se pudo encontrar skinrestorer_bridge.py en ninguna ruta.")
+
+                                                if set_skin_func:
+                                                    sr_success = set_skin_func(db, player_name, value, signature)
+                                                    if sr_success:
+                                                        print(f"[MineBridge] ✅ Skin de {player_name} sincronizada con SkinRestorer.")
                                             except Exception as sr_ex:
                                                 print(f"[MineBridge] Error inyectando en SkinRestorer: {sr_ex}")
 
