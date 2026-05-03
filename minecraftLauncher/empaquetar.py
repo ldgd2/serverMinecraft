@@ -77,10 +77,16 @@ def _get_token(cfg: dict) -> str:
                                  headers={"Content-Type": "application/json"})
     try:
         with urllib.request.urlopen(req, timeout=15) as r:
-            data = json.loads(r.read())
-            token = data.get('access_token') or data.get('token')
+            resp = json.loads(r.read())
+            # Soporta tanto {'access_token': '...'} como {'data': {'access_token': '...'}}
+            token = (
+                resp.get('access_token')
+                or resp.get('token')
+                or (resp.get('data') or {}).get('access_token')
+                or (resp.get('data') or {}).get('token')
+            )
             if not token:
-                raise RuntimeError(f"Respuesta inesperada: {data}")
+                raise RuntimeError(f"No se encontró token en la respuesta: {resp}")
             return token
     except urllib.error.HTTPError as e:
         raise RuntimeError(f"Login falló ({e.code}): {e.read().decode()}")
@@ -317,23 +323,38 @@ def main():
     print("  [1] Launcher (PyInstaller .exe)")
     print("  [2] App Flutter (.apk)")
     print("  [3] Ambos")
+    print("  [4] Re-configurar servidor/credenciales")
     print("  [0] Cancelar")
 
-    choice = input("\n  Selecciona [0-3]: ").strip()
+    choice = input("\n  Selecciona [0-4]: ").strip()
     if choice == '0':
         print("\n  Cancelado."); sys.exit(0)
+    
+    cfg = {}
+    if choice == '4':
+        if os.path.exists(_API_CFG_FILE):
+            os.remove(_API_CFG_FILE)
+            print("  [✓] Credenciales eliminadas.")
+        print("\n  ── Conexión con el servidor ─────────────────")
+        cfg = _get_api_config()
+        choice = input("\n  Ahora, ¿qué compilar? [1] Launcher  [2] App  [3] Ambos  [0] Cancelar: ").strip()
+        if choice == '0':
+            print("  Cancelado."); sys.exit(0)
+            
     if choice not in ('1', '2', '3'):
         print("  [X] Opción inválida"); sys.exit(1)
 
     # Autenticar contra el backend
     print("\n  ── Conexión con el servidor ─────────────────")
-    cfg   = _get_api_config()
+    if not cfg:
+        cfg = _get_api_config()
     print(f"  [>] Autenticando en {cfg['api_url']}...")
     try:
         token = _get_token(cfg)
         print("  [✓] Autenticado correctamente")
     except RuntimeError as e:
         print(f"  [X] No se pudo autenticar: {e}")
+        print("  [i] Usa la opción [4] para cambiar las credenciales.")
         # Limpiar credenciales guardadas si falla
         cfg.pop('password', None)
         sys.exit(1)
