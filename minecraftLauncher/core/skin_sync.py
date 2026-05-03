@@ -44,8 +44,13 @@ def notify_backend(ip_objetivo, username, uuid, url_api):
             "type": "player_state" # Importante para que el bridge lo reconozca
         }
         
+        # Obtenemos la API Key desde la configuración para autorizar la petición
+        headers = {
+            "x-api-key": config.get("api_key") or ""
+        }
+        
         print(f"[*] [SkinSync] Enviando skin de {username} a {url_api}...")
-        response = requests.post(url_api, json=payload, timeout=5)
+        response = requests.post(url_api, json=payload, headers=headers, timeout=5)
         print(f"[+] [SkinSync] API respondio: {response.status_code}")
         return True
     except Exception as e:

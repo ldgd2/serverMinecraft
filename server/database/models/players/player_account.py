@@ -39,6 +39,12 @@ class PlayerAccount(Base):
     microsoft_refresh_token = Column(String, nullable=True)
     minecraft_access_token = Column(String, nullable=True)
     
+    # Skins (Global)
+    skin_base64 = Column(Text, nullable=True)    # PNG raw del launcher
+    skin_value = Column(Text, nullable=True)     # Base64 textura firmada
+    skin_signature = Column(Text, nullable=True) # Firma criptográfica
+    skin_last_update = Column(DateTime, nullable=True)
+    
     is_active = Column(Boolean, default=True)
     is_banned = Column(Boolean, default=False)
     ban_reason = Column(String, nullable=True)

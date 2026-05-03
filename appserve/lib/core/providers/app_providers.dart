@@ -132,23 +132,56 @@ class ServerProvider extends ChangeNotifier {
     }
   }
 
+  final Map<String, DateTime> _throttles = {};
+
+  bool _throttle(String key, Duration duration) {
+    final now = DateTime.now();
+    final last = _throttles[key];
+    if (last != null && now.difference(last) < duration) return true;
+    _throttles[key] = now;
+    return false;
+  }
+
   // ── Actions ────────────────────────────────────────────────────────────────
 
-  Future<void> loadServers() async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString(AppConstants.tokenKey);
-    if (_servers.isEmpty) await _loadServersFromCache();
-    if (token == null) return;
+  Future<void> loadServers({bool force = false}) async {
+    if (_isLoading) return;
+    
+    // If not forced and we have data, use cache/current state first
+    if (!force && _servers.isNotEmpty) {
+      // Throttle network requests to 60 seconds for the full list
+      if (_throttle('loadServers', const Duration(seconds: 60))) {
+        return; 
+      }
+    }
 
     _isLoading = true;
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString(AppConstants.tokenKey);
+    
+    // Always try to show cache immediately if list is empty
+    if (_servers.isEmpty) {
+      await _loadServersFromCache();
+    }
+    
+    if (token == null) {
+      _isLoading = false;
+      notifyListeners();
+      return;
+    }
+
     _error = null;
     notifyListeners();
     try {
-      _servers = await _serverService.getServers();
+      final fetchedServers = await _serverService.getServers();
+      _servers = fetchedServers;
       await _saveServersToCache(_servers);
-      await loadCreationStats();
+      
+      // We don't automatically load creation stats every time to save IO
+      // Global WebSocket will notify us if something changes
       _connectToGlobalStatus();
     } catch (e) {
+      debugPrint('Load Servers Error: $e');
       if (e.toString().contains('401')) await ApiClient.instance.clearToken();
     } finally {
       _isLoading = false;
@@ -256,11 +289,14 @@ class ServerProvider extends ChangeNotifier {
 
   // --- System ---
 
-  Future<void> loadSystemStats() async {
+  Future<void> loadSystemStats({bool force = false}) async {
+    if (!force && _throttle('loadSystemStats', const Duration(minutes: 5))) return;
+    
     try {
       _systemStats = await _serverService.getSystemStats();
       notifyListeners();
     } catch (e) {
+      debugPrint('Load System Stats Error: $e');
       if (e.toString().contains('401')) await ApiClient.instance.clearToken();
     }
   }
@@ -377,17 +413,32 @@ class ServerProvider extends ChangeNotifier {
     _chatChannel?.sink.add(jsonEncode({'type': 'send_chat', 'username': username, 'message': message}));
   }
 
-  Future<void> loadCreationStats() async {
-    try { _creationStats = await _serverService.getActiveCreations(); notifyListeners(); } catch (_) {}
+  Future<void> loadCreationStats({bool force = false}) async {
+    // Only fetch if forced or if we have something active in cache (or if list is empty)
+    if (!force && _creationStats.isEmpty && _throttle('loadCreationStats', const Duration(minutes: 2))) return;
+    
+    try { 
+      _creationStats = await _serverService.getActiveCreations(); 
+      notifyListeners(); 
+    } catch (_) {}
   }
 
-  Future<void> startServer(String name) async { await _serverService.startServer(name); await loadServers(); }
-  Future<void> stopServer(String name) async { await _serverService.stopServer(name); await loadServers(); }
-  Future<void> restartServer(String name) async { await _serverService.restartServer(name); await loadServers(); }
+  Future<void> startServer(String name) async { await _serverService.startServer(name); }
+  Future<void> stopServer(String name) async { await _serverService.stopServer(name); }
+  Future<void> restartServer(String name) async { await _serverService.restartServer(name); }
   Future<void> sendCommand(String name, String cmd) async { await _serverService.sendCommand(name, cmd); }
   Future<void> loadLogs(String name) async { _consoleLogs = await _serverService.getLogs(name); notifyListeners(); }
-  Future<ServerModel> createServer(Map<String, dynamic> data) async { final s = await _serverService.createServer(data); _servers.add(s); notifyListeners(); return s; }
-  Future<void> deleteServer(String name) async { await _serverService.deleteServer(name); _servers.removeWhere((s) => s.name == name); notifyListeners(); }
+  Future<ServerModel> createServer(Map<String, dynamic> data) async { 
+    final s = await _serverService.createServer(data); 
+    _servers.add(s); 
+    notifyListeners(); 
+    return s; 
+  }
+  Future<void> deleteServer(String name) async { 
+    await _serverService.deleteServer(name); 
+    _servers.removeWhere((s) => s.name == name); 
+    notifyListeners(); 
+  }
 
   @override
   void dispose() { _closeWebSockets(); _globalStatusChannel?.sink.close(); super.dispose(); }

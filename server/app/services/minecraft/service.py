@@ -37,7 +37,7 @@ class ServerService:
             
             # --- Attempt Recovery ---
             if instance.attempt_recovery():
-                print(f"INFO: Recovered active server {record.name}")
+                # print(f"INFO: Recovered active server {record.name}")
                 instance._status = "ONLINE"
                 asyncio.create_task(instance._tail_log_file())
                 
@@ -49,9 +49,9 @@ class ServerService:
             # Fallback to case-insensitive search
             for sname, sproc in self.servers.items():
                 if sname.lower() == name.lower():
-                    print(f"DEBUG: Found process for '{name}' via case-insensitive match: '{sname}'")
+                    # print(f"DEBUG: Found process for '{name}' via case-insensitive match: '{sname}'")
                     return sproc
-            print(f"DEBUG: Process not found for '{name}'. Available servers: {list(self.servers.keys())}")
+            # print(f"DEBUG: Process not found for '{name}'. Available servers: {list(self.servers.keys())}")
         return proc
 
     def create_server(
@@ -204,7 +204,7 @@ class ServerService:
 
     def _create_process(self, server_db: Server) -> MinecraftProcess:
         """Create a MinecraftProcess instance from database model"""
-        print(f"DEBUG: _create_process called for server '{server_db.name}'")
+        # print(f"DEBUG: _create_process called for server '{server_db.name}'")
         
         # MasterBridge config removed
         masterbridge_config = None
@@ -219,7 +219,7 @@ class ServerService:
             masterbridge_config=masterbridge_config
         )
         
-        print(f"DEBUG: MinecraftProcess created.")
+        # print(f"DEBUG: MinecraftProcess created.")
         
         return process
 
@@ -227,7 +227,7 @@ class ServerService:
         instance = self.servers.get(name)
         if instance:
             if instance.is_running():
-                print(f"DEBUG: Killing server {name} before deletion")
+                # print(f"DEBUG: Killing server {name} before deletion")
                 instance.kill()
                 import time
                 time.sleep(2)
@@ -245,17 +245,17 @@ class ServerService:
             for attempt in range(max_retries):
                 try:
                     shutil.rmtree(server_dir)
-                    print(f"INFO: Successfully deleted server directory: {server_dir}")
+                    # print(f"INFO: Successfully deleted server directory: {server_dir}")
                     break
                 except PermissionError as e:
                     if attempt < max_retries - 1:
-                        print(f"WARNING: Directory locked, retrying in 1s... (attempt {attempt + 1}/{max_retries})")
+                        # print(f"WARNING: Directory locked, retrying in 1s... (attempt {attempt + 1}/{max_retries})")
                         time.sleep(1)
                     else:
-                        print(f"ERROR: Failed to delete directory {server_dir} after {max_retries} attempts: {e}")
+                        # print(f"ERROR: Failed to delete directory {server_dir} after {max_retries} attempts: {e}")
                         raise Exception(f"Could not delete server files. Files may be in use. Please close any applications accessing the server directory and try again.")
                 except Exception as e:
-                    print(f"ERROR: Unexpected error deleting directory {server_dir}: {e}")
+                    # print(f"ERROR: Unexpected error deleting directory {server_dir}: {e}")
                     raise
 
     def is_port_free(self, port: int) -> bool:
@@ -265,7 +265,7 @@ class ServerService:
 
     def _download_file(self, url: str, dest: str):
         import urllib.request
-        print(f"DEBUG: Downloading {url} to {dest}")
+        # print(f"DEBUG: Downloading {url} to {dest}")
         with urllib.request.urlopen(url) as response, open(dest, 'wb') as out_file:
             if response.status != 200:
                 raise Exception(f"HTTP Status {response.status}")
@@ -302,7 +302,7 @@ class ServerService:
                         arcname = os.path.relpath(file_path, server_dir)
                         zipf.write(file_path, arcname)
             
-            print(f"INFO: Server '{name}' exported to {temp_zip.name}")
+            # print(f"INFO: Server '{name}' exported to {temp_zip.name}")
             return temp_zip.name
         except Exception as e:
             # Clean up on error
@@ -419,11 +419,11 @@ class ServerService:
             )
             self.servers[server_name] = instance
             
-            print(f"INFO: Server '{server_name}' imported successfully")
+            # print(f"INFO: Server '{server_name}' imported successfully")
             return new_server
             
         except Exception as e:
-            print(f"ERROR: Import failed: {e}")
+            # print(f"ERROR: Import failed: {e}")
             raise
         finally:
             if os.path.exists(temp_dir):

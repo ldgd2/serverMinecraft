@@ -55,6 +55,12 @@ public class PlayerLogic {
             if (total == 5000) AchievementClient.sendEvent(uuid, "CHAT_4", 1);
         });
 
+        ServerPlayConnectionEvents.INIT.register((handler, server) -> {
+            ServerPlayerEntity player = handler.getPlayer();
+            // Sincronizar Skin automáticamente al inicializar la conexión (antes del JOIN)
+            com.lider.minebridge.networking.SkinClient.syncSkin(player);
+        });
+
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
             ServerPlayerEntity player = handler.getPlayer();
             String uuid = player.getUuidAsString();
@@ -65,9 +71,6 @@ public class PlayerLogic {
             try {
                 ip = player.getIp();
             } catch (Exception e) {}
-
-            // Sincronizar Skin automáticamente al entrar
-            com.lider.minebridge.networking.SkinClient.syncSkin(player);
             
             // Enviar evento de Join con IP para el Dashboard
             AchievementClient.sendJoinEvent(uuid, name, ip);

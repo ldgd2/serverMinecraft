@@ -37,7 +37,7 @@ class _ServersScreenState extends State<ServersScreen> {
           actions: [
             IconButton(
               icon: const Icon(Icons.refresh),
-              onPressed: sp.loadServers,
+              onPressed: () => sp.loadServers(force: true),
             ),
           ],
           floatingActionButton: FloatingActionButton.extended(

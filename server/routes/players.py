@@ -181,32 +181,75 @@ def get_online_players(server_name: str, db: Session = Depends(get_db)):
 @router.get("/skin/{identifier}")
 async def get_player_skin_data(identifier: str, db: Session = Depends(get_db)):
     """
-    Endpoint público para que SkinRestorer (Fabric) obtenga la skin.
-    Acepta nombre o UUID.
+    Endpoint público para que el Mod (Fabric) obtenga la skin.
+    Acepta nombre o UUID. Si es premium y no tenemos data, intenta Mojang.
     """
     from database.models.players.player import Player
-    from database.models.players.player_detail import PlayerDetail
+    from database.models.players.player_account import PlayerAccount
     import uuid
+    import requests
 
-    # Intentar buscar por UUID si el formato es válido
+    # 1. Buscar en perfiles de servidor (Player)
     player = None
     try:
-        val = uuid.UUID(identifier, version=4)
+        val = uuid.UUID(identifier)
         player = db.query(Player).filter(Player.uuid == str(val)).first()
     except ValueError:
-        # Si no es UUID, buscar por nombre
         player = db.query(Player).filter(Player.name == identifier).first()
 
-    if not player or not player.detail:
-        raise HTTPException(status_code=404, detail="Player not found")
+    # 2. Si no hay perfil de servidor, buscar en cuentas globales (Launcher)
+    account = None
+    if not player:
+        try:
+            val = uuid.UUID(identifier)
+            account = db.query(PlayerAccount).filter(PlayerAccount.uuid == str(val)).first()
+        except ValueError:
+            account = db.query(PlayerAccount).filter(PlayerAccount.username == identifier).first()
+    
+    # 3. Determinar fuente de datos
+    detail = player.detail if player else None
+    
+    # Si tenemos datos firmados (value/signature), los devolvemos
+    if detail and detail.skin_value:
+        return {"value": detail.skin_value, "signature": detail.skin_signature or ""}
+    
+    if account and account.skin_value:
+        return {"value": account.skin_value, "signature": account.skin_signature or ""}
 
-    if not player.detail.skin_value:
-        raise HTTPException(status_code=404, detail="Skin not generated yet")
+    # 4. Fallback Mojang para Premium
+    # Un UUID v4 suele ser premium. O si la cuenta dice ser premium.
+    target_uuid = player.uuid if player else (account.uuid if account else None)
+    is_premium = False
+    if target_uuid and len(target_uuid) > 14 and target_uuid[14] == '4':
+        is_premium = True
+    if account and account.account_type == "premium":
+        is_premium = True
 
-    return {
-        "value": player.detail.skin_value,
-        "signature": player.detail.skin_signature or ""
-    }
+    if is_premium and target_uuid:
+        # Limpiar guiones para la API de Mojang
+        clean_uuid = target_uuid.replace("-", "")
+        try:
+            # Mojang Session Server
+            res = requests.get(f"https://sessionserver.mojang.com/session/minecraft/profile/{clean_uuid}?unsigned=false", timeout=5)
+            if res.status_code == 200:
+                data = res.json()
+                for prop in data.get("properties", []):
+                    if prop.get("name") == "textures":
+                        val = prop.get("value")
+                        sig = prop.get("signature")
+                        # Opcional: Cachear en la base de datos para la próxima vez
+                        if detail:
+                            detail.skin_value = val
+                            detail.skin_signature = sig
+                            db.commit()
+                        elif account:
+                            account.skin_value = val
+                            account.skin_signature = sig
+                            db.commit()
+                        return {"value": val, "signature": sig}
+        except: pass
+
+    raise HTTPException(status_code=404, detail="Skin not found or not generated yet")
 
 @router.get("/{server_name}/details/{player_identifier}")
 def get_player_details(

@@ -210,10 +210,37 @@ class SkinsView(tk.Frame):
             self._status("Primero selecciona una skin de la coleccion.", Colors.NOPREMIUM_RED)
             return
 
-        if config.get("auth_type") == "premium":
+        auth_type = config.get("auth_type")
+        if auth_type == "premium":
             self._upload_skin_path(path)
         else:
-            self._status("Skin equipada localmente (No-Premium). Se usará al iniciar.", Colors.PREMIUM_GREEN)
+            # No-Premium: Equip local and ALSO upload to Backend
+            self._status("Equipando y sincronizando con el servidor...", Colors.GRAY_TEXT)
+            
+            def do_upload():
+                import base64
+                try:
+                    with open(path, "rb") as f:
+                        b64_data = base64.b64encode(f.read()).decode("utf-8")
+                    
+                    # We need the player token (JWT)
+                    token = config.get("player_token")
+                    if not token:
+                        self.after(0, lambda: self._status("Inicia sesion en 'Servidor' para sincronizar skin.", Colors.NOPREMIUM_RED))
+                        return
+                    
+                    from core.auth import AuthController
+                    auth = AuthController()
+                    res = auth.update_skin_no_premium(token, skin_base64=b64_data)
+                    
+                    if res["status"] == "OK":
+                        self.after(0, lambda: self._status("Skin sincronizada con éxito!", Colors.PREMIUM_GREEN))
+                    else:
+                        self.after(0, lambda: self._status(f"Error sincronizando: {res['message']}", Colors.NOPREMIUM_RED))
+                except Exception as e:
+                    self.after(0, lambda: self._status(f"Error: {e}", Colors.NOPREMIUM_RED))
+
+            threading.Thread(target=do_upload, daemon=True).start()
 
     def _pick_skin_file(self):
         path = filedialog.askopenfilename(

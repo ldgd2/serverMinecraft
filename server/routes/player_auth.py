@@ -229,6 +229,61 @@ def update_birthday(data: BirthdayUpdateRequest, current_player: PlayerAccount =
     db.commit()
     return APIResponse(status="success", message="Birthday updated and synchronized")
 
+class SkinUpdateRequest(BaseModel):
+    skin_base64: Optional[str] = None
+    skin_value: Optional[str] = None
+    skin_signature: Optional[str] = None
+
+@router.post("/update-skin")
+def update_skin(data: SkinUpdateRequest, current_player: PlayerAccount = Depends(get_current_player), db: Session = Depends(get_db)):
+    """Update the skin for the current player and synchronize across all server profiles."""
+    if data.skin_base64: current_player.skin_base64 = data.skin_base64
+    if data.skin_value: current_player.skin_value = data.skin_value
+    if data.skin_signature: current_player.skin_signature = data.skin_signature
+    current_player.skin_last_update = datetime.datetime.utcnow()
+    
+    # 1. Generar la cabeza (Head) para la App y Web inmediatamente
+    if data.skin_base64:
+        try:
+            import os
+            from PIL import Image
+            from io import BytesIO
+            import base64 as b64
+            
+            # Decodificar PNG
+            skin_bytes = b64.b64decode(data.skin_base64)
+            skin_img = Image.open(BytesIO(skin_bytes)).convert('RGBA')
+            
+            # Cortar cara (8,8 -> 16,16) y casco (40,8 -> 48,16)
+            face = skin_img.crop((8, 8, 16, 16)).resize((64, 64), Image.NEAREST)
+            helmet = skin_img.crop((40, 8, 48, 16)).resize((64, 64), Image.NEAREST)
+            final_head = Image.alpha_composite(face, helmet)
+            
+            os.makedirs("static/heads", exist_ok=True)
+            final_head.save(f"static/heads/{current_player.username}.png")
+        except Exception as e:
+            print(f"Error generating head for {current_player.username}: {e}")
+
+    # 2. Sincronizar con PlayerDetail en todos los servidores
+    from sqlalchemy import func
+    players = db.query(Player).filter(
+        (Player.uuid == current_player.uuid) | (func.lower(Player.name) == func.lower(current_player.username))
+    ).all()
+    
+    for p in players:
+        if not p.detail:
+            from database.models.players.player_detail import PlayerDetail
+            p.detail = PlayerDetail(player_id=p.id)
+            db.add(p.detail)
+        
+        if data.skin_base64: p.detail.skin_base64 = data.skin_base64
+        if data.skin_value: p.detail.skin_value = data.skin_value
+        if data.skin_signature: p.detail.skin_signature = data.skin_signature
+        p.detail.skin_last_update = current_player.skin_last_update
+
+    db.commit()
+    return APIResponse(status="success", message="Skin updated, head generated and synchronized")
+
 
 @router.get("/profile")
 def get_player_profile(current: PlayerAccount = Depends(get_current_player), db: Session = Depends(get_db)):
