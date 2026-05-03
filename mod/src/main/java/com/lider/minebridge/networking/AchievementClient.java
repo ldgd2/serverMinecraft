@@ -19,7 +19,8 @@ public class AchievementClient {
 
     static {
         scheduler = java.util.concurrent.Executors.newSingleThreadScheduledExecutor();
-        scheduler.scheduleAtFixedRate(AchievementClient::flushBatch, 5, 5, java.util.concurrent.TimeUnit.SECONDS);
+        // Reducido a 30 segundos para no saturar el servidor
+        scheduler.scheduleAtFixedRate(AchievementClient::flushBatch, 10, 30, java.util.concurrent.TimeUnit.SECONDS);
     }
 
     private static String getBaseUrl() {

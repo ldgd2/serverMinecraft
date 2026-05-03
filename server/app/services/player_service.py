@@ -22,13 +22,28 @@ class PlayerService:
 
     @staticmethod
     def get_online_players(server_name: str) -> List[Dict[str, Any]]:
-        """Get list of currently online players on a server"""
+        """
+        Get list of currently online players on a server.
+        Prioriza la caché en memoria del Bridge (actualizada por push del Mod),
+        evitando lecturas de disco costosas. Solo hace fallback a log parsing si la caché está vacía.
+        """
+        # 1. Intentar con la caché del Bridge (fuente de verdad más eficiente)
+        try:
+            from routes.bridge import server_player_cache
+            cached = server_player_cache.get(server_name)
+            if cached is not None:  # La caché existe (aunque esté vacía => servidor recién iniciado)
+                return [
+                    {"username": name, **data}
+                    for name, data in cached.items()
+                ]
+        except Exception:
+            pass
+
+        # 2. Fallback: log parsing via PlayerManager (sólo si el Bridge no tiene datos)
         process = server_service.get_process(server_name)
         if not process:
             return []
-        
-        online = process.player_manager.get_players()
-        return online
+        return process.player_manager.get_players()
 
     @staticmethod
     def get_player_by_uuid(db: Session, server: Server, uuid: str) -> Optional[Player]:

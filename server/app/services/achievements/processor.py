@@ -1,4 +1,12 @@
 import logging
+import asyncio
+
+# Guardamos el event loop principal al importar para usarlo desde background threads
+_main_loop: asyncio.AbstractEventLoop = None
+
+def set_main_loop(loop: asyncio.AbstractEventLoop):
+    global _main_loop
+    _main_loop = loop
 from sqlalchemy.orm import Session
 from .registry import ACHIEVEMENTS_REGISTRY, get_achievement_by_id
 from database.models.players.player import Player
@@ -127,22 +135,22 @@ class AchievementProcessor:
 
                     # Notificar al servidor vía WebSocket para que el Mod haga saltar el logro
                     try:
-                        from server.routes.bridge import manager
+                        from routes.bridge import manager
                         from database.models.server import Server
                         from database.models.user import User
-                        import asyncio
                         
-                        # Buscar el username del dueño del servidor
                         server = db.query(Server).filter(Server.id == player.server_id).first()
                         if server:
                             admin = db.query(User).filter(User.id == server.user_id).first()
                             if admin:
-                                # Necesitamos programarlo en el event loop principal
-                                try:
-                                    loop = asyncio.get_running_loop()
-                                    loop.create_task(manager.send_achievement(admin.username, player.name, ach.name, ach.description))
-                                except RuntimeError:
-                                    # Si no hay loop corriendo (ej. hilo síncrono), usamos un hilo nuevo
-                                    asyncio.run(manager.send_achievement(admin.username, player.name, ach.name, ach.description))
+                                # Usar el loop principal guardado al arrancar la app
+                                loop = _main_loop
+                                if loop and loop.is_running():
+                                    asyncio.run_coroutine_threadsafe(
+                                        manager.send_achievement(admin.username, player.name, ach.name, ach.description),
+                                        loop
+                                    )
+                                else:
+                                    logger.warning("[Logros] No hay event loop disponible para enviar logro por WS")
                     except Exception as e:
                         logger.error(f"Error enviando logro por WS: {e}")

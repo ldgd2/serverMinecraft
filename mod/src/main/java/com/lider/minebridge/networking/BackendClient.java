@@ -41,7 +41,8 @@ public class BackendClient {
         }
         
         scheduler = java.util.concurrent.Executors.newSingleThreadScheduledExecutor();
-        scheduler.scheduleAtFixedRate(this::flushBatch, 5, 5, java.util.concurrent.TimeUnit.SECONDS);
+        // Telemetría cada 30 segundos para no saturar el servidor
+        scheduler.scheduleAtFixedRate(this::flushBatch, 10, 30, java.util.concurrent.TimeUnit.SECONDS);
     }
 
     private void connectWebSocket() {
@@ -75,7 +76,9 @@ public class BackendClient {
         json.addProperty("uuid", uuid);
         json.addProperty("type", "join");
         
+        // JOIN es urgente: enviar inmediatamente para actualizar la caché de jugadores
         batchEvents.add(json);
+        flushUrgent();
     }
 
     public void notifyPlayerLeave(String player) {
@@ -83,7 +86,9 @@ public class BackendClient {
         json.addProperty("player", player);
         json.addProperty("type", "leave");
         
+        // LEAVE es urgente: enviar inmediatamente para actualizar la caché de jugadores
         batchEvents.add(json);
+        flushUrgent();
     }
 
     public void notifyStatUpdate(String player, String stat, String value) {
@@ -201,6 +206,26 @@ public class BackendClient {
         if (chatsArray.size() > 0) batch.add("chats", chatsArray);
 
         postAsync("api/v1/bridge/batch", batch);
+    }
+
+    /** Flush inmediato para eventos críticos (join, leave, death) sin esperar el timer. */
+    private void flushUrgent() {
+        if (baseUrl == null || apiKey == null) return;
+        if (batchEvents.isEmpty() && batchChats.isEmpty()) return;
+
+        JsonObject batch = new JsonObject();
+
+        com.google.gson.JsonArray eventsArray = new com.google.gson.JsonArray();
+        while (!batchEvents.isEmpty()) { eventsArray.add(batchEvents.remove(0)); }
+        if (eventsArray.size() > 0) batch.add("events", eventsArray);
+
+        com.google.gson.JsonArray chatsArray = new com.google.gson.JsonArray();
+        while (!batchChats.isEmpty()) { chatsArray.add(batchChats.remove(0)); }
+        if (chatsArray.size() > 0) batch.add("chats", chatsArray);
+
+        if (batch.size() > 0) {
+            postAsync("api/v1/bridge/batch", batch);
+        }
     }
 
     public void updateBaseUrl(String newUrl) {

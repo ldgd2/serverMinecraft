@@ -24,6 +24,24 @@ from database.connection import SessionLocal
 
 router = APIRouter(prefix="/bridge", tags=["Minecraft Bridge"])
 
+# --- Caché de jugadores en memoria ---
+# Formato: {server_name: {username: {uuid, joined_at}}}
+# Se actualiza cuando el Mod envía JOIN/LEAVE, eliminando la necesidad de leer logs.
+server_player_cache: dict[str, dict] = {}
+
+def cache_player_join(server_name: str, username: str, uuid: str = "unknown"):
+    if server_name not in server_player_cache:
+        server_player_cache[server_name] = {}
+    server_player_cache[server_name][username] = {
+        "uuid": uuid,
+        "joined_at": datetime.datetime.utcnow().isoformat()
+    }
+
+def cache_player_leave(server_name: str, username: str):
+    if server_name in server_player_cache:
+        server_player_cache[server_name].pop(username, None)
+
+
 async def verify_api_key(x_api_key: str = Header(...), db: Session = Depends(get_db)):
     # Sacar hash de la llave recibida
     hashed_received = hashlib.sha256(x_api_key.encode()).hexdigest()
@@ -43,19 +61,30 @@ async def receive_batch(batch: dict, request: Request, db: Session = Depends(get
     """
     Recibe un lote de eventos, estadísticas y estados para optimizar la conexión.
     """
-    # logger.info(f"[MineBridge] Lote recibido de {user.username}")
-    
     # 1. Procesar Estados de Jugadores (Solo el último de cada jugador en el lote)
     player_states = batch.get("player_states", [])
     if player_states:
-        # Usar un dict para quedarnos solo con el último estado de cada jugador
         latest_states = {s.get("player"): s for s in player_states if s.get("player")}
         for state in latest_states.values():
             await receive_player_state(request, state, db)
 
-    # 2. Procesar Eventos
+    # 2. Procesar Eventos (incluyendo JOIN/LEAVE para actualizar caché de jugadores)
     events = batch.get("events", [])
+    server_name = batch.get("server_name")
     for event in events:
+        event_type = event.get("type", "")
+        player = event.get("player", "")
+        uuid = event.get("uuid", "unknown")
+        # Si no viene server_name en el batch, intentar obtener del evento o del usuario
+        ev_server = event.get("server_name") or server_name
+        if not ev_server:
+            with SessionLocal() as _db:
+                s = _db.query(Server).filter(Server.user_id == user.id).first()
+                ev_server = s.name if s else "default"
+        if event_type == "join" and player:
+            cache_player_join(ev_server, player, uuid)
+        elif event_type == "leave" and player:
+            cache_player_leave(ev_server, player)
         await receive_event(event, request, user)
 
     # 3. Procesar Estadísticas
@@ -74,6 +103,23 @@ async def receive_batch(batch: dict, request: Request, db: Session = Depends(get
         "stats": len(stats),
         "chats": len(chats)
     }}
+
+@router.get("/players/{server_name}")
+async def get_cached_players(server_name: str, user: User = Depends(verify_api_key)):
+    """
+    Devuelve la lista de jugadores en línea desde la caché en memoria.
+    Esta caché se actualiza instantáneamente cuando el Mod envía JOIN/LEAVE,
+    eliminando la necesidad de leer logs del disco.
+    """
+    players = server_player_cache.get(server_name, {})
+    return {
+        "server": server_name,
+        "online": len(players),
+        "players": [
+            {"username": name, **data}
+            for name, data in players.items()
+        ]
+    }
 
 ws_router = APIRouter(prefix="/ws", tags=["Minecraft Bridge WS"])
 logger = logging.getLogger("uvicorn")

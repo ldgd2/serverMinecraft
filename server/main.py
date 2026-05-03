@@ -136,6 +136,12 @@ async def startup_event():
     loop = asyncio.get_running_loop()
     print(f"DEBUG: Current Loop Type: {type(loop)}")
     print(f"DEBUG: Platform: {sys.platform}")
+
+    # Guardar el event loop para que los background threads puedan enviar logros por WS
+    from app.services.achievements.processor import set_main_loop
+    set_main_loop(loop)
+    print("[OK] Main event loop registrado para notificaciones de logros.")
+
     
     # Verify WebSocket support
     try:
