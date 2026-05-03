@@ -15,6 +15,7 @@ from ui.views.settings  import SettingsView
 from ui.views.skins     import SkinsView
 from ui.views.downloads import DownloadsView
 from ui.views.profile   import ProfileView
+from ui.views.updates   import UpdatesView
 
 
 class LauncherApp(tk.Tk):
@@ -45,6 +46,7 @@ class LauncherApp(tk.Tk):
         self.settings_view  = SettingsView( self.container, app=self)
         self.skins_view     = SkinsView(    self.container, app=self)
         self.profile_view   = ProfileView(  self.container, app=self)
+        self.updates_view   = UpdatesView(  self.container, app=self)
         self.downloads_view = DownloadsView(self.container, app=self,
                                              on_download_complete=self.home_view.sync_launch_settings)
 
@@ -141,6 +143,10 @@ class LauncherApp(tk.Tk):
 
     def show_downloads_view(self, **_):
         self.show_view(self.downloads_view, "downloads")
+
+    def show_updates_view(self, **_):
+        self.show_view(self.updates_view, "updates")
+        self.after(300, lambda: self.updates_view.on_show() if hasattr(self.updates_view, 'on_show') else None)
 
     # ── Auth callbacks ────────────────────────────────────────────────────────
 

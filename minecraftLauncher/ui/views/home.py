@@ -98,6 +98,13 @@ class HomeView(tk.Frame):
         )
         self._versions_btn.place(relx=0.5, rely=base_y + 0.16, anchor="n")
 
+        self._updates_btn = MinecraftButton(
+            self.panorama, text="Actualizaciones",
+            width=btn_w, height=btn_h, font_size=12,
+            command=self._go_updates, bg=Colors.DARK
+        )
+        self._updates_btn.place(relx=0.5, rely=base_y + 0.24, anchor="n")
+
         half_w = (btn_w - 10) // 2
 
         # ── Version Label (Bottom Right) ──────────────────────────────────────
@@ -110,14 +117,14 @@ class HomeView(tk.Frame):
             width=half_w, height=btn_h, font_size=12,
             command=self._go_settings, bg=Colors.DARK
         )
-        self._opts_btn.place(relx=0.5, rely=base_y + 0.28, x=-(half_w//2 + 5), anchor="n")
+        self._opts_btn.place(relx=0.5, rely=base_y + 0.36, x=-(half_w//2 + 5), anchor="n")
 
         self._quit_btn = MinecraftButton(
             self.panorama, text="Cerrar sesion",
             width=half_w, height=btn_h, font_size=12,
             command=self._logout, bg=Colors.DARK
         )
-        self._quit_btn.place(relx=0.5, rely=base_y + 0.28, x=(half_w//2 + 5), anchor="n")
+        self._quit_btn.place(relx=0.5, rely=base_y + 0.36, x=(half_w//2 + 5), anchor="n")
 
         # 4. Bottom Left Info (Version & Loader)
         self.info_frame = tk.Frame(self.panorama, bg=Colors.DARK)
@@ -296,6 +303,10 @@ class HomeView(tk.Frame):
     def _go_downloads(self):
         if self.app:
             self.app.show_downloads_view()
+
+    def _go_updates(self):
+        if self.app:
+            self.app.show_updates_view()
 
     def _show_profile(self):
         if self.app:
