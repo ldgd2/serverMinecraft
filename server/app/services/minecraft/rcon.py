@@ -102,20 +102,12 @@ class RconService:
 
             if process and process.process and process.process.stdin:
                 # El proceso tiene stdin abierto — enviar directamente
-                loop = None
                 try:
-                    loop = asyncio.get_event_loop()
+                    loop = asyncio.get_running_loop()
+                    loop.create_task(process.write(command))
                 except RuntimeError:
-                    loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
-
-                async def _write():
-                    await process.write(command)
-
-                if loop.is_running():
-                    asyncio.ensure_future(_write())
-                else:
-                    loop.run_until_complete(_write())
+                    # Estamos en un thread (BackgroundTasks)
+                    asyncio.run(process.write(command))
                 return True
 
         except Exception as e:

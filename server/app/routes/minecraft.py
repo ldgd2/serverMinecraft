@@ -11,6 +11,7 @@ from core.broadcaster import broadcaster
 from pydantic import BaseModel
 import logging
 import datetime
+from app.services.minecraft.player_manager import PlayerManager
 
 logger = logging.getLogger(__name__)
 
@@ -159,6 +160,12 @@ async def handle_minecraft_chat(chat: MinecraftChat, db: Session = Depends(get_d
         
         # --- PROCESAR LOGROS ESPECÍFICOS DE INICIO DE SESIÓN ---
         if chat.type == "join":
+            # Actualizar caché central
+            PlayerManager._global_online_players.setdefault(server.name, {})[chat.player_name] = {
+                "uuid": chat.player_uuid,
+                "joined_at": datetime.datetime.utcnow().isoformat()
+            }
+            
             # 1. Incrementar contador de inicios de sesión
             AchievementProcessor.process_stat_update(db, player, "login_count", 1)
             
@@ -174,6 +181,11 @@ async def handle_minecraft_chat(chat: MinecraftChat, db: Session = Depends(get_d
                 player.detail.last_joined_at = now
             
             db.commit()
+
+        elif chat.type == "leave":
+            # Actualizar caché central
+            if server.name in PlayerManager._global_online_players:
+                PlayerManager._global_online_players[server.name].pop(chat.player_name, None)
 
     # 3. Guardar en historial (Chat, Join, Leave, Achievement)
     chat_mapping = {

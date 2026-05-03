@@ -23,7 +23,7 @@ class MinecraftProcess:
         self.log_subscribers: List[asyncio.Queue] = []
         self._status = "OFFLINE" # OFFLINE, STARTING, ONLINE, STOPPING
         self.current_players = 0
-        self.player_manager = PlayerManager()
+        self.player_manager = PlayerManager(server_name=name)
         self.recent_activity = [] # List of {type, user, reason, time}
         self._last_stats_time = 0
         self._last_stats = None
@@ -361,12 +361,17 @@ class MinecraftProcess:
     
     # --- Player Management Methods ---
     def get_online_players(self):
-        # Log parsing fallback directly
-        
-        # Fallback to log parsing
-        players = self.player_manager.get_players()
-        print(f"DEBUG: Process {self.name} get_online_players (log parsing): {len(players)} players ({players})")
-        return players
+        # 1. Intentar con la caché del Bridge (fuente de verdad más eficiente pushed por el Mod)
+        try:
+            from routes.bridge import server_player_cache
+            cached = server_player_cache.get(self.name)
+            if cached is not None:
+                return [{"username": name, **data} for name, data in cached.items()]
+        except Exception:
+            pass
+            
+        # 2. Fallback: log parsing (solo si el mod no está conectado)
+        return self.player_manager.get_players()
     
     async def kick_player(self, username: str):
         if not self.is_running() or self._status != "ONLINE":
@@ -570,7 +575,17 @@ class MinecraftProcess:
 
     # --- Log Parsing Delegate ---
     def _parse_line_event(self, line: str, default_date: str = None):
+        # Determine if we should update state from logs.
+        # If the Mod is already pushing data to the Bridge, we avoid updating from logs 
+        # to prevent duplicates and save CPU.
         update_state = (default_date is None)
+        
+        # Check if bridge has data. If it does, we assume Mod is active and skip log updates.
+        if update_state and self.player_manager.online_players:
+             # There is data in the cache (likely from Bridge).
+             # We still parse for activity logging but we don't update state.
+             update_state = False
+             
         event = self.player_manager.parse_log_line(line, update_state=update_state)
         
         if event:

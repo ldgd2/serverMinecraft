@@ -141,6 +141,24 @@ class AchievementProcessor:
                         
                         server = db.query(Server).filter(Server.id == player.server_id).first()
                         if server:
+                            # 1. Enviar por RCON para feedback visual y sonoro inmediato en el juego
+                            try:
+                                # Chat global
+                                rcon_msg = f'tellraw @a ["", {{"text":"🏆 ¡LOGRO! ","color":"gold","bold":true}}, {{"text":"{player.name}","color":"yellow"}}, {{"text":" ha obtenido: ","color":"white"}}, {{"text":"{ach.name}","color":"aqua","italic":true}}]'
+                                rcon_service.send_command(rcon_msg, server_name=server.name)
+                                
+                                # Título para el jugador que lo obtuvo
+                                title_cmd = f'title {player.name} title {{"text":"🏆 Logro Desbloqueado","color":"gold","bold":true}}'
+                                subtitle_cmd = f'title {player.name} subtitle {{"text":"{ach.name}","color":"yellow"}}'
+                                sound_cmd = f'execute as {player.name} at @s run playsound minecraft:ui.toast.challenge_complete master @s ~ ~ ~ 1.0 1.0'
+                                
+                                rcon_service.send_command(title_cmd, server_name=server.name)
+                                rcon_service.send_command(subtitle_cmd, server_name=server.name)
+                                rcon_service.send_command(sound_cmd, server_name=server.name)
+                            except Exception as rcon_ex:
+                                logger.error(f"Error enviando logro por RCON: {rcon_ex}")
+
+                            # 2. Notificar vía WebSocket al administrador/launcher
                             admin = db.query(User).filter(User.id == server.user_id).first()
                             if admin:
                                 # Usar el loop principal guardado al arrancar la app
@@ -153,4 +171,4 @@ class AchievementProcessor:
                                 else:
                                     logger.warning("[Logros] No hay event loop disponible para enviar logro por WS")
                     except Exception as e:
-                        logger.error(f"Error enviando logro por WS: {e}")
+                        logger.error(f"Error enviando logro: {e}")

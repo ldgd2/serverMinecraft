@@ -19,20 +19,14 @@ public class AchievementClient {
 
     static {
         scheduler = java.util.concurrent.Executors.newSingleThreadScheduledExecutor();
-        // Reducido a 30 segundos para no saturar el servidor
-        scheduler.scheduleAtFixedRate(AchievementClient::flushBatch, 10, 30, java.util.concurrent.TimeUnit.SECONDS);
+        // Aumentado a 60 segundos para minimizar el impacto en el VPS
+        scheduler.scheduleAtFixedRate(AchievementClient::flushBatch, 15, 60, java.util.concurrent.TimeUnit.SECONDS);
     }
 
     private static String getBaseUrl() {
         String url = ModConfig.getBackendUrl();
         if (url == null || url.isEmpty() || url.equals("PENDING")) return null;
         return url.endsWith("/") ? url : url + "/";
-    }
-
-    private static String getApiUrl() {
-        String base = getBaseUrl();
-        if (base == null) return null;
-        return base + "api/minecraft/event";
     }
 
     /**

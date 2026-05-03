@@ -9,170 +9,20 @@ import os
 import sys
 import json
 import asyncio
-from datetime import datetime
-from sqlalchemy.orm import Session
-from database.connection import get_db
-from database.models.user import User
-from core.broadcaster import broadcaster
 import datetime
-from app.services.player_service import PlayerService
-from app.services.achievements import AchievementService
+from sqlalchemy.orm import Session
+from database.connection import get_db, SessionLocal
+from database.models.user import User
 from database.models import Server
 from database.models.players.player import Player
 from database.models.players.player_detail import PlayerDetail
-from database.connection import SessionLocal
+from core.broadcaster import broadcaster
+from app.services.player_service import PlayerService
+from app.services.achievements import AchievementService
+from app.services.minecraft.player_manager import PlayerManager
 
 router = APIRouter(prefix="/bridge", tags=["Minecraft Bridge"])
-
-# --- Caché de jugadores en memoria ---
-# Formato: {server_name: {username: {uuid, joined_at}}}
-# Se actualiza cuando el Mod envía JOIN/LEAVE, eliminando la necesidad de leer logs.
-server_player_cache: dict[str, dict] = {}
-
-def cache_player_join(server_name: str, username: str, uuid: str = "unknown"):
-    if server_name not in server_player_cache:
-        server_player_cache[server_name] = {}
-    server_player_cache[server_name][username] = {
-        "uuid": uuid,
-        "joined_at": datetime.datetime.utcnow().isoformat()
-    }
-
-def cache_player_leave(server_name: str, username: str):
-    if server_name in server_player_cache:
-        server_player_cache[server_name].pop(username, None)
-
-
-async def verify_api_key(x_api_key: str = Header(...), db: Session = Depends(get_db)):
-    # Sacar hash de la llave recibida
-    hashed_received = hashlib.sha256(x_api_key.encode()).hexdigest()
-    
-    # Buscar usuario que tenga ese hash
-    user = db.query(User).filter(User.api_key_hashed == hashed_received).first()
-    
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid API Key"
-        )
-    return user
-
-@router.post("/batch")
-async def receive_batch(batch: dict, request: Request, db: Session = Depends(get_db), user: User = Depends(verify_api_key)):
-    """
-    Recibe un lote de eventos, estadísticas y estados para optimizar la conexión.
-    """
-    # Procesar Eventos (incluyendo JOIN/LEAVE para actualizar caché de jugadores)
-    events = batch.get("events", [])
-    server_name = batch.get("server_name")
-    for event in events:
-        event_type = event.get("type", "")
-        player = event.get("player", "")
-        uuid = event.get("uuid", "unknown")
-        # Si no viene server_name en el batch, intentar obtener del evento o del usuario
-        ev_server = event.get("server_name") or server_name
-        if not ev_server:
-            with SessionLocal() as _db:
-                s = _db.query(Server).filter(Server.user_id == user.id).first()
-                ev_server = s.name if s else "default"
-        if event_type == "join" and player:
-            cache_player_join(ev_server, player, uuid)
-        elif event_type == "leave" and player:
-            cache_player_leave(ev_server, player)
-        await receive_event(event, request, user)
-
-    # 3. Procesar Estadísticas
-    stats = batch.get("stats", [])
-    for stat in stats:
-        await receive_stat(stat, db, user)
-
-    # 4. Procesar Chat
-    chats = batch.get("chats", [])
-    for chat in chats:
-        await receive_chat(chat, db, user)
-
-    return {"status": "ok", "processed": {
-        "player_states": len(player_states),
-        "events": len(events),
-        "stats": len(stats),
-        "chats": len(chats)
-    }}
-
-
-@router.get("/players/{server_name}")
-async def get_cached_players(server_name: str, user: User = Depends(verify_api_key)):
-    """
-    Devuelve la lista de jugadores en línea desde la caché en memoria.
-    Esta caché se actualiza instantáneamente cuando el Mod envía JOIN/LEAVE,
-    eliminando la necesidad de leer logs del disco.
-    """
-    players = server_player_cache.get(server_name, {})
-    return {
-        "server": server_name,
-        "online": len(players),
-        "players": [
-            {"username": name, **data}
-            for name, data in players.items()
-        ]
-    }
-
-ws_router = APIRouter(prefix="/ws", tags=["Minecraft Bridge WS"])
 logger = logging.getLogger("uvicorn")
-
-# --- Gestión de Conexiones Activas ---
-class ConnectionManager:
-    def __init__(self):
-        self.active_connections: dict[str, WebSocket] = {} # username -> socket
-
-    async def connect(self, username: str, websocket: WebSocket):
-        await websocket.accept()
-        self.active_connections[username] = websocket
-
-    def disconnect(self, username: str):
-        if username in self.active_connections:
-            del self.active_connections[username]
-
-    async def send_command(self, username: str, command: str):
-        if username in self.active_connections:
-            await self.active_connections[username].send_json({
-                "action": "command",
-                "command": command
-            })
-
-    async def send_achievement(self, username: str, player: str, title: str, desc: str):
-        if username in self.active_connections:
-            await self.active_connections[username].send_json({
-                "action": "achievement",
-                "player": player,
-                "title": title,
-                "desc": desc
-            })
-
-    async def send_kick(self, username: str, target: str, reason: str):
-        if username in self.active_connections:
-            await self.active_connections[username].send_json({
-                "action": "kick",
-                "player": target,
-                "reason": reason
-            })
-
-    async def send_ban(self, username: str, target: str, reason: str):
-        if username in self.active_connections:
-            await self.active_connections[username].send_json({
-                "action": "ban",
-                "player": target,
-                "reason": reason
-            })
-
-    async def send_unban(self, username: str, target: str):
-        if username in self.active_connections:
-            await self.active_connections[username].send_json({
-                "action": "unban",
-                "player": target
-            })
-
-manager = ConnectionManager()
-
-
 
 # --- Modelos de Datos ---
 
@@ -182,7 +32,6 @@ class BridgeEvent(BaseModel):
     uuid: Optional[str] = None
     cause: Optional[str] = None
     killer: Optional[str] = None
-    # Catch-all for extra fields
     class Config:
         extra = "allow"
 
@@ -202,461 +51,216 @@ class BridgeChat(BaseModel):
     class Config:
         extra = "allow"
 
-class BridgeStatus(BaseModel):
-    state: str # STARTED, STOPPING
-    class Config:
-        extra = "allow"
+# --- Caché de Jugadores ---
 
-class PlayerState(BaseModel):
-    player: str
-    health: float
-    food: int
-    pos_x: float
-    pos_y: float
-    pos_z: float
-    world: str
-    class Config:
-        extra = "allow"
+server_player_cache = PlayerManager._global_online_players
 
-async def log_request(request: Request):
-    body = await request.body()
-    print(f"--- INCOMING BRIDGE REQUEST ---")
-    print(f"URL: {request.url}")
-    print(f"Headers: {dict(request.headers)}")
-    print(f"Body: {body.decode(errors='replace')}")
-    print(f"-------------------------------")
+def cache_player_join(server_name: str, username: str, uuid: str = "unknown"):
+    if server_name not in server_player_cache:
+        server_player_cache[server_name] = {}
+    server_player_cache[server_name][username] = {
+        "uuid": uuid,
+        "joined_at": datetime.datetime.utcnow().isoformat()
+    }
 
-@router.get("/test")
-async def test_connection(user: User = Depends(verify_api_key)):
-    return {"status": "success", "message": f"Conexion exitosa. Vinculado a: {user.username}"}
+def cache_player_leave(server_name: str, username: str):
+    if server_name in server_player_cache:
+        server_player_cache[server_name].pop(username, None)
+
+# --- Dependencias ---
+
+async def verify_api_key(x_api_key: str = Header(...), db: Session = Depends(get_db)):
+    hashed_received = hashlib.sha256(x_api_key.encode()).hexdigest()
+    user = db.query(User).filter(User.api_key_hashed == hashed_received).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid API Key"
+        )
+    return user
+
+# --- Handlers Individuales (Definidos antes de Batch para seguridad) ---
 
 @router.post("/events")
 async def receive_event(event: dict, request: Request, user: User = Depends(verify_api_key)):
-    print(f"DEBUG: Received Bridge Event: {event}")
     player = event.get("player", "Unknown")
     event_type = event.get("type", "unknown")
-    logger.info(f"[MineBridge] Evento de {user.username}: {player} -> {event_type}")
     
-    # PROCESAR LOGROS Y ESTADO DEL JUGADOR
     with SessionLocal() as db:
-        # 1. Obtener el servidor
-        server_name = event.get("server_name")
-        if server_name:
-            server = db.query(Server).filter(Server.name == server_name).first()
-        else:
+        server = db.query(Server).filter(Server.name == event.get("server_name")).first()
+        if not server:
             server = db.query(Server).filter(Server.user_id == user.id).first()
-            if not server:
-                server = db.query(Server).first()
+            if not server: server = db.query(Server).first()
 
         if server:
-            # 2. Notificar a la App (Chat de sistema) usando el nombre del servidor
-            # Solo si NO es join o leave, ya que esos los maneja app/routes/minecraft.py con más detalle
             if event_type not in ["join", "leave"]:
                 msg = f"{player} {event_type.replace('_', ' ')}"
                 if event_type == "death" and event.get("cause"):
                     msg = f"{player} murió por {event.get('cause')}"
-                    
                 await broadcaster.broadcast_chat(server.name, "System", msg, is_system=True)
             
-            # 3. Procesar logros
-            # ... rest of logic
-                if player_obj:
-                    if event_type == "join":
-                        # 1. Incrementar contador de inicios de sesión
-                        AchievementService.process_stat_update(db, player_obj, "login_count", 1)
-                        
-                        # 2. Actualizar fecha de último ingreso
-                        if not player_obj.detail:
-                            from database.models.players.player_detail import PlayerDetail
-                            player_obj.detail = PlayerDetail(player_id=player_obj.id)
-                        
-                        player_obj.detail.last_joined_at = datetime.datetime.utcnow()
-                        db.commit()
-
-                        # --- RE-APPLY SKIN ON JOIN ---
-                        try:
-                            import os
-                            skin_path = f"static/skins/{player}.png"
-                            if os.path.exists(skin_path):
-                                from app.controllers.server_controller import ServerController
-                                sc = ServerController()
-                                
-                                # Obtener host dinámicamente de la request o env
-                                app_url = os.environ.get("APP_URL")
-                                if not app_url:
-                                    host = request.headers.get("host", "localhost:8000")
-                                    protocol = "https" if request.url.scheme == "https" else "http"
-                                    app_url = f"{protocol}://{host}"
-                                
-                                skin_url = f"{app_url}/static/skins/{player}.png"
-                                
-                                # Re-aplicar comando en la consola
-                                import asyncio
-                                # Enviar varias versiones del comando para asegurar compatibilidad con diferentes mods
-                                asyncio.create_task(sc.send_command(server.name, f"skin set {player} {skin_url}"))
-                                asyncio.create_task(sc.send_command(server.name, f"skin url {skin_url}")) # Para SkinRestorer
-                                print(f"[MineBridge] Re-aplicando skin para {player} via {skin_url}")
-                        except Exception as e:
-                            print(f"[MineBridge] Error al re-aplicar skin: {e}")
-                
+            player_obj = PlayerService.get_player_by_name(db, server, player)
+            if player_obj:
+                if event_type == "join":
+                    AchievementService.process_stat_update(db, player_obj, "login_count", 1)
+                    if not player_obj.detail:
+                        player_obj.detail = PlayerDetail(player_id=player_obj.id)
+                    player_obj.detail.last_joined_at = datetime.datetime.utcnow()
+                    db.commit()
                 elif event_type == "leave":
-                    # 1. Calcular duración de la sesión si tenemos el join
                     if player_obj.detail and player_obj.detail.last_joined_at:
                         now = datetime.datetime.utcnow()
                         duration = int((now - player_obj.detail.last_joined_at).total_seconds())
-                        
                         if duration > 0:
-                            # Actualizar tiempo total
                             player_obj.detail.total_playtime_seconds += duration
-                            # Registrar para logros (esto se acumula en PlayerStat)
                             AchievementService.process_stat_update(db, player_obj, "session_time_seconds", duration)
                             db.commit()
-
     return {"status": "ok"}
 
 @router.post("/stats")
 async def receive_stat(stat: dict, db: Session = Depends(get_db), user: User = Depends(verify_api_key)):
-    # print(f"DEBUG: Received Bridge Stat: {stat}")
     player_name = stat.get("player")
     stat_key = stat.get("stat")
-    value = stat.get("value")
     amount = stat.get("amount", 1)
     
     if player_name and stat_key:
-        from app.services.achievements import AchievementService
-        from app.services.player_service import PlayerService
-        
-        # Obtener el primer servidor del usuario (o el que corresponda)
-        # En una arquitectura multi-servidor real, el Mod debería enviar su ID o nombre de instancia
-        # Por ahora, buscamos al jugador en los servidores de este administrador
-        # Obtener el servidor (priorizar server_name si el mod lo envía)
-        server_name = stat.get("server_name")
-        if server_name:
-            server = db.query(Server).filter(Server.name == server_name).first()
-        else:
-            # Fallback al primero del usuario o primero global
+        server = db.query(Server).filter(Server.name == stat.get("server_name")).first()
+        if not server:
             server = db.query(Server).filter(Server.user_id == user.id).first()
-            if not server:
-                server = db.query(Server).first()
+            if not server: server = db.query(Server).first()
 
         if server:
             player = PlayerService.get_player_by_name(db, server, player_name)
             if player:
-                AchievementService.process_stat_update(db, player, stat_key, amount, value=value)
-
+                AchievementService.process_stat_update(db, player, stat_key, amount, value=stat.get("value"))
     return {"status": "ok"}
 
 @router.post("/chat")
 async def receive_chat(chat: dict, db: Session = Depends(get_db), user: User = Depends(verify_api_key)):
-    print(f"DEBUG: Received Bridge Chat: {chat}")
     player_name = chat.get("player", "Unknown")
     message = chat.get("message", "")
-    logger.info(f"[MineBridge] Chat sync for {user.username}: <{player_name}> {message}")
-    
-    # 1. Obtener el servidor primero para saber a qué canal de la App transmitir
     server_name = chat.get("server_name")
-    server = None
-    if server_name:
-        server = db.query(Server).filter(Server.name == server_name).first()
     
+    server = db.query(Server).filter(Server.name == server_name).first()
     if not server:
-        # Fallback al primero del usuario o primero global
         server = db.query(Server).filter(Server.user_id == user.id).first()
-        if not server:
-            server = db.query(Server).first()
+        if not server: server = db.query(Server).first()
 
     if server:
-        # 2. Retransmitir a la App en tiempo real usando el canal del servidor
-        # Desactivado aquí para evitar duplicados, ya que app/routes/minecraft.py lo maneja con historial
-        # await broadcaster.broadcast_chat(server.name, player_name, message)
-
-        # 3. --- PROCESAR LOGROS DE CHAT ---
         player = PlayerService.get_player_by_name(db, server, player_name)
         if player:
             AchievementService.process_stat_update(db, player, "chat_message", 1)
-
     return {"status": "ok"}
 
-@router.post("/status")
-async def receive_status(status: dict, user: User = Depends(verify_api_key)):
-    state = status.get("state", "UNKNOWN")
-    logger.info(f"[MineBridge] Server {user.username} Status: {state}")
-    return {"status": "ok"}
+# --- Lote (Batch) ---
+
+@router.post("/batch")
+async def receive_batch(batch: dict, request: Request, db: Session = Depends(get_db), user: User = Depends(verify_api_key)):
+    events = batch.get("events", [])
+    stats = batch.get("stats", [])
+    chats = batch.get("chats", [])
+    server_name = batch.get("server_name")
+
+    # 1. Procesar Eventos y Caché
+    for event in events:
+        event_type = event.get("type", "")
+        player = event.get("player", "")
+        uuid = event.get("uuid", "unknown")
+        ev_server = event.get("server_name") or server_name
+        
+        if event_type == "join" and player:
+            cache_player_join(ev_server, player, uuid)
+        elif event_type == "leave" and player:
+            cache_player_leave(ev_server, player)
+        
+        await receive_event(event, request, user)
+
+    # 2. Procesar Estadísticas
+    for stat in stats:
+        await receive_stat(stat, db, user)
+
+    # 3. Procesar Chat
+    for chat in chats:
+        await receive_chat(chat, db, user)
+
+    return {
+        "status": "ok", 
+        "processed": {
+            "events": len(events),
+            "stats": len(stats),
+            "chats": len(chats)
+        }
+    }
+
+# --- Legacy & WebSocket ---
 
 @router.post("/status/player")
 async def receive_player_state(request: Request, state: dict, db: Session = Depends(get_db)):
-    # print(f"DEBUG: Received Bridge Player State: {state}")
-    player_name = state.get("player")
-    if not player_name:
-        return {"error": "no player"}
+    return {"status": "ok", "message": "deprecated"}
 
-    # 1. Obtener el servidor usando el server_id o server_name del payload
-    server = None
-    server_id = state.get("server_id")
-    server_name = state.get("server_name")
-    
-    if server_id:
-        server = db.query(Server).filter(Server.id == server_id).first()
-    elif server_name:
-        server = db.query(Server).filter(Server.name == server_name).first()
-        
-    if not server:
-        # Fallback al primer servidor existente si no se especifica
-        server = db.query(Server).first()
-        if not server:
-            server = db.query(Server).first()
+@router.get("/players/{server_name}")
+async def get_cached_players(server_name: str, user: User = Depends(verify_api_key)):
+    players = server_player_cache.get(server_name, {})
+    return {
+        "server": server_name,
+        "online": len(players),
+        "players": [{"username": name, **data} for name, data in players.items()]
+    }
 
-    if not server:
-        return {"error": "server not found"}
+ws_router = APIRouter(prefix="/ws", tags=["Minecraft Bridge WS"])
 
-    # 2. Obtener el jugador
-    player = PlayerService.get_player_by_name(db, server, player_name)
-    if not player:
-        # Intentar crear si no existe
-        player = Player(server_id=server.id, name=player_name, uuid=state.get("uuid", "unknown"))
-        db.add(player)
-        db.flush()
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: dict[str, List[WebSocket]] = {}
 
-    if not player.detail:
-        from database.models.players.player_detail import PlayerDetail
-        player.detail = PlayerDetail(player_id=player.id)
-        db.add(player.detail)
+    async def connect(self, username: str, websocket: WebSocket):
+        await websocket.accept()
+        if username not in self.active_connections:
+            self.active_connections[username] = []
+        self.active_connections[username].append(websocket)
 
-    # 3. Actualizar datos básicos y calcular progresos
-    try:
-        x = state.get("pos_x", 0)
-        y = state.get("pos_y", 0)
-        z = state.get("pos_z", 0)
+    def disconnect(self, username: str, websocket: WebSocket):
+        if username in self.active_connections:
+            if websocket in self.active_connections[username]:
+                self.active_connections[username].remove(websocket)
+            if not self.active_connections[username]:
+                del self.active_connections[username]
 
-        last_x = player.detail.position_x or 0
-        last_y = player.detail.position_y or 0
-        last_z = player.detail.position_z or 0
-        
-        dist = ((x - last_x)**2 + (y - last_y)**2 + (z - last_z)**2)**0.5
-        
-        if 0.1 < dist < 100:  # Evitar teleports
-            AchievementService.process_stat_update(db, player, "distance_travelled", int(dist))
-
-        # CALCULAR TIEMPO (Cada update son ~5 segundos)
-        AchievementService.process_stat_update(db, player, "playtime_seconds", 5)
-        AchievementService.process_stat_update(db, player, "session_time_seconds", 5)
-
-        player.detail.health = int(state.get("health", 20))
-        player.detail.position_x = int(x)
-        player.detail.position_y = int(y)
-        player.detail.position_z = int(z)
-        player.detail.total_playtime_seconds = (player.detail.total_playtime_seconds or 0) + 5
-        player.detail.last_ip = state.get("ip")
-        
-        # Safe update for columns that might be missing in older schemas
-        if hasattr(player.detail, 'country'):
-            player.detail.country = state.get("country")
-        if hasattr(player.detail, 'os'):
-            player.detail.os = state.get("os")
-    except Exception as e:
-        print(f"[MineBridge] Warning: Error updating basic player stats: {e}")
-
-    # 4. Sincronizar Skin si viene en el payload
-    skin_data = state.get("skin_base64")
-    if skin_data:
-        # Detectar si es un JSON (Mojang style) o un raw PNG Base64
-        import base64 as b64
-        is_mojang = False
-        try:
-            decoded_test = b64.b64decode(skin_data).decode('utf-8')
-            if '"textures"' in decoded_test:
-                is_mojang = True
-        except: pass
-
-        if is_mojang:
-            player.detail.skin_base64 = skin_data
-            player.detail.skin_last_update = datetime.datetime.utcnow()
-            
-            # Intentar actualizar SkinRestorer
-            from core.skinrestorer_bridge import set_skin_in_skinrestorer
-            import os
-            SKINRESTORER_DB = {
-                'host': os.environ.get('SKINRESTORER_HOST', 'localhost'),
-                'user': os.environ.get('SKINRESTORER_USER', 'root'),
-                'password': os.environ.get('SKINRESTORER_PASS', ''),
-                'database': os.environ.get('SKINRESTORER_DB', 'SkinRestorer')
-            }
-            # Extraer signature si viene por separado
-            signature = state.get("skin_signature", "")
-            set_skin_in_skinrestorer(SKINRESTORER_DB, player_name, skin_data, signature)
-
-            # Descargar cabeza para la App
-            from core.skin_utils import extract_skin_url, download_and_crop_head
-            skin_url = extract_skin_url(skin_data)
-            if skin_url:
-                head_path = f"static/heads/{player_name}.png"
-                try: download_and_crop_head(skin_url, head_path)
-                except: pass
-        else:
-            # Es un raw PNG Base64 del Launcher
-            # Lo guardamos como archivo estático para que el server pueda servirlo como URL a SkinRestorer
-            try:
-                import os
-                os.makedirs("static/skins", exist_ok=True)
-                skin_file_path = f"static/skins/{player_name}.png"
-                with open(skin_file_path, "wb") as f:
-                    f.write(b64.b64decode(skin_data))
-                
-                # Para la App, generamos la cabeza desde el PNG local
+    async def send_achievement(self, username: str, player: str, title: str, desc: str):
+        if username in self.active_connections:
+            disconnected = []
+            for ws in self.active_connections[username]:
                 try:
-                    from PIL import Image
-                    from io import BytesIO
-                    skin_img = Image.open(BytesIO(b64.b64decode(skin_data))).convert('RGBA')
-                    face = skin_img.crop((8, 8, 16, 16)).resize((64, 64), Image.NEAREST)
-                    helmet = skin_img.crop((40, 8, 48, 16)).resize((64, 64), Image.NEAREST)
-                    final_head = Image.alpha_composite(face, helmet)
-                    os.makedirs("static/heads", exist_ok=True)
-                    final_head.save(f"static/heads/{player_name}.png")
-                except ImportError:
-                    print("⚠️ Pillow (PIL) no está instalado. No se generará la cabeza para la App. (Usa 'pip install Pillow' en el servidor)")
-                except Exception as e:
-                    print(f"Error generando cabeza de skin: {e}")
-                
-                # --- ACTUALIZACIÓN PARA LA APP (Prioridad) ---
-                import time
-                ts = int(time.time())
-                
-                # Obtener la URL base dinámicamente
-                app_url = os.environ.get("APP_URL")
-                if not app_url:
-                    host = request.headers.get("host", "localhost:8000")
-                    protocol = "https" if request.url.scheme == "https" else "http"
-                    app_url = f"{protocol}://{host}"
-                
-                public_head_url = f"{app_url}/static/heads/{player_name}.png?t={ts}"
-                print(f"[MineBridge] Actualizando DB para App: {player_name} -> {public_head_url}")
-                player.detail.skin_url = public_head_url
-                player.detail.skin_base64 = skin_data
-                player.detail.skin_last_update = datetime.datetime.utcnow()
-                db.commit()
-                # --- INYECCIÓN EN SKINRESTORER (Híbrido Robusto) ---
-                skin_signature = state.get("skin_signature")
-                injection_success = False
-                
-                if skin_signature:
-                    try:
-                        try:
-                            from core.skinrestorer_bridge import set_skin_in_skinrestorer
-                        except ImportError:
-                            from server.core.skinrestorer_bridge import set_skin_in_skinrestorer
-                        injection_success = set_skin_in_skinrestorer(db, player_name, skin_data, skin_signature)
-                        if injection_success:
-                            print(f"[MineBridge] Skin de {player_name} inyectada exitosamente (Premium ORM).")
-                    except Exception as db_ex:
-                        print(f"[MineBridge] Error en inyección ORM: {db_ex}")
-                else:
-                    print(f"[MineBridge] No-Premium: sin firma. MineSkin se encargará.")
+                    await ws.send_json({
+                        "action": "achievement", 
+                        "player": player, 
+                        "title": title, 
+                        "desc": desc
+                    })
+                except:
+                    disconnected.append(ws)
+            
+            # Limpiar desconectados
+            for ws in disconnected:
+                self.disconnect(username, ws)
 
-                # --- INYECCIÓN GLOBAL: MineSkin para No-Premium ---
-                async def signature_and_inject_task():
-                    if injection_success:
-                        return  # Premium ya inyectado
-
-                    # Usar la skin guardada localmente para subirla a MineSkin
-                    skin_path = f"static/skins/{player_name}.png"
-                    if not os.path.exists(skin_path):
-                        print(f"[MineBridge] Error: No se encontró la skin en {skin_path}")
-                        return
-
-                    try:
-                        print(f"[MineBridge] No-Premium: subiendo skin a MineSkin para {player_name}...")
-                        data = aiohttp.FormData()
-                        # Abrir el archivo en cada intento
-                        with open(skin_path, 'rb') as skin_file:
-                            data.add_field('file', skin_file, filename=f"{player_name}.png", content_type='image/png')
-                            data.add_field('visibility', '0') # Public
-                            
-                            async with aiohttp.ClientSession() as session:
-                                async with session.post(
-                                    "https://api.mineskin.org/generate/upload",
-                                    data=data
-                                ) as resp:
-                                    if resp.status == 200:
-                                        data_json = await resp.json()
-                                        texture_data = data_json.get("data", {}).get("texture", {})
-                                        value = texture_data.get("value")
-                                        signature = texture_data.get("signature")
-                                        
-                                        if value and signature:
-                                            print(f"[MineBridge] Firma OK. Inyectando en player_details y SkinRestorer para {player_name}...")
-                                            from sqlalchemy import text
-                                            
-                                            # 1. Guardar en player_details (nuestra DB)
-                                            db.execute(text("""
-                                                UPDATE player_details
-                                                SET skin_value = :value,
-                                                    skin_signature = :signature,
-                                                    skin_last_update = NOW()
-                                                WHERE player_id = (
-                                                    SELECT id FROM players WHERE name = :username LIMIT 1
-                                                )
-                                            """), {"value": value, "signature": signature, "username": player_name})
-                                            db.commit()
-
-                                            # 2. Inyectar en SkinRestorer (para que el mod lo reconozca oficialmente)
-                                            try:
-                                                # Asegurar que la raíz esté en el path para el import
-                                                root_path = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-                                                if root_path not in sys.path:
-                                                    sys.path.insert(0, root_path)
-
-                                                from core.skinrestorer_bridge import set_skin_in_skinrestorer
-                                                
-                                                sr_success = set_skin_in_skinrestorer(db, player_name, value, signature)
-                                                if sr_success:
-                                                    print(f"[MineBridge] ✅ Skin de {player_name} sincronizada con SkinRestorer.")
-                                            except Exception as sr_ex:
-                                                print(f"[MineBridge] Error inyectando en SkinRestorer: {sr_ex}")
-
-                                            print(f"[MineBridge] ✅ Proceso completo para {player_name}.")
-
-                                        else:
-                                            print("[MineBridge] MineSkin no devolvió datos válidos.")
-                                    else:
-                                        print(f"[MineBridge] MineSkin API status: {resp.status}.")
-                    except Exception as e:
-                        print(f"[MineBridge] Error SQL inyección: {e}")
-
-                asyncio.create_task(signature_and_inject_task())
-
-
-            except Exception as e:
-                print(f"Error procesando raw skin: {e}")
-
-    db.commit()
-    return {"status": "ok"}
-
-# --- WebSocket Bridge (Comandos en Tiempo Real) ---
+manager = ConnectionManager()
 
 @ws_router.websocket("/bridge")
 async def websocket_bridge(websocket: WebSocket, db: Session = Depends(get_db)):
-    # Extraer API Key del Header (en Java Mod se puede enviar)
     api_key = websocket.headers.get("x-api-key")
-    
     if not api_key:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
-
     hashed_received = hashlib.sha256(api_key.encode()).hexdigest()
     user = db.query(User).filter(User.api_key_hashed == hashed_received).first()
-
     if not user:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
-
     await manager.connect(user.username, websocket)
-    logger.info(f"[MineBridge] WebSocket conectado para administrador: {user.username}")
-    
     try:
         while True:
-            # Mantener conexión abierta y escuchar latidos si es necesario
-            data = await websocket.receive_text()
-            # Podríamos procesar respuestas del mod aquí
+            await websocket.receive_text()
     except WebSocketDisconnect:
-        manager.disconnect(user.username)
+        manager.disconnect(user.username, websocket)
         logger.info(f"[MineBridge] WebSocket desconectado para: {user.username}")

@@ -5,10 +5,23 @@ from typing import Dict, Any, Optional
 import threading
 
 class PlayerManager:
-    def __init__(self):
-        # Store players as {username: {ip: str, uuid: str, joined_at: datetime}}
-        self.online_players = {}
+    # Central cache: {server_name: {username: {uuid, ip, joined_at}}}
+    # This allows Bridge (Mod) and Process (Log parsing) to share the same state.
+    # Prioritizing Bridge data for efficiency.
+    _global_online_players = {} 
+    
+    def __init__(self, server_name: str = "MinecraftTest"):
+        self.server_name = server_name
         self._lock = threading.Lock()
+        
+        # Initialize this server's entry in the global cache if not present
+        if self.server_name not in PlayerManager._global_online_players:
+            PlayerManager._global_online_players[self.server_name] = {}
+            
+    @property
+    def online_players(self):
+        """Reference to the global cache for this server"""
+        return PlayerManager._global_online_players.get(self.server_name, {})
 
     def add_player(self, username: str, data: Dict[str, Any] = None):
         with self._lock:

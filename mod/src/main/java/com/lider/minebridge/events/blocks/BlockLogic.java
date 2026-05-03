@@ -43,12 +43,12 @@ public class BlockLogic {
             Block block = state.getBlock();
             String id = Registries.BLOCK.getId(block).getPath();
 
-            // 1. MINER ACHIEVEMENTS — acumulamos localmente y solo enviamos cada 50 bloques
+            // 1. MINER ACHIEVEMENTS — acumulamos localmente y solo enviamos cada 100 bloques
             //    Así evitamos un evento por cada bloque de piedra/tierra
             int count = blockBrokenAccum.merge(uuid, 1, Integer::sum);
-            if (count % 50 == 0) {
-                // Enviamos el acumulado cuando llega a múltiplos de 50
-                AchievementClient.sendEvent(uuid, "block_broken", 50);
+            if (count % 100 == 0) {
+                // Enviamos el acumulado cuando llega a múltiplos de 100
+                AchievementClient.sendEvent(uuid, "block_broken", 100);
             }
 
             // 2. MINERALES ESPECÍFICOS — solo los importantes (diamond, debris, etc.)
