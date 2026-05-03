@@ -19,6 +19,15 @@ class AchievementCategory(Enum):
     BREWING = "Quimica Ilegal"
     ENCHANTING = "Corrupcion Mistica"
     DEATH = "Fracaso Sistematico"
+    # --- NUEVAS CATEGORÍAS TEMÁTICAS ---
+    DIMENSIONS = "Viaje Interdimensional"
+    STREAKS = "Rachas de Dominio"
+    CURIOSITY = "Curiosidades"
+    MEMES = "Cultura de Internet"
+    EDGY = "Oscuridad y Nihilismo"
+    PHILOSOPHY = "Reflexiones Existenciales"
+    QUOTES = "Citas Celebres"
+    ATTITUDE = "Actitud y Estilo"
 
 @dataclass
 class AchievementDefinition:
