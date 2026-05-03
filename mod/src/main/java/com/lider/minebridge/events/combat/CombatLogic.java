@@ -20,6 +20,9 @@ public class CombatLogic {
     }
 
     public static void onEntityKill(String playerUuid, String victimId) {
+        // Log para depuración
+        com.lider.minebridge.MineBridge.LOGGER.info("[MineBridge] Eliminación detectada: " + victimId + " por " + playerUuid);
+
         if (victimId.contains("ender_dragon")) {
             AchievementClient.sendEvent(playerUuid, "dragon_killed_by_bed", 1);
             com.lider.minebridge.events.player.PlayerLogic.onBossKilled(playerUuid);

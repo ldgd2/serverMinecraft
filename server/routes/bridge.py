@@ -40,11 +40,12 @@ class BridgeEvent(BaseModel):
 
 server_player_cache = PlayerManager._global_online_players
 
-def cache_player_join(server_name: str, username: str, uuid: str = "unknown"):
+def cache_player_join(server_name: str, username: str, uuid: str = "unknown", ip: str = "unknown"):
     if server_name not in server_player_cache:
         server_player_cache[server_name] = {}
     server_player_cache[server_name][username] = {
         "uuid": uuid,
+        "ip": ip,
         "joined_at": datetime.datetime.utcnow().isoformat()
     }
 
@@ -106,7 +107,8 @@ async def receive_event(event: dict, request: Request, user: User = Depends(veri
                         AchievementService.unlock_achievement(db, player_obj, achievement_id, server_name=server.name)
             
             elif event_type == "join":
-                cache_player_join(server.name, player_name, player_uuid or "unknown")
+                player_ip = event.get("ip") or "unknown"
+                cache_player_join(server.name, player_name, player_uuid or "unknown", ip=player_ip)
             elif event_type == "leave":
                 cache_player_leave(server.name, player_name)
                 

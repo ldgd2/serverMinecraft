@@ -182,8 +182,8 @@ class ServerProvider extends ChangeNotifier {
   Future<void> loadPlayers(String name) async {
     try {
       final data = await _serverService.getPlayers(name);
-      _onlinePlayers = List<Map<String, dynamic>>.from(data['online'] ?? []);
-      _bannedUsers = List<Map<String, dynamic>>.from(data['banned'] ?? []);
+      _onlinePlayers = List<Map<String, dynamic>>.from(data['online_players'] ?? []);
+      _bannedUsers = List<Map<String, dynamic>>.from(data['banned_users'] ?? []);
       notifyListeners();
     } catch (e) {
       debugPrint('Load Players Error: $e');

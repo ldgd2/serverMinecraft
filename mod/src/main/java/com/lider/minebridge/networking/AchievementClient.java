@@ -19,8 +19,8 @@ public class AchievementClient {
 
     static {
         scheduler = java.util.concurrent.Executors.newSingleThreadScheduledExecutor();
-        // Aumentado a 60 segundos para minimizar el impacto en el VPS
-        scheduler.scheduleAtFixedRate(AchievementClient::flushBatch, 15, 60, java.util.concurrent.TimeUnit.SECONDS);
+        // Reducido a 10 segundos para mejor respuesta sin sobrecargar
+        scheduler.scheduleAtFixedRate(AchievementClient::flushBatch, 5, 10, java.util.concurrent.TimeUnit.SECONDS);
     }
 
     private static String getBaseUrl() {
@@ -44,9 +44,26 @@ public class AchievementClient {
     }
 
     /**
+     * Reporta que un jugador se ha unido, incluyendo su IP para el dashboard.
+     */
+    public static void sendJoinEvent(String playerUuid, String playerName, String ip) {
+        JsonObject json = new JsonObject();
+        json.addProperty("uuid", playerUuid);
+        json.addProperty("player", playerName);
+        json.addProperty("ip", ip);
+        json.addProperty("type", "join");
+        json.addProperty("server_name", ModConfig.getServerName());
+        
+        batchEvents.add(json);
+    }
+
+    /**
      * Reporta que se ha cumplido una condición de logro o una estadística.
      */
     public static void sendEvent(String playerUuid, String eventKey, int increment) {
+        // Log en consola para depuración
+        com.lider.minebridge.MineBridge.LOGGER.info("[MineBridge] Evento registrado: " + eventKey + " para " + playerUuid);
+
         JsonObject json = new JsonObject();
         json.addProperty("uuid", playerUuid);
         json.addProperty("player", "Server"); // The backend will resolve by UUID if possible

@@ -68,6 +68,7 @@ public class BlockLogic {
             // 2. MINERALES ESPECÍFICOS
             for (String ore : TRACKED_ORES) {
                 if (id.contains(ore)) {
+                    com.lider.minebridge.MineBridge.LOGGER.info("[MineBridge] Mineral detectado: " + id + " por " + uuid);
                     if (ore.contains("diamond")) {
                         int dm = diamondsMinedSession.merge(uuid, 1, Integer::sum);
                         if (dm == 1) AchievementClient.sendEvent(uuid, "MINE_DIAMOND", 1);

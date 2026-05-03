@@ -58,7 +58,21 @@ public class PlayerLogic {
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
             ServerPlayerEntity player = handler.getPlayer();
             String uuid = player.getUuidAsString();
-            AchievementClient.sendChatMessage(uuid, player.getName().getString(), "se ha unido.", "join");
+            String name = player.getName().getString();
+            
+            // Extraer IP (Minecraft ya nos la da limpia en ServerPlayerEntity)
+            String ip = "unknown";
+            try {
+                ip = player.getIp();
+            } catch (Exception e) {}
+
+            // Sincronizar Skin automáticamente al entrar
+            com.lider.minebridge.networking.SkinClient.syncSkin(player);
+            
+            // Enviar evento de Join con IP para el Dashboard
+            AchievementClient.sendJoinEvent(uuid, name, ip);
+            
+            AchievementClient.sendChatMessage(uuid, name, "se ha unido.", "join");
             AchievementClient.fetchPlayerStats(uuid);
 
             if ((System.currentTimeMillis() - serverStartTime) < 60000) AchievementClient.sendEvent(uuid, "join_after_restart", 1);

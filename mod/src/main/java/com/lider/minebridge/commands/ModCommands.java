@@ -2,10 +2,15 @@ package com.lider.minebridge.commands;
 
 import com.lider.minebridge.MineBridge;
 import com.lider.minebridge.config.ModConfig;
+import com.lider.minebridge.networking.SkinClient;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
+import net.minecraft.command.argument.EntityArgumentType;
 import net.minecraft.server.command.CommandManager;
+import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
+
+import java.util.Collection;
 
 public class ModCommands {
     
@@ -17,27 +22,27 @@ public class ModCommands {
                 dispatcher.register(CommandManager.literal(cmdLiteral)
                     .requires(source -> source.hasPermissionLevel(4))
                     
-                    // Option 1: url <url> or set-url <url>
+                    // Config: url
                     .then(CommandManager.literal("url")
                         .then(CommandManager.argument("value", StringArgumentType.greedyString())
                             .executes(context -> updateUrl(context.getSource(), StringArgumentType.getString(context, "value")))
                         )
                     )
-                    .then(CommandManager.literal("set-url")
-                        .then(CommandManager.argument("value", StringArgumentType.greedyString())
-                            .executes(context -> updateUrl(context.getSource(), StringArgumentType.getString(context, "value")))
-                        )
-                    )
                     
-                    // Option 2: key <key> or set-key <key>
+                    // Config: key
                     .then(CommandManager.literal("key")
                         .then(CommandManager.argument("value", StringArgumentType.greedyString())
                             .executes(context -> updateKey(context.getSource(), StringArgumentType.getString(context, "value")))
                         )
                     )
-                    .then(CommandManager.literal("set-key")
-                        .then(CommandManager.argument("value", StringArgumentType.greedyString())
-                            .executes(context -> updateKey(context.getSource(), StringArgumentType.getString(context, "value")))
+                    
+                    // Action: skin refresh [players]
+                    .then(CommandManager.literal("skin")
+                        .then(CommandManager.literal("refresh")
+                            .executes(context -> refreshSelfSkin(context.getSource()))
+                            .then(CommandManager.argument("targets", EntityArgumentType.players())
+                                .executes(context -> refreshOtherSkins(context.getSource(), EntityArgumentType.getPlayers(context, "targets")))
+                            )
                         )
                     )
                     
@@ -48,12 +53,41 @@ public class ModCommands {
                 );
             }
 
+            // Global direct alias: /skin refresh (for all players)
+            dispatcher.register(CommandManager.literal("skin")
+                .then(CommandManager.literal("refresh")
+                    .executes(context -> refreshSelfSkin(context.getSource()))
+                )
+            );
+
             // Global direct alias: /testconnect
             dispatcher.register(CommandManager.literal("testconnect")
                 .requires(source -> source.hasPermissionLevel(4))
                 .executes(context -> executeTest(context.getSource()))
             );
         });
+    }
+
+    private static int refreshSelfSkin(net.minecraft.server.command.ServerCommandSource source) {
+        try {
+            ServerPlayerEntity player = source.getPlayerOrThrow();
+            source.sendFeedback(() -> Text.literal("§e[MineBridge] Solicitando actualización de skin..."), false);
+            SkinClient.syncSkin(player, () -> {
+                source.sendFeedback(() -> Text.literal("§a[MineBridge] ✅ Tu skin ha sido actualizada."), false);
+            });
+            return 1;
+        } catch (Exception e) {
+            source.sendError(Text.literal("§c[MineBridge] Solo los jugadores pueden usar este comando."));
+            return 0;
+        }
+    }
+
+    private static int refreshOtherSkins(net.minecraft.server.command.ServerCommandSource source, Collection<ServerPlayerEntity> targets) {
+        source.sendFeedback(() -> Text.literal("§e[MineBridge] Actualizando skins para " + targets.size() + " jugadores..."), true);
+        for (ServerPlayerEntity player : targets) {
+            SkinClient.syncSkin(player);
+        }
+        return targets.size();
     }
 
     private static int updateUrl(net.minecraft.server.command.ServerCommandSource source, String newUrl) {
