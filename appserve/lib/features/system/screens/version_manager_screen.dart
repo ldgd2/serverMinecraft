@@ -202,8 +202,8 @@ class _DownloadVersionsTabState extends State<_DownloadVersionsTab> {
           TextButton(
             onPressed: () {
               context.read<VersionProvider>().downloadVersion(
-                loaderType: _selectedLoader,
-                mcVersion: mcVersion,
+                _selectedLoader,
+                mcVersion,
               );
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(

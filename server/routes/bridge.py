@@ -28,26 +28,11 @@ logger = logging.getLogger("uvicorn")
 
 class BridgeEvent(BaseModel):
     player: str
-    type: str # join, leave, death, etc.
+    type: str # join, leave, achievement, etc.
     uuid: Optional[str] = None
-    cause: Optional[str] = None
-    killer: Optional[str] = None
-    class Config:
-        extra = "allow"
-
-class BridgeStat(BaseModel):
-    player: str
-    stat: str
-    value: str
-    amount: int = 1
-    type: Optional[str] = "stat_update"
-    class Config:
-        extra = "allow"
-
-class BridgeChat(BaseModel):
-    player: str
-    message: str
-    type: Optional[str] = "chat"
+    achievement_id: Optional[str] = None
+    increment: Optional[int] = 1
+    server_name: Optional[str] = None
     class Config:
         extra = "allow"
 
@@ -79,38 +64,62 @@ async def verify_api_key(x_api_key: str = Header(...), db: Session = Depends(get
         )
     return user
 
-# --- Handlers Individuales (Definidos antes de Batch para seguridad) ---
+# --- Handlers ---
 
 @router.post("/events")
 async def receive_event(event: dict, request: Request, user: User = Depends(verify_api_key)):
-    player = event.get("player", "Unknown")
+    player_name = event.get("player", "Unknown")
+    player_uuid = event.get("uuid") or event.get("player_uuid")
     event_type = event.get("type", "unknown")
+    server_name = event.get("server_name")
     
     with SessionLocal() as db:
-        server = db.query(Server).filter(Server.name == event.get("server_name")).first()
+        server = db.query(Server).filter(Server.name == server_name).first()
         if not server:
             server = db.query(Server).filter(Server.user_id == user.id).first()
             if not server: server = db.query(Server).first()
 
-        if server and event_type in ["join", "leave", "achievement"]:
-            player_obj = PlayerService.get_player_by_name(db, server, player)
-            if player_obj:
-                if event_type == "achievement":
-                    achievement_id = event.get("achievement_id") or event.get("message")
-                    if achievement_id:
+        if server:
+            # 1. Resolve player (Prefer UUID)
+            player_obj = None
+            if player_uuid:
+                player_obj = PlayerService.get_player_by_uuid(db, server, player_uuid)
+            
+            if not player_obj and player_name != "Server":
+                player_obj = PlayerService.get_player_by_name(db, server, player_name)
+            
+            if not player_obj:
+                return {"status": "ignored", "reason": "player_not_found"}
+
+            # 2. Handle Logic
+            if event_type == "achievement":
+                achievement_id = event.get("achievement_id") or event.get("message")
+                increment = event.get("increment", 1)
+                
+                if achievement_id:
+                    # Is it a counter stat?
+                    stat_keys = ["total_kills", "session_kills", "hostile_kills", "totem_used", "block_broken", "item_enchanted", "chat_message"]
+                    if achievement_id in stat_keys:
+                        AchievementService.process_stat_update(db, player_obj, achievement_id, increment, server_name=server.name)
+                    else:
+                        # It's a direct achievement unlock
                         AchievementService.unlock_achievement(db, player_obj, achievement_id, server_name=server.name)
-                elif event_type == "join":
-                    cache_player_join(server.name, player, event.get("uuid", "unknown"))
-                elif event_type == "leave":
-                    cache_player_leave(server.name, player)
+            
+            elif event_type == "join":
+                cache_player_join(server.name, player_name, player_uuid or "unknown")
+            elif event_type == "leave":
+                cache_player_leave(server.name, player_name)
+                
     return {"status": "ok"}
 
 
 @router.post("/chat")
 async def receive_chat(chat: dict, db: Session = Depends(get_db), user: User = Depends(verify_api_key)):
     player_name = chat.get("player", "Unknown")
+    player_uuid = chat.get("uuid") or chat.get("player_uuid")
     message = chat.get("message", "")
     server_name = chat.get("server_name")
+    chat_type = chat.get("type", "chat")
     
     server = db.query(Server).filter(Server.name == server_name).first()
     if not server:
@@ -118,25 +127,44 @@ async def receive_chat(chat: dict, db: Session = Depends(get_db), user: User = D
         if not server: server = db.query(Server).first()
 
     if server:
-        player = PlayerService.get_player_by_name(db, server, player_name)
-        if player:
-            AchievementService.process_stat_update(db, player, "chat_message", 1, server_name=server.name)
+        player_obj = None
+        if player_uuid:
+            player_obj = PlayerService.get_player_by_uuid(db, server, player_uuid)
+        if not player_obj and player_name != "Server":
+            player_obj = PlayerService.get_player_by_name(db, server, player_name)
+            
+        if player_obj:
+            # Stats for chat
+            if chat_type == "chat":
+                AchievementService.process_stat_update(db, player_obj, "chat_message", 1, server_name=server.name)
+            
+            # Broadcast to App
+            asyncio.create_task(broadcaster.broadcast_chat(
+                server.name,
+                player_obj.name,
+                message,
+                is_system=(chat_type != "chat"),
+                chat_type=chat_type
+            ))
+            
     return {"status": "ok"}
-
-# --- Lote (Batch) ---
 
 @router.post("/batch")
 async def receive_batch(batch: dict, request: Request, db: Session = Depends(get_db), user: User = Depends(verify_api_key)):
     events = batch.get("events", [])
-    stats = batch.get("stats", [])
     chats = batch.get("chats", [])
-    server_name = batch.get("server_name")
+    server_name = batch.get("server_name") or batch.get("server")
 
-    # Procesar solo eventos de conexión y logros
+    # Inyectar server_name si falta en los hijos
+    if server_name:
+        for e in events: e.setdefault("server_name", server_name)
+        for c in chats: c.setdefault("server_name", server_name)
+
+    # 1. Procesar Eventos (Logros, Joins)
     for event in events:
         await receive_event(event, request, user)
 
-    # 3. Procesar Chat
+    # 2. Procesar Chat
     for chat in chats:
         await receive_chat(chat, db, user)
 
@@ -144,13 +172,9 @@ async def receive_batch(batch: dict, request: Request, db: Session = Depends(get
         "status": "ok", 
         "processed": {
             "events": len(events),
-            "stats": len(stats),
             "chats": len(chats)
         }
     }
-
-# --- Legacy & WebSocket ---
-
 
 @router.get("/players/{server_name}")
 async def get_cached_players(server_name: str, user: User = Depends(verify_api_key)):
@@ -193,8 +217,6 @@ class ConnectionManager:
                     })
                 except:
                     disconnected.append(ws)
-            
-            # Limpiar desconectados
             for ws in disconnected:
                 self.disconnect(username, ws)
 

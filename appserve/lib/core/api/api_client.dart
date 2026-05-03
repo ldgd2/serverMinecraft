@@ -5,6 +5,7 @@ import '../constants/app_constants.dart';
 class ApiClient {
   static ApiClient? _instance;
   late final Dio _dio;
+  bool _isRefreshing = false;
 
   ApiClient._() {
     _dio = Dio(BaseOptions(
@@ -23,7 +24,43 @@ class ApiClient {
         }
         handler.next(options);
       },
-      onError: (error, handler) {
+      onError: (error, handler) async {
+        // If 401 and we have saved credentials, try to refresh
+        if (error.response?.statusCode == 401 && !_isRefreshing) {
+          final prefs = await SharedPreferences.getInstance();
+          final user = prefs.getString(AppConstants.usernameKey);
+          final pass = prefs.getString(AppConstants.passwordKey);
+
+          if (user != null && pass != null) {
+            _isRefreshing = true;
+            try {
+              // Attempt silent re-login
+              final res = await _dio.post(
+                '/auth/login',
+                data: {'username': user, 'password': pass},
+              );
+              
+              final newToken = res.data['data']['access_token'];
+              if (newToken != null) {
+                await prefs.setString(AppConstants.tokenKey, newToken);
+                
+                // Retry the original request
+                final opts = error.requestOptions;
+                opts.headers['Authorization'] = 'Bearer $newToken';
+                
+                final response = await _dio.fetch(opts);
+                return handler.resolve(response);
+              }
+            } catch (e) {
+              // If re-login fails, clear everything and fail
+              await clearToken();
+              await prefs.remove(AppConstants.usernameKey);
+              await prefs.remove(AppConstants.passwordKey);
+            } finally {
+              _isRefreshing = false;
+            }
+          }
+        }
         handler.next(error);
       },
     ));

@@ -34,8 +34,8 @@ public class AchievementClient {
      */
     public static void sendChatMessage(String playerUuid, String playerName, String message, String type) {
         JsonObject json = new JsonObject();
-        json.addProperty("player_uuid", playerUuid);
-        json.addProperty("player_name", playerName);
+        json.addProperty("uuid", playerUuid);
+        json.addProperty("player", playerName); // Backend expects 'player'
         json.addProperty("message", message);
         json.addProperty("type", type); // 'chat', 'join', 'leave', 'achievement'
         json.addProperty("server_name", ModConfig.getServerName());
@@ -44,18 +44,20 @@ public class AchievementClient {
     }
 
     /**
-     * Reporta que se ha cumplido una condición de logro.
-     * Ya no enviamos telemetría genérica, ahora enviamos directamente la señal de desbloqueo.
+     * Reporta que se ha cumplido una condición de logro o una estadística.
      */
     public static void sendEvent(String playerUuid, String eventKey, int increment) {
         JsonObject json = new JsonObject();
-        json.addProperty("player_uuid", playerUuid);
-        json.addProperty("player_name", "Server"); // El backend buscará por UUID
-        json.addProperty("message", eventKey);     // El ID del logro
+        json.addProperty("uuid", playerUuid);
+        json.addProperty("player", "Server"); // The backend will resolve by UUID if possible
+        json.addProperty("achievement_id", eventKey); // Explicit field for achievements
+        json.addProperty("message", eventKey);        // Fallback for generic handlers
+        json.addProperty("increment", increment);      // Essential for counters
         json.addProperty("type", "achievement");
         json.addProperty("server_name", ModConfig.getServerName());
         
-        batchChats.add(json);
+        // Add to events batch, NOT chats
+        batchEvents.add(json);
     }
 
     /**
@@ -108,19 +110,20 @@ public class AchievementClient {
                 client.sendAsync(request, HttpResponse.BodyHandlers.ofString())
                       .thenAccept(response -> {
                           if (response.statusCode() == 200) {
-                              JsonObject stats = new com.google.gson.JsonParser().parse(response.body()).getAsJsonObject();
-                              
-                              // Sincronizar contadores en los módulos de lógica
-                              if (stats.has("block_broken")) {
-                                  com.lider.minebridge.events.blocks.BlockLogic.setInitialStats(playerUuid, stats.get("block_broken").getAsInt());
-                              }
-                              if (stats.has("total_kills")) {
-                                  com.lider.minebridge.events.combat.CombatLogic.setInitialStats(playerUuid, stats.get("total_kills").getAsInt());
-                              }
-                              if (stats.has("item_enchanted")) {
-                                  com.lider.minebridge.events.items.ItemLogic.setInitialStats(playerUuid, stats.get("item_enchanted").getAsInt());
-                              }
-                              // Puedes añadir más sincronizaciones aquí (kills, etc.)
+                              try {
+                                  JsonObject stats = new com.google.gson.JsonParser().parse(response.body()).getAsJsonObject();
+                                  
+                                  // Sync counters in logic modules
+                                  if (stats.has("block_broken")) {
+                                      com.lider.minebridge.events.blocks.BlockLogic.setInitialStats(playerUuid, stats.get("block_broken").getAsInt());
+                                  }
+                                  if (stats.has("total_kills")) {
+                                      com.lider.minebridge.events.combat.CombatLogic.setInitialStats(playerUuid, stats.get("total_kills").getAsInt());
+                                  }
+                                  if (stats.has("item_enchanted")) {
+                                      com.lider.minebridge.events.items.ItemLogic.setInitialStats(playerUuid, stats.get("item_enchanted").getAsInt());
+                                  }
+                              } catch (Exception ex) {}
                           }
                       });
             } catch (Exception e) {
@@ -135,6 +138,7 @@ public class AchievementClient {
         if (batchEvents.isEmpty() && batchChats.isEmpty()) return;
 
         JsonObject batch = new JsonObject();
+        batch.addProperty("server_name", ModConfig.getServerName());
         
         com.google.gson.JsonArray eventsArray = new com.google.gson.JsonArray();
         while (!batchEvents.isEmpty()) { eventsArray.add(batchEvents.remove(0)); }
@@ -147,7 +151,7 @@ public class AchievementClient {
         CompletableFuture.runAsync(() -> {
             try {
                 HttpRequest request = HttpRequest.newBuilder()
-                        .uri(URI.create(base + "api/minecraft/batch"))
+                        .uri(URI.create(base + "api/bridge/batch")) // Correct path
                         .version(HttpClient.Version.HTTP_1_1)
                         .header("Content-Type", "application/json")
                         .header("X-API-Key", ModConfig.getApiKey())

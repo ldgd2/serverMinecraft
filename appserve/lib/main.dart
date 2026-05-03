@@ -43,8 +43,30 @@ void main() async {
   );
 }
 
-class MinecraftManagerApp extends StatelessWidget {
+class MinecraftManagerApp extends StatefulWidget {
   const MinecraftManagerApp({super.key});
+
+  @override
+  State<MinecraftManagerApp> createState() => _MinecraftManagerAppState();
+}
+
+class _MinecraftManagerAppState extends State<MinecraftManagerApp> {
+  @override
+  void initState() {
+    super.initState();
+    // Connect providers for real-time updates
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final serverProvider = context.read<ServerProvider>();
+      final playerProvider = context.read<PlayerProvider>();
+      
+      serverProvider.onAchievementReceived = (sender) {
+        // If the achievement belongs to the current player, refresh their profile
+        if (sender == playerProvider.username) {
+          playerProvider.notifyProfileUpdate();
+        }
+      };
+    });
+  }
 
   @override
   Widget build(BuildContext context) {

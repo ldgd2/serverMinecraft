@@ -1019,7 +1019,7 @@ class _PlayersTabState extends State<_PlayersTab> {
       isDanger: true,
     );
     if (confirmed) {
-      await sp.kickPlayer(serverName, username);
+      await sp.kickPlayer(serverName, username, 'Kicked by admin');
     }
   }
 
@@ -1138,7 +1138,7 @@ class _PlayersTabState extends State<_PlayersTab> {
                   expires = "${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')} "
                             "${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}:00 +0000";
                 }
-                sp.banPlayer(serverName, username, reason: reason, expires: expires);
+                sp.banPlayer(serverName, username, reason, expires: expires);
                 Navigator.pop(context);
               },
             ),

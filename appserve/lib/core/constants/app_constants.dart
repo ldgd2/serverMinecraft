@@ -8,6 +8,10 @@ class AppConstants {
   static const String tokenKey = 'auth_token';
   static const String userKey = 'user_data';
   static const String serverUrlKey = 'server_url';
+  
+  // Credentials for auto-refresh
+  static const String usernameKey = 'saved_username';
+  static const String passwordKey = 'saved_password';
 
   // App
   static const String appName = 'Minecraft Manager';

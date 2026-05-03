@@ -1,8 +1,9 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../services/player_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Manages player account state — separate from AdminProvider (which handles server admins)
+/// Manages player account state — separate from AdminProvider
 class PlayerProvider extends ChangeNotifier {
   final _service = PlayerService();
 
@@ -38,7 +39,7 @@ class PlayerProvider extends ChangeNotifier {
       final data = await _service.login(username, password);
       _playerToken = data['access_token'];
       await _savePlayerToken(_playerToken!);
-      await _loadProfile();
+      await _loadProfile(force: true); // Login always forces a fresh profile
       return true;
     } catch (e) {
       _error = _parseError(e);
@@ -56,7 +57,7 @@ class PlayerProvider extends ChangeNotifier {
       final data = await _service.register(username, password);
       _playerToken = data['access_token'];
       await _savePlayerToken(_playerToken!);
-      await _loadProfile();
+      await _loadProfile(force: true);
       return true;
     } catch (e) {
       _error = _parseError(e);
@@ -71,6 +72,7 @@ class PlayerProvider extends ChangeNotifier {
     _playerToken = null;
     _profile = null;
     await _clearPlayerToken();
+    await _clearProfileCache();
     notifyListeners();
   }
 
@@ -79,7 +81,7 @@ class PlayerProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ── Token Persistence ──────────────────────────────────────────────────────
+  // ── Persistence ───────────────────────────────────────────────────────────
 
   Future<void> _savePlayerToken(String token) async {
     final prefs = await SharedPreferences.getInstance();
@@ -91,31 +93,72 @@ class PlayerProvider extends ChangeNotifier {
     await prefs.remove('player_token');
   }
 
+  Future<void> _saveProfileToCache(Map<String, dynamic> profile) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('player_profile_cache', jsonEncode(profile));
+  }
+
+  Future<Map<String, dynamic>?> _loadProfileFromCache() async {
+    final prefs = await SharedPreferences.getInstance();
+    final data = prefs.getString('player_profile_cache');
+    if (data != null) {
+      return jsonDecode(data) as Map<String, dynamic>;
+    }
+    return null;
+  }
+
+  Future<void> _clearProfileCache() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('player_profile_cache');
+  }
+
   Future<void> tryAutoLogin() async {
     final prefs = await SharedPreferences.getInstance();
     _playerToken = prefs.getString('player_token');
     if (_playerToken != null) {
-      await _loadProfile();
+      // 1. Load from cache immediately for instant UI
+      _profile = await _loadProfileFromCache();
+      if (_profile != null) notifyListeners();
+      
+      // 2. Load from network in background ONLY if cache is empty
+      if (_profile == null) {
+        await _loadProfile();
+      }
     }
   }
 
   // ── Data Loading ──────────────────────────────────────────────────────────
 
-  Future<void> _loadProfile() async {
+  Future<void> _loadProfile({bool force = false}) async {
     if (_playerToken == null) return;
+    
+    // If not forced and we already have a profile, don't hit the network
+    if (!force && _profile != null) return;
+
     try {
-      _profile = await _service.getProfile(_playerToken!);
+      final freshProfile = await _service.getProfile(_playerToken!);
+      _profile = freshProfile;
+      await _saveProfileToCache(freshProfile);
       notifyListeners();
     } catch (e) {
       debugPrint('PlayerProvider profile error: $e');
     }
   }
 
+  /// Forces a network refresh — should be called from "Refresh" button
   Future<void> refreshProfile() async {
     if (_playerToken == null) return;
     _setLoading(true);
-    await _loadProfile();
+    await _loadProfile(force: true);
     _setLoading(false);
+  }
+
+  /// Called when server notifies about a change via WebSocket
+  void notifyProfileUpdate() {
+    // We don't fetch immediately to avoid spamming, but we can clear local flag 
+    // or wait for the user to be on the profile screen.
+    // For now, let's just force a refresh in the background
+    _loadProfile(force: true);
   }
 
   Future<void> loadLeaderboard() async {
