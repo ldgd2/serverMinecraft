@@ -32,12 +32,19 @@ public abstract class LivingEntityMixin {
         }
     }
 
-    @Inject(method = "addStatusEffect", at = @At("HEAD"))
+    @Inject(method = "addStatusEffect", at = @At("RETURN"))
     private void onEffectAdded(net.minecraft.entity.effect.StatusEffectInstance effect, CallbackInfoReturnable<Boolean> cir) {
-        if ((Object)this instanceof ServerPlayerEntity player) {
+        if (cir.getReturnValue() && (Object)this instanceof ServerPlayerEntity player) {
             String effectId = effect.getEffectType().getKey().get().getValue().getPath();
+            
+            // 1. Logro Warden (Oscuridad)
             if (effectId.contains("darkness")) {
-                CombatLogic.onWardenDarkness(player.getUuidAsString());
+                MemeLogic.onWardenDarknessApplied(player);
+            }
+            
+            // 2. Logro Farmacia Andante (10+ efectos)
+            if (player.getStatusEffects().size() >= 10) {
+                MemeLogic.onManyEffectsActive(player);
             }
         }
     }

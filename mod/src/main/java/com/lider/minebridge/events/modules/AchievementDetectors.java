@@ -1,76 +1,75 @@
 package com.lider.minebridge.events.modules;
 
+import com.lider.minebridge.events.special.MemeLogic;
 import com.lider.minebridge.networking.AchievementClient;
 import net.fabricmc.fabric.api.event.player.UseEntityCallback;
-import net.minecraft.entity.effect.StatusEffects;
+import net.fabricmc.fabric.api.event.player.UseItemCallback;
 import net.minecraft.entity.passive.SheepEntity;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.util.ActionResult;
 import net.minecraft.util.DyeColor;
+import net.minecraft.util.TypedActionResult;
 import net.minecraft.world.World;
 
 import java.util.concurrent.ConcurrentHashMap;
 
 public class AchievementDetectors {
 
-    // Tracking por sesión para no repetir eventos "de estado"
-    private static final java.util.Set<String> sessionFlags = ConcurrentHashMap.newKeySet();
-
-    // Última posición registrada por jugador para calcular distancia y detectar alturas
-    private static final ConcurrentHashMap<String, double[]> lastPos = new ConcurrentHashMap<>();
+    // Última posición Y registrada por jugador (solo necesitamos Y para altura)
+    private static final ConcurrentHashMap<String, Double> lastY = new ConcurrentHashMap<>();
 
     /**
-     * Llamado desde PlayerLogic cada vez que el jugador se mueve (evento de movimiento real).
-     * Solo procesa si el jugador cambió de posición de forma significativa.
-     * De esta forma NUNCA se corre en un tick sin que el jugador haya hecho algo.
+     * Llamado desde PlayerLogic cada 40 ticks (2 segundos).
+     * Verifica altura SOLO si el jugador cambió de Y de forma significativa.
+     * No hace nada si el jugador está quieto.
      */
     public static void onPlayerMove(ServerPlayerEntity player) {
         String uuid = player.getUuidAsString();
-        double x = player.getX();
         double y = player.getY();
-        double z = player.getZ();
 
-        double[] prev = lastPos.get(uuid);
-        if (prev != null) {
-            double dist = Math.sqrt(Math.pow(x - prev[0], 2) + Math.pow(y - prev[1], 2) + Math.pow(z - prev[2], 2));
-            // Solo procesar si se movió al menos 5 bloques (filtrar micro-movimientos y teleports grandes)
-            if (dist < 5 || dist > 200) return;
+        Double prevY = lastY.get(uuid);
+        if (prevY != null && Math.abs(y - prevY) < 10.0) {
+            return; // No cambió suficiente altura — ignorar completamente
         }
-        lastPos.put(uuid, new double[]{x, y, z});
+        lastY.put(uuid, y);
 
-        // LOGRO DE ALTURA MÁXIMA (Everest) - solo una vez por sesión
-        if (y >= 319 && sessionFlags.add(uuid + "_height")) {
-            AchievementClient.sendEvent(uuid, "max_height_reached", 1);
-        }
-
-        // EFECTO WARDEN (Oscuridad) - solo si el jugador lo tiene en este momento
-        if (player.hasStatusEffect(StatusEffects.DARKNESS) && sessionFlags.add(uuid + "_warden")) {
-            AchievementClient.sendEvent(uuid, "warden_darkness_effect", 1);
+        // Solo si llegó a la altura máxima
+        if (y >= 319) {
+            MemeLogic.onMaxHeightReached(player);
         }
     }
 
-    /**
-     * Limpia los flags y posición al desconectarse el jugador.
-     */
+    /** Limpia el tracking de posición al desconectarse. */
     public static void onPlayerLeave(ServerPlayerEntity player) {
-        String uuid = player.getUuidAsString();
-        lastPos.remove(uuid);
-        sessionFlags.removeIf(f -> f.startsWith(uuid));
+        lastY.remove(player.getUuidAsString());
+        MemeLogic.onPlayerLeave(player);
     }
 
     public static void register() {
-        // DETECTOR DE INTERACCIONES (OVEJA ROSA) - event-driven, sin tick
+        // OVEJA ROSA — event-driven, dispara una sola vez por interacción
         UseEntityCallback.EVENT.register((player, world, hand, entity, hitResult) -> {
             if (!world.isClient && entity instanceof SheepEntity sheep && sheep.getColor() == DyeColor.PINK) {
                 AchievementClient.sendEvent(player.getUuidAsString(), "pink_sheep_found", 1);
             }
             return ActionResult.PASS;
         });
-    }
 
-    public static void onNetherBedExplosion(ServerPlayerEntity player) {
-        if (player.getWorld().getRegistryKey() == World.NETHER) {
-            AchievementClient.sendEvent(player.getUuidAsString(), "nether_bed_explosion", 1);
-        }
+        // PASTEL CERCA DE JUGADORES — event-driven via UseItem (cuando el jugador usa el pastel)
+        UseItemCallback.EVENT.register((player, world, hand) -> {
+            if (!world.isClient && player instanceof ServerPlayerEntity serverPlayer) {
+                net.minecraft.item.ItemStack stack = player.getStackInHand(hand);
+                if (stack.getItem().getTranslationKey().contains("cake")) {
+                    MinecraftServer server = serverPlayer.getServer();
+                    if (server != null) {
+                        int nearbyCount = (int) server.getPlayerManager().getPlayerList().stream()
+                            .filter(p -> p != serverPlayer && p.getPos().distanceTo(serverPlayer.getPos()) < 8.0)
+                            .count();
+                        MemeLogic.onCakeHeldNearPlayers(serverPlayer, nearbyCount);
+                    }
+                }
+            }
+            return TypedActionResult.pass(player.getStackInHand(hand));
+        });
     }
 }

@@ -15,7 +15,6 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(ServerPlayerEntity.class)
 public abstract class ServerPlayerEntityMixin {
-    private int tickCounter = 0;
 
     @Inject(method = "onDeath", at = @At("HEAD"))
     private void onPlayerDeath(DamageSource source, CallbackInfo ci) {
@@ -33,23 +32,8 @@ public abstract class ServerPlayerEntityMixin {
 
     @Inject(method = "tick", at = @At("TAIL"))
     private void onTick(CallbackInfo ci) {
-        ServerPlayerEntity player = (ServerPlayerEntity) (Object) this;
-        
-        PlayerLogic.checkPhysicalAchievements(player);
-
-        tickCounter++;
-        if (tickCounter >= 100 && MineBridge.getServer() != null) {
-            tickCounter = 0;
-            MineBridge.getBackendClient().notifyPlayerState(
-                player.getName().getString(),
-                player.getHealth(),
-                player.getHungerManager().getFoodLevel(),
-                player.getX(),
-                player.getY(),
-                player.getZ(),
-                player.getWorld().getRegistryKey().getValue().toString()
-            );
-        }
+        // El tracking de estado ahora es event-driven (JOIN/LEAVE).
+        // No enviamos posición/salud cada 5 segundos para ahorrar red y CPU.
     }
 
     @Inject(method = "damage", at = @At("TAIL"))

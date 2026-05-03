@@ -33,18 +33,29 @@ public class PlayerLogic {
         // DESCONEXIÓN
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
             ServerPlayerEntity player = handler.getPlayer();
-            AchievementClient.sendChatMessage(player.getUuidAsString(), player.getName().getString(), "ha salido.", "leave");
-            // Limpiar tracking de posición/estado para este jugador
+            String uuid = player.getUuidAsString();
+            AchievementClient.sendChatMessage(uuid, player.getName().getString(), "ha salido.", "leave");
+            
+            // Limpiar y enviar acumulados pendientes
             com.lider.minebridge.events.modules.AchievementDetectors.onPlayerLeave(player);
+            com.lider.minebridge.events.blocks.BlockLogic.onPlayerLeave(uuid);
+            com.lider.minebridge.events.combat.CombatLogic.onPlayerLeave(uuid);
         });
 
-        // DETECCIÓN DE MOVIMIENTO PARA LOGROS DE ALTURA/ESTADO
-        // Corre 1 vez cada 40 ticks (2 segundos) POR JUGADOR — no cada tick
+        // DETECCIÓN DE ESTADOS PARA LOGROS (Altura, XP, etc.)
+        // Corre 1 vez cada 40 ticks (2 segundos) POR JUGADOR
         final java.util.concurrent.atomic.AtomicInteger tickCounter = new java.util.concurrent.atomic.AtomicInteger(0);
         net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents.END_SERVER_TICK.register(server -> {
             if (tickCounter.incrementAndGet() % 40 == 0) {
                 for (ServerPlayerEntity p : server.getPlayerManager().getPlayerList()) {
+                    // Verificaciones de movimiento/altura
                     com.lider.minebridge.events.modules.AchievementDetectors.onPlayerMove(p);
+                    
+                    // Verificación de XP (Logro de nivel 100)
+                    String uuid = p.getUuidAsString();
+                    if (p.experienceLevel >= 100 && sessionUnlocked.add(uuid + "_xp100")) {
+                        AchievementClient.sendEvent(uuid, "xp_level", 100);
+                    }
                 }
             }
         });
@@ -110,13 +121,7 @@ public class PlayerLogic {
     }
 
     public static void checkPhysicalAchievements(ServerPlayerEntity player) {
-        String uuid = player.getUuidAsString();
-        if (player.getY() >= 319 && sessionUnlocked.add(uuid + "_height")) {
-            AchievementClient.sendEvent(uuid, "max_height_reached", 1);
-        }
-        if (player.experienceLevel >= 100 && sessionUnlocked.add(uuid + "_xp100")) {
-            AchievementClient.sendEvent(uuid, "xp_level", 100);
-        }
+        // Desactivado — ahora se maneja en el tick de 2 segundos (ServerTickEvents)
     }
 
     public static void onPlayerDamage(ServerPlayerEntity player, float amount, boolean isFallDamage) {
