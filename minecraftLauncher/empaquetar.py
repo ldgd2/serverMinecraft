@@ -1,108 +1,183 @@
 """
 EMPAQUETADOR UNIFICADO — Minecraft Launcher + App Flutter
 =========================================================
-• Instala automáticamente las dependencias antes de compilar
-• Incrementa la versión automáticamente
+• Instala dependencias automáticamente antes de compilar
+• Incrementa la versión automáticamente en core/info.py y pubspec.yaml
 • Compila el ejecutable (PyInstaller) y/o el APK (flutter build apk)
-• Copia los artefactos a server/static/versions/{platform}/{version}/
-• Actualiza el puntero en server/static/versions.json
-• NO hace operaciones de git (eso queda a cargo del usuario)
+• Sube el binario al backend vía POST /api/v1/updates/upload/{platform}/{version}
+  → El servidor guarda el archivo y actualiza el puntero automáticamente
+• NO toca git, NO copia nada localmente al servidor
 """
 import os
 import re
 import sys
-import shutil
-import json
 import subprocess
 
-# ── Rutas ────────────────────────────────────────────────────────────────────
+# ── Rutas locales ─────────────────────────────────────────────────────────────
 LAUNCHER_DIR  = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT  = os.path.abspath(os.path.join(LAUNCHER_DIR, '..'))
 APP_DIR       = os.path.join(PROJECT_ROOT, 'appserve')
-VERSIONS_DIR  = os.path.join(PROJECT_ROOT, 'server', 'static', 'versions')
-VERSIONS_JSON = os.path.join(PROJECT_ROOT, 'server', 'static', 'versions.json')
-
 LAUNCHER_INFO = os.path.join(LAUNCHER_DIR, 'core', 'info.py')
 LAUNCHER_SPEC = os.path.join(LAUNCHER_DIR, 'main.spec')
 LAUNCHER_REQS = os.path.join(LAUNCHER_DIR, 'requirements.txt')
 APP_PUBSPEC   = os.path.join(APP_DIR, 'pubspec.yaml')
 
-# ── Instalación de dependencias ───────────────────────────────────────────────
+# ── Config de API (se pide al inicio si no está configurada) ──────────────────
+_API_CFG_FILE = os.path.join(LAUNCHER_DIR, '.packager_config')
+
+def _load_api_config() -> dict:
+    cfg = {}
+    if os.path.exists(_API_CFG_FILE):
+        for line in open(_API_CFG_FILE).readlines():
+            if '=' in line:
+                k, v = line.strip().split('=', 1)
+                cfg[k] = v
+    return cfg
+
+def _save_api_config(cfg: dict):
+    with open(_API_CFG_FILE, 'w') as f:
+        for k, v in cfg.items():
+            f.write(f"{k}={v}\n")
+
+def _get_api_config() -> dict:
+    """Carga o solicita la URL del backend y credenciales admin."""
+    cfg = _load_api_config()
+    changed = False
+
+    if not cfg.get('api_url'):
+        print("\n  ┌─ Configuración del backend ─────────────────────────")
+        print("  │ Primera vez: ingresa la URL base del servidor.")
+        print("  │ Ejemplo: http://vps.tudominio.com:8000")
+        cfg['api_url'] = input("  │ API URL: ").strip().rstrip('/')
+        changed = True
+
+    if not cfg.get('username'):
+        cfg['username'] = input("  │ Usuario admin: ").strip()
+        changed = True
+
+    if not cfg.get('password'):
+        import getpass
+        cfg['password'] = getpass.getpass("  │ Contraseña: ")
+        changed = True
+
+    if changed:
+        save = input("  └ ¿Guardar credenciales para próximas veces? [s/N]: ").strip().lower()
+        if save in ('s', 'si', 'y', 'yes'):
+            _save_api_config(cfg)
+            print("  [✓] Guardado en .packager_config (no lo subas a git)")
+
+    return cfg
+
+def _get_token(cfg: dict) -> str:
+    """Obtiene JWT token del backend."""
+    import urllib.request, urllib.error, json
+    url = f"{cfg['api_url']}/api/v1/auth/login"
+    payload = json.dumps({"username": cfg['username'], "password": cfg['password']}).encode()
+    req = urllib.request.Request(url, data=payload,
+                                 headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=15) as r:
+            data = json.loads(r.read())
+            token = data.get('access_token') or data.get('token')
+            if not token:
+                raise RuntimeError(f"Respuesta inesperada: {data}")
+            return token
+    except urllib.error.HTTPError as e:
+        raise RuntimeError(f"Login falló ({e.code}): {e.read().decode()}")
+
+def _upload_binary(cfg: dict, token: str, platform: str, version: str, filepath: str):
+    """Sube el binario al backend vía multipart/form-data con urllib."""
+    import urllib.request, urllib.error
+    import mimetypes, uuid
+
+    url = f"{cfg['api_url']}/api/v1/updates/upload/{platform}/{version}"
+    filename = os.path.basename(filepath)
+    file_size = os.path.getsize(filepath) / 1_048_576
+
+    print(f"  [>] Subiendo {filename} ({file_size:.1f} MB) → {url}")
+
+    boundary = uuid.uuid4().hex
+    ctype, _ = mimetypes.guess_type(filepath)
+    ctype = ctype or 'application/octet-stream'
+
+    with open(filepath, 'rb') as f:
+        file_data = f.read()
+
+    body = (
+        f"--{boundary}\r\n"
+        f'Content-Disposition: form-data; name="file"; filename="{filename}"\r\n'
+        f"Content-Type: {ctype}\r\n\r\n"
+    ).encode() + file_data + f"\r\n--{boundary}--\r\n".encode()
+
+    req = urllib.request.Request(
+        url, data=body,
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type":  f"multipart/form-data; boundary={boundary}",
+        },
+        method="POST"
+    )
+
+    try:
+        with urllib.request.urlopen(req, timeout=300) as r:
+            import json
+            resp = json.loads(r.read())
+            print(f"  [✓] {resp.get('message', 'Subido OK')}")
+            return resp
+    except urllib.error.HTTPError as e:
+        body_err = e.read().decode()
+        raise RuntimeError(f"Upload falló ({e.code}): {body_err}")
+
+# ── Dependencias ─────────────────────────────────────────────────────────────
 
 def _install_launcher_deps():
-    """Instala requirements.txt del launcher en el Python actual (pip install -r)."""
     print("  [>] Verificando dependencias del launcher...")
     if not os.path.exists(LAUNCHER_REQS):
-        print(f"  [!] No se encontró {LAUNCHER_REQS}. Saltando.")
-        return
+        print("  [!] No se encontró requirements.txt. Saltando."); return
     result = subprocess.run(
         [sys.executable, "-m", "pip", "install", "-r", LAUNCHER_REQS, "--quiet"],
         cwd=LAUNCHER_DIR
     )
     if result.returncode != 0:
-        print("  [X] pip install falló. Instala las dependencias manualmente:")
-        print(f"      pip install -r {LAUNCHER_REQS}")
+        print(f"  [X] pip install falló. Ejecuta: pip install -r {LAUNCHER_REQS}")
         sys.exit(1)
-    print("  [✓] Dependencias del launcher OK")
+    print("  [✓] Dependencias OK")
 
 def _check_flutter():
-    """Verifica que flutter esté disponible en PATH (usa shell=True en Windows)."""
     print("  [>] Verificando Flutter...")
-    result = subprocess.run(
-        "flutter --version",
-        capture_output=True, text=True, shell=True
-    )
+    result = subprocess.run("flutter --version", capture_output=True, text=True, shell=True)
     if result.returncode != 0:
         print("  [X] Flutter no encontrado en PATH. Instálalo desde https://flutter.dev")
-        print(f"      Asegúrate de que 'flutter' esté en tu variable PATH.")
         sys.exit(1)
-    first_line = result.stdout.strip().splitlines()[0] if result.stdout else "?"
-    print(f"  [✓] {first_line}")
+    first = result.stdout.strip().splitlines()[0] if result.stdout else "?"
+    print(f"  [✓] {first}")
 
+# ── Versiones ─────────────────────────────────────────────────────────────────
 
 def _bump(version: str, tipo: str) -> str:
     parts = [int(x) for x in version.split('.')]
-    if tipo == '1':   # Grande
-        parts[0] += 1; parts[1:] = [0] * len(parts[1:])
-    elif tipo == '2': # Mediana
-        parts[1] += 1; parts[2:] = [0] * len(parts[2:])
-    elif tipo == '3': # Parche
-        parts[-1] += 1
-    # '4' = mantener
+    if tipo == '1':   parts[0] += 1; parts[1:] = [0] * len(parts[1:])
+    elif tipo == '2': parts[1] += 1; parts[2:] = [0] * len(parts[2:])
+    elif tipo == '3': parts[-1] += 1
     return '.'.join(str(p) for p in parts)
 
 def _ask_bump(current: str) -> tuple[str, str]:
-    """Pregunta tipo de bump. Devuelve (nueva_versión, tipo_label)."""
     print(f"\n  Versión actual: {current}")
-    print("  [1] Grande   (X.0.0  — resetea todo)")
-    print("  [2] Mediana  (x.Y.0  — resetea parche)")
+    print("  [1] Grande   (X.0.0)")
+    print("  [2] Mediana  (x.Y.0)")
     print("  [3] Parche   (x.y.Z)")
-    print("  [4] Mantener (misma versión)")
+    print("  [4] Mantener")
     choice = input("  Selecciona [1-4]: ").strip()
     labels = {'1': 'GRANDE', '2': 'MEDIANA', '3': 'PARCHE', '4': 'MANTENER'}
     if choice not in labels:
-        print("  [X] Opción inválida"); sys.exit(1)
+        print("  [X] Inválido"); sys.exit(1)
     return _bump(current, choice), labels[choice]
-
-# ── Gestión de versions.json ──────────────────────────────────────────────────
-
-def _load_json() -> dict:
-    if os.path.exists(VERSIONS_JSON):
-        with open(VERSIONS_JSON) as f:
-            return json.load(f)
-    return {}
-
-def _save_json(data: dict):
-    os.makedirs(os.path.dirname(VERSIONS_JSON), exist_ok=True)
-    with open(VERSIONS_JSON, 'w') as f:
-        json.dump(data, f, indent=2)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # LAUNCHER
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def _launcher_current_version() -> tuple[str, str]:
-    """Lee VERSION desde core/info.py. Retorna (version, contenido_raw)."""
     with open(LAUNCHER_INFO, encoding='utf-8') as f:
         content = f.read()
     m = re.search(r"VERSION\s*=\s*'([^']+)'", content)
@@ -111,160 +186,109 @@ def _launcher_current_version() -> tuple[str, str]:
     return m.group(1), content
 
 def _launcher_save_version(content: str, old_v: str, new_v: str):
-    """Actualiza VERSION en core/info.py y main.spec."""
-    new_info = content.replace(f"VERSION = '{old_v}'", f"VERSION = '{new_v}'")
     with open(LAUNCHER_INFO, 'w', encoding='utf-8') as f:
-        f.write(new_info)
+        f.write(content.replace(f"VERSION = '{old_v}'", f"VERSION = '{new_v}'"))
     if os.path.exists(LAUNCHER_SPEC):
         with open(LAUNCHER_SPEC, encoding='utf-8') as f:
             spec = f.read()
         with open(LAUNCHER_SPEC, 'w', encoding='utf-8') as f:
             f.write(spec.replace(f"VERSION = '{old_v}'", f"VERSION = '{new_v}'"))
-    print(f"  [✓] core/info.py  →  VERSION = '{new_v}'")
+    print(f"  [✓] core/info.py → VERSION = '{new_v}'")
 
-def _launcher_compile(new_version: str):
-    """Compila el .exe con PyInstaller."""
-    exe_name = f"MinecraftLauncher_v{new_version}.exe"
+def _launcher_compile(version: str) -> str:
+    exe_name = f"MinecraftLauncher_v{version}.exe"
     print(f"\n  [>] PyInstaller → {exe_name}")
     env = os.environ.copy()
-    env["BUILD_VERSION"] = new_version
+    env["BUILD_VERSION"] = version
     proc = subprocess.Popen(
         [sys.executable, "-m", "PyInstaller", LAUNCHER_SPEC, "-y"],
         cwd=LAUNCHER_DIR, env=env
     )
     if proc.wait() != 0:
-        print("  [X] PyInstaller falló. La versión NO se ha guardado."); sys.exit(1)
+        print("  [X] PyInstaller falló. Versión NO guardada."); sys.exit(1)
     return exe_name
 
-def _launcher_copy(exe_name: str, version: str):
-    """Copia el exe a server/static/versions/launcher/{version}/launcher.exe"""
-    src = os.path.join(LAUNCHER_DIR, 'dist', exe_name)
-    if not os.path.exists(src):
-        print(f"  [!] No encontrado: {src}"); return False
-    dest_dir = os.path.join(VERSIONS_DIR, 'launcher', version)
-    os.makedirs(dest_dir, exist_ok=True)
-    dest = os.path.join(dest_dir, 'launcher.exe')
-    shutil.copy2(src, dest)
-    size_mb = os.path.getsize(dest) / 1_048_576
-    print(f"  [✓] Copiado → versions/launcher/{version}/launcher.exe  ({size_mb:.1f} MB)")
-    return True
-
-def build_launcher():
+def build_launcher(cfg: dict, token: str):
     print("\n╔══════════════════════════════════════╗")
     print("║        COMPILAR LAUNCHER             ║")
     print("╚══════════════════════════════════════╝")
     current, content = _launcher_current_version()
     new_v, label = _ask_bump(current)
-    print(f"\n  → Versión: {current}  →  {new_v}  [{label}]")
-    confirm = input("  ¿Continuar? [s/N]: ").strip().lower()
-    if confirm not in ('s', 'si', 'y', 'yes'):
+    print(f"\n  → {current}  →  {new_v}  [{label}]")
+    if input("  ¿Continuar? [s/N]: ").strip().lower() not in ('s', 'si', 'y', 'yes'):
         print("  Cancelado."); return
 
-    # 1. Guardar versión ANTES de compilar (info.py la lee en runtime)
     if new_v != current:
         _launcher_save_version(content, current, new_v)
 
-    # 2. Instalar dependencias
     _install_launcher_deps()
-
-    # 3. Compilar
     exe_name = _launcher_compile(new_v)
 
-    # 3. Copiar a versiones
-    ok = _launcher_copy(exe_name, new_v)
+    exe_path = os.path.join(LAUNCHER_DIR, 'dist', exe_name)
+    if not os.path.exists(exe_path):
+        print(f"  [X] No se encontró el exe: {exe_path}"); return
 
-    # 4. Actualizar puntero JSON
-    if ok:
-        data = _load_json()
-        data['launcher'] = new_v
-        _save_json(data)
-        print(f"  [✓] versions.json  →  launcher: {new_v}")
-
-    print(f"\n  ✅ Launcher v{new_v} listo.")
-    print(f"     Archivo: dist/{exe_name}")
-    print(f"     Servidor: server/static/versions/launcher/{new_v}/launcher.exe")
-    print(f"\n     Para publicar en el VPS:")
-    print(f"       git push → git pull en VPS → mine.py opción 17 → launcher → {new_v}")
+    print("\n  [>] Publicando en el servidor...")
+    try:
+        _upload_binary(cfg, token, "launcher", new_v, exe_path)
+        print(f"\n  ✅ Launcher v{new_v} publicado en el servidor.")
+        print(f"     Los usuarios recibirán la actualización automáticamente.")
+    except RuntimeError as e:
+        print(f"\n  [X] Error al subir: {e}")
+        print(f"     El exe está en: dist/{exe_name}")
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # APP FLUTTER
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def _app_current_version() -> tuple[str, int, str]:
-    """Lee versión del pubspec.yaml. Retorna (semver, build_number, contenido_raw)."""
     with open(APP_PUBSPEC, encoding='utf-8') as f:
         content = f.read()
     m = re.search(r'^version:\s*(\d+\.\d+\.\d+)\+(\d+)', content, re.MULTILINE)
     if not m:
-        print(f"[X] No se encontró 'version: X.Y.Z+N' en {APP_PUBSPEC}"); sys.exit(1)
+        print(f"[X] No se encontró version en {APP_PUBSPEC}"); sys.exit(1)
     return m.group(1), int(m.group(2)), content
 
-def _app_save_version(content: str, old_semver: str, old_build: int,
-                      new_semver: str, new_build: int):
-    """Actualiza version en pubspec.yaml."""
-    old_str = f"version: {old_semver}+{old_build}"
-    new_str = f"version: {new_semver}+{new_build}"
+def _app_save_version(content: str, old_s: str, old_b: int, new_s: str, new_b: int):
     with open(APP_PUBSPEC, 'w', encoding='utf-8') as f:
-        f.write(content.replace(old_str, new_str))
-    print(f"  [✓] pubspec.yaml  →  version: {new_semver}+{new_build}")
+        f.write(content.replace(f"version: {old_s}+{old_b}", f"version: {new_s}+{new_b}"))
+    print(f"  [✓] pubspec.yaml → version: {new_s}+{new_b}")
 
 def _app_compile():
-    """Compila el APK de release con flutter (shell=True para Windows)."""
     print(f"\n  [>] flutter build apk --release")
-    proc = subprocess.Popen(
-        "flutter build apk --release",
-        cwd=APP_DIR, shell=True
-    )
+    proc = subprocess.Popen("flutter build apk --release", cwd=APP_DIR, shell=True)
     if proc.wait() != 0:
-        print("  [X] Flutter build falló. La versión NO se ha guardado."); sys.exit(1)
+        print("  [X] Flutter build falló. Versión NO guardada."); sys.exit(1)
 
-def _app_copy(version: str):
-    """Copia el APK compilado a server/static/versions/app/{version}/app.apk"""
-    src = os.path.join(APP_DIR, 'build', 'app', 'outputs', 'flutter-apk', 'app-release.apk')
-    if not os.path.exists(src):
-        print(f"  [!] No encontrado: {src}"); return False
-    dest_dir = os.path.join(VERSIONS_DIR, 'app', version)
-    os.makedirs(dest_dir, exist_ok=True)
-    dest = os.path.join(dest_dir, 'app.apk')
-    shutil.copy2(src, dest)
-    size_mb = os.path.getsize(dest) / 1_048_576
-    print(f"  [✓] Copiado → versions/app/{version}/app.apk  ({size_mb:.1f} MB)")
-    return True
-
-def build_app():
+def build_app(cfg: dict, token: str):
     print("\n╔══════════════════════════════════════╗")
     print("║        COMPILAR APP FLUTTER          ║")
     print("╚══════════════════════════════════════╝")
     current, build_num, content = _app_current_version()
     new_v, label = _ask_bump(current)
     new_build = build_num + 1
-    print(f"\n  → Versión: {current}+{build_num}  →  {new_v}+{new_build}  [{label}]")
-    confirm = input("  ¿Continuar? [s/N]: ").strip().lower()
-    if confirm not in ('s', 'si', 'y', 'yes'):
+    print(f"\n  → {current}+{build_num}  →  {new_v}+{new_build}  [{label}]")
+    if input("  ¿Continuar? [s/N]: ").strip().lower() not in ('s', 'si', 'y', 'yes'):
         print("  Cancelado."); return
 
-    # 1. Guardar versión
     if new_v != current or new_build != build_num:
         _app_save_version(content, current, build_num, new_v, new_build)
 
-    # 2. Verificar Flutter y compilar
     _check_flutter()
     _app_compile()
 
-    # 3. Copiar a versiones
-    ok = _app_copy(new_v)
+    apk_path = os.path.join(APP_DIR, 'build', 'app', 'outputs', 'flutter-apk', 'app-release.apk')
+    if not os.path.exists(apk_path):
+        print(f"  [X] No se encontró el APK: {apk_path}"); return
 
-    # 4. Actualizar puntero JSON
-    if ok:
-        data = _load_json()
-        data['app'] = new_v
-        _save_json(data)
-        print(f"  [✓] versions.json  →  app: {new_v}")
-
-    print(f"\n  ✅ App Flutter v{new_v} lista.")
-    print(f"     Servidor: server/static/versions/app/{new_v}/app.apk")
-    print(f"\n     Para publicar en el VPS:")
-    print(f"       git push → git pull en VPS → mine.py opción 17 → app → {new_v}")
+    print("\n  [>] Publicando en el servidor...")
+    try:
+        _upload_binary(cfg, token, "app", new_v, apk_path)
+        print(f"\n  ✅ App Flutter v{new_v} publicada en el servidor.")
+        print(f"     Los usuarios recibirán la actualización automáticamente.")
+    except RuntimeError as e:
+        print(f"\n  [X] Error al subir: {e}")
+        print(f"     El APK está en: {apk_path}")
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # MENÚ PRINCIPAL
@@ -275,20 +299,18 @@ def main():
     print("║   EMPAQUETADOR MINECRAFT MANAGER SUITE  ║")
     print("╚══════════════════════════════════════════╝")
 
-    # ── Preflight: mostrar versiones actuales ────────────────────────────────
+    # Versiones actuales
     print("\n  ── Estado actual ──────────────────────────")
     try:
-        launcher_v, _ = _launcher_current_version()
-        print(f"  Launcher : v{launcher_v}  (core/info.py)")
+        lv, _ = _launcher_current_version()
+        print(f"  Launcher : v{lv}  (core/info.py)")
     except Exception:
-        launcher_v = "???"
-        print(f"  Launcher : [no encontrado]")
+        print("  Launcher : [no encontrado]")
     try:
-        app_v, app_b, _ = _app_current_version()
-        print(f"  App      : v{app_v}+{app_b}  (pubspec.yaml)")
+        av, ab, _ = _app_current_version()
+        print(f"  App      : v{av}+{ab}  (pubspec.yaml)")
     except Exception:
-        app_v = "???"
-        print(f"  App      : [no encontrado]")
+        print("  App      : [no encontrado]")
     print("  ────────────────────────────────────────────")
 
     print("\n  ¿Qué deseas compilar?")
@@ -298,22 +320,31 @@ def main():
     print("  [0] Cancelar")
 
     choice = input("\n  Selecciona [0-3]: ").strip()
-
     if choice == '0':
         print("\n  Cancelado."); sys.exit(0)
-    elif choice == '1':
-        build_launcher()
-    elif choice == '2':
-        build_app()
-    elif choice == '3':
-        build_launcher()
-        build_app()
-    else:
+    if choice not in ('1', '2', '3'):
         print("  [X] Opción inválida"); sys.exit(1)
 
+    # Autenticar contra el backend
+    print("\n  ── Conexión con el servidor ─────────────────")
+    cfg   = _get_api_config()
+    print(f"  [>] Autenticando en {cfg['api_url']}...")
+    try:
+        token = _get_token(cfg)
+        print("  [✓] Autenticado correctamente")
+    except RuntimeError as e:
+        print(f"  [X] No se pudo autenticar: {e}")
+        # Limpiar credenciales guardadas si falla
+        cfg.pop('password', None)
+        sys.exit(1)
+
+    if choice in ('1', '3'):
+        build_launcher(cfg, token)
+    if choice in ('2', '3'):
+        build_app(cfg, token)
+
     print("\n  ══════════════════════════════════════")
-    print("  Archivos listos en server/static/versions/")
-    print("  Haz git push y en el VPS: git pull + mine.py opción 17")
+    print("  ¡Listo! El servidor ya sirve la nueva versión.")
     print("  ══════════════════════════════════════")
 
 if __name__ == '__main__':
@@ -325,5 +356,3 @@ if __name__ == '__main__':
     except Exception as e:
         print(f"\n  [X] Error fatal: {e}")
         raise
-
-
