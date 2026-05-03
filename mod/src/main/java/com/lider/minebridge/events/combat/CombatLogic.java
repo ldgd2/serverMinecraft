@@ -11,12 +11,15 @@ public class CombatLogic {
     private static final ConcurrentHashMap<String, Integer> totalKillsStart = new ConcurrentHashMap<>();
     private static final ConcurrentHashMap<String, Integer> totemsUsedSession = new ConcurrentHashMap<>();
 
+    public static void init() {
+        // Inicialización requerida por ServerEvents
+    }
+
     public static void setInitialStats(String uuid, int total) {
         totalKillsStart.put(uuid, total);
     }
 
     public static void onEntityKill(String playerUuid, String victimId) {
-        // 1. BOSSES Y ESPECIALES
         if (victimId.contains("ender_dragon")) {
             AchievementClient.sendEvent(playerUuid, "dragon_killed_by_bed", 1);
             com.lider.minebridge.events.player.PlayerLogic.onBossKilled(playerUuid);
@@ -24,16 +27,11 @@ public class CombatLogic {
         if (victimId.contains("wither") && !victimId.contains("skeleton")) {
             com.lider.minebridge.events.player.PlayerLogic.onBossKilled(playerUuid);
         }
-        
-        if (victimId.contains("ghast")) {
-            AchievementClient.sendEvent(playerUuid, "ghast_fireball_kill", 1);
-        }
-
+        if (victimId.contains("ghast")) AchievementClient.sendEvent(playerUuid, "ghast_fireball_kill", 1);
         if (victimId.contains("axolotl")) AchievementClient.sendEvent(playerUuid, "kill_axolotl", 1);
         if (victimId.contains("villager")) AchievementClient.sendEvent(playerUuid, "kill_villager", 1);
         if (victimId.contains("warden")) AchievementClient.sendEvent(playerUuid, "kill_warden", 1);
 
-        // 2. TOTALES Y RACHAS
         int sessionKills = totalKillsSession.merge(playerUuid, 1, Integer::sum);
         int totalKills = totalKillsStart.getOrDefault(playerUuid, 0) + sessionKills;
         
@@ -59,17 +57,13 @@ public class CombatLogic {
     }
 
     public static void onSkeletonSnipe(String playerUuid, double distance) {
-        if (distance >= 50.0) {
-            AchievementClient.sendEvent(playerUuid, "skeleton_snipe_distance", 1);
-        }
+        if (distance >= 50.0) AchievementClient.sendEvent(playerUuid, "skeleton_snipe_distance", 1);
     }
 
     public static void onPlayerAttack(ServerPlayerEntity player, net.minecraft.entity.Entity victim) {
         String uuid = player.getUuidAsString();
         String vId = Registries.ENTITY_TYPE.getId(victim.getType()).getPath();
-        if (vId.contains("warden") && player.getMainHandStack().isEmpty()) {
-            AchievementClient.sendEvent(uuid, "punch_warden", 1);
-        }
+        if (vId.contains("warden") && player.getMainHandStack().isEmpty()) AchievementClient.sendEvent(uuid, "punch_warden", 1);
     }
 
     public static void onTotemUsed(String playerUuid) {

@@ -39,8 +39,7 @@ public abstract class ServerPlayerEntityMixin {
     @Inject(method = "damage", at = @At("TAIL"))
     private void onDamage(DamageSource source, float amount, CallbackInfoReturnable<Boolean> cir) {
         ServerPlayerEntity player = (ServerPlayerEntity) (Object) this;
-        // En 1.21 DamageSource es complejo, usaremos un check simple
-        PlayerLogic.onPlayerDamage(player, amount, source.getName().equals("fall"));
+        PlayerLogic.onPlayerDamage(player, source);
     }
 
     @Inject(method = "dropItem", at = @At("RETURN"))

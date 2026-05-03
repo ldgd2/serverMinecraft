@@ -134,13 +134,16 @@ public class BlockLogic {
                 // 2. Cofres (Aldea y Tesoro)
                 if (block == net.minecraft.block.Blocks.CHEST) {
                     net.minecraft.server.world.ServerWorld sw = (net.minecraft.server.world.ServerWorld) world;
+                    net.minecraft.util.math.BlockPos pos = hitResult.getBlockPos();
+                    
                     // Aldea
-                    if (sw.getStructureAccessor().getStructureAt(hitResult.getBlockPos(), net.minecraft.registry.tag.StructureTags.VILLAGE).isValid()) {
+                    if (sw.getStructureAccessor().getStructureContaining(pos, net.minecraft.registry.tag.StructureTags.VILLAGE).hasChildren()) {
                         AchievementClient.sendEvent(uuid, "loot_village_chest", 1);
                         AchievementClient.sendEvent(uuid, "PHILO_NECESSARY", 1);
                     }
-                    // Tesoro Enterrado
-                    if (sw.getStructureAccessor().getStructureAt(hitResult.getBlockPos(), net.minecraft.registry.tag.StructureTags.BURIED_TREASURE).isValid()) {
+                    
+                    // Tesoro Enterrado (Usamos el tag ON_TREASURE_MAPS)
+                    if (sw.getStructureAccessor().getStructureContaining(pos, net.minecraft.registry.tag.StructureTags.ON_TREASURE_MAPS).hasChildren()) {
                         AchievementClient.sendEvent(uuid, "buried_treasure_found", 1);
                         AchievementClient.sendEvent(uuid, "MEME_VIBORA", 1);
                     }

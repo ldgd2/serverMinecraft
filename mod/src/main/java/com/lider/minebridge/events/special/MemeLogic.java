@@ -84,7 +84,15 @@ public class MemeLogic {
         }
     }
 
-    /** Llamado cuando el jugador tiene pastel en mano y 5+ jugadores cerca. */
+    /** Llamado cuando el jugador muere por un cactus. */
+    public static void onCactusDeath(ServerPlayerEntity player) {
+        boolean fullNetherite = true;
+        for (net.minecraft.item.ItemStack stack : player.getArmorItems()) {
+            if (!stack.getItem().getTranslationKey().contains("netherite")) { fullNetherite = false; break; }
+        }
+        if (fullNetherite) AchievementClient.sendEvent(player.getUuidAsString(), "CACTUS_FAIL", 1);
+    }
+
     public static void onCakeHeldNearPlayers(ServerPlayerEntity player, int nearbyCount) {
         if (nearbyCount >= 5 && sessionUnlocked.add(player.getUuidAsString() + "_cake")) {
             AchievementClient.sendEvent(player.getUuidAsString(), "MEME_ANTOJEN", 1);
