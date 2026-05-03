@@ -39,6 +39,9 @@ public class AchievementDetectors {
         // 1. TIEMPO Y HORARIOS
         int seconds = playtimeSession.merge(uuid, 2, Integer::sum);
         AchievementClient.sendEvent(uuid, "playtime_seconds", 2);
+        if (seconds == 36000) AchievementClient.sendEvent(uuid, "TIME_1", 1);
+        if (seconds == 180000) AchievementClient.sendEvent(uuid, "PHILO_PURPOSE", 1);
+        if (seconds == 360000) AchievementClient.sendEvent(uuid, "TIME_3", 1);
 
         LocalTime time = LocalTime.now();
         if (time.getHour() >= 3 && time.getHour() <= 5) AchievementClient.sendEvent(uuid, "play_at_night", 1);
@@ -75,7 +78,7 @@ public class AchievementDetectors {
         }
         lastPos.put(uuid, currentPos);
 
-        // 4. ALTURA (EVEREST RESTAURADO)
+        // 4. ALTURA
         double y = player.getY();
         if (y >= 319) AchievementClient.sendEvent(uuid, "max_height_reached", 1);
 
@@ -87,7 +90,6 @@ public class AchievementDetectors {
             AchievementClient.sendEvent(uuid, "active_effects_count", 1);
         }
 
-        // OTROS
         if ((player.experienceLevel > 0 || player.experienceProgress > 0) && xpGainedSession.add(uuid)) {
             AchievementClient.sendEvent(uuid, "gain_first_xp", 1);
         }
@@ -103,6 +105,8 @@ public class AchievementDetectors {
         if (dist != null) stats.put("distance_travelled", dist);
         Integer time = playtimeSession.remove(uuid);
         if (time != null) stats.put("playtime_seconds", time);
+        Integer tamed = animalTamedSession.remove(uuid);
+        if (tamed != null) stats.put("animal_tamed", tamed);
         if (!stats.isEmpty()) AchievementClient.sendSessionSummary(uuid, stats);
         lastY.remove(uuid); lastPos.remove(uuid); lastMoveTime.remove(uuid);
         xpGainedSession.remove(uuid); nightSurvivors.remove(uuid);
@@ -118,11 +122,15 @@ public class AchievementDetectors {
             List<WolfEntity> wolves = player.getWorld().getEntitiesByClass(WolfEntity.class, player.getBoundingBox().expand(15.0), w -> w.isOwner(player));
             if (wolves.size() >= 5) AchievementClient.sendEvent(uuid, "tame_5_dogs", 1);
         }
+        animalTamedSession.merge(uuid, 1, Integer::sum);
     }
 
     public static void onPlayerSleep(ServerPlayerEntity player) {
         String uuid = player.getUuidAsString();
-        AchievementClient.sendEvent(uuid, "sleep_with_bad_omen", 1);
+        bedSleptSession.merge(uuid, 1, Integer::sum);
+        if (player.hasStatusEffect(net.minecraft.entity.effect.StatusEffects.BAD_OMEN)) {
+            AchievementClient.sendEvent(uuid, "sleep_with_bad_omen", 1);
+        }
     }
 
     public static void register() {
@@ -132,7 +140,6 @@ public class AchievementDetectors {
                 if (entity instanceof SheepEntity sheep && sheep.getColor() == DyeColor.PINK) {
                     AchievementClient.sendEvent(uuid, "pink_sheep_found", 1);
                 }
-                // TRADER
                 if (Registries.ENTITY_TYPE.getId(entity.getType()).getPath().contains("wandering_trader")) {
                     AchievementClient.sendEvent(uuid, "wandering_trader_trade", 1);
                 }
@@ -151,7 +158,6 @@ public class AchievementDetectors {
                         if (nearbyCount >= 5) AchievementClient.sendEvent(serverPlayer.getUuidAsString(), "hold_cake_near_players", 1);
                     }
                 }
-                // STEAK NEAR PLAYER
                 if (stack.getItem().getTranslationKey().contains("cooked_beef")) {
                     boolean near = player.getWorld().getPlayers().stream().anyMatch(p -> p != player && p.getPos().distanceTo(player.getPos()) < 5);
                     if (near) AchievementClient.sendEvent(serverPlayer.getUuidAsString(), "eat_steak_near_player", 1);

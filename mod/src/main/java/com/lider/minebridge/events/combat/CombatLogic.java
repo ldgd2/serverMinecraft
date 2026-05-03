@@ -26,8 +26,6 @@ public class CombatLogic {
         }
         
         if (victimId.contains("ghast")) {
-            // Nota: La detección de "bola de fuego devuelta" requiere Mixin o lógica de daño específica.
-            // Enviamos el evento para que cuente como kill técnica.
             AchievementClient.sendEvent(playerUuid, "ghast_fireball_kill", 1);
         }
 
@@ -57,12 +55,6 @@ public class CombatLogic {
         if (victimId.contains("zombie") || victimId.contains("skeleton") || victimId.contains("creeper") ||
             victimId.contains("blaze") || victimId.contains("spider") || victimId.contains("ghast")) {
             AchievementClient.sendEvent(playerUuid, "hostile_kills", 1);
-        }
-    }
-...
-    public static void onSkeletonSnipe(String playerUuid, double distance) {
-        if (distance >= 50.0) {
-            AchievementClient.sendEvent(playerUuid, "skeleton_snipe_distance", 1);
         }
     }
 
