@@ -25,6 +25,8 @@ class MinecraftProcess:
         self.current_players = 0
         self.player_manager = PlayerManager()
         self.recent_activity = [] # List of {type, user, reason, time}
+        self._last_stats_time = 0
+        self._last_stats = None
         
         # MasterBridge integration removed
         
@@ -784,6 +786,11 @@ class MinecraftProcess:
             self.log_subscribers.remove(q)
 
     def get_stats(self):
+        import time
+        current_time = time.time()
+        if self._last_stats and (current_time - self._last_stats_time) < 2.5:
+            return self._last_stats
+
         pid = self._get_pid()
         
         if not pid or not psutil.pid_exists(pid):
@@ -875,10 +882,15 @@ class MinecraftProcess:
             # (Removed)
 
             
+            self._last_stats = stats
+            self._last_stats_time = current_time
             return stats
         except psutil.NoSuchProcess:
             self._status = "OFFLINE"
-            return {"status": "OFFLINE", "cpu": 0, "ram": 0, "players": 0}
+            stats = {"status": "OFFLINE", "cpu": 0, "ram": 0, "players": 0}
+            self._last_stats = stats
+            self._last_stats_time = current_time
+            return stats
 
     def _find_pid_by_scanning(self):
         try:
