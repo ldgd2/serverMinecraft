@@ -67,6 +67,27 @@ class AchievementProcessor:
         if ach:
             name = ach.name
             description = ach.description
+        else:
+            # Smart Humanizer para códigos técnicos del Mod
+            if ":" in achievement_id:
+                parts = achievement_id.split(":")
+                # Ejemplo: item_acquired:minecraft:emerald -> emerald
+                raw_name = parts[-1].replace("_", " ").title()
+                
+                if "item_acquired" in achievement_id:
+                    name = f"Obtención de {raw_name}"
+                    description = f"Has conseguido el objeto: {raw_name}"
+                elif "crop" in achievement_id:
+                    name = f"Cosecha de {raw_name}"
+                    description = f"Has recolectado: {raw_name}"
+                elif "kill" in achievement_id:
+                    name = f"Cazador de {raw_name}s"
+                    description = f"Has derrotado a un {raw_name}"
+                else:
+                    name = raw_name
+            else:
+                # Limpiar guiones bajos si no hay dos puntos
+                name = achievement_id.replace("_", " ").title()
 
         # 2. Verificar si ya existe
         exists = db.query(PlayerAchievement).filter(
@@ -113,16 +134,16 @@ class AchievementProcessor:
 
                     # 3. Notificar In-Game vía RCON (Cartelito y Sonido)
                     rcon_service.send_command(
-                        server.name,
-                        f'title {player.name} title {{"text":"🏆 Logro Obtenido!", "color":"gold", "bold":true}}'
+                        f'title {player.name} title {{"text":"🏆 Logro Obtenido!", "color":"gold", "bold":true}}',
+                        server_name=server.name
                     )
                     rcon_service.send_command(
-                        server.name,
-                        f'title {player.name} subtitle {{"text":"{name}", "color":"yellow"}}'
+                        f'title {player.name} subtitle {{"text":"{name}", "color":"yellow"}}',
+                        server_name=server.name
                     )
                     rcon_service.send_command(
-                        server.name,
-                        f'playsound minecraft:ui.toast.challenge_complete master {player.name}'
+                        f'playsound minecraft:ui.toast.challenge_complete master {player.name}',
+                        server_name=server.name
                     )
 
                     # 4. Notificar al Launcher (WebSocket Bridge manager)

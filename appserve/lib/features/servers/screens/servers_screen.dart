@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
@@ -15,22 +14,17 @@ class ServersScreen extends StatefulWidget {
 }
 
 class _ServersScreenState extends State<ServersScreen> {
-  Timer? _refreshTimer;
-
   @override
   void initState() {
     super.initState();
-    // Periodic refresh every 5 seconds to track creation/starting status
-    _refreshTimer = Timer.periodic(const Duration(seconds: 5), (_) {
-      if (mounted) {
-        context.read<ServerProvider>().loadServers();
-      }
+    // Load servers once on entry. Updates will come via WebSocket.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<ServerProvider>().loadServers();
     });
   }
 
   @override
   void dispose() {
-    _refreshTimer?.cancel();
     super.dispose();
   }
 
@@ -72,4 +66,3 @@ class _ServersScreenState extends State<ServersScreen> {
     );
   }
 }
-

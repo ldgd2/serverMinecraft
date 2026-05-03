@@ -76,8 +76,6 @@ public class PlayerLogic {
             AchievementClient.fetchPlayerStats(uuid);
 
             if ((System.currentTimeMillis() - serverStartTime) < 60000) AchievementClient.sendEvent(uuid, "join_after_restart", 1);
-            LocalDate now = LocalDate.now();
-            if (now.getMonthValue() == 5 && now.getDayOfMonth() == 3) AchievementClient.sendEvent(uuid, "join_on_anniversary", 1);
         });
 
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
@@ -89,7 +87,7 @@ public class PlayerLogic {
 
         final java.util.concurrent.atomic.AtomicInteger tickCounter = new java.util.concurrent.atomic.AtomicInteger(0);
         net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents.END_SERVER_TICK.register(server -> {
-            if (tickCounter.incrementAndGet() % 40 == 0) {
+            if (tickCounter.incrementAndGet() % 400 == 0) {
                 for (ServerPlayerEntity p : server.getPlayerManager().getPlayerList()) {
                     com.lider.minebridge.events.modules.AchievementDetectors.onPlayerMove(p);
                     if (p.experienceLevel >= 100) AchievementClient.sendEvent(p.getUuidAsString(), "xp_level", 100);

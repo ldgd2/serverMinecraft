@@ -975,7 +975,7 @@ class _PlayersTabState extends State<_PlayersTab> {
               )))
             else
               ...sp.onlinePlayers.map((p) {
-                final playerData = p is Map ? p : {'username': p.toString()};
+                final playerData = p;
                 final username = playerData['username'] ?? p.toString();
                 return _PlayerListItem(
                   player: playerData,
@@ -996,7 +996,7 @@ class _PlayersTabState extends State<_PlayersTab> {
               )))
             else
               ...sp.bannedUsers.map((p) {
-                final playerData = p is Map ? p : {'username': p.toString()};
+                final playerData = p;
                 final username = playerData['username'] ?? playerData['name'] ?? p.toString();
                 return _PlayerListItem(
                   player: playerData,

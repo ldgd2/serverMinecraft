@@ -37,42 +37,23 @@ public class AchievementDetectors {
         long now = System.currentTimeMillis();
 
         // 1. TIEMPO Y HORARIOS
-        int seconds = playtimeSession.merge(uuid, 2, Integer::sum);
-        AchievementClient.sendEvent(uuid, "playtime_seconds", 2);
-        if (seconds == 36000) AchievementClient.sendEvent(uuid, "TIME_1", 1);
-        if (seconds == 180000) AchievementClient.sendEvent(uuid, "PHILO_PURPOSE", 1);
-        if (seconds == 360000) AchievementClient.sendEvent(uuid, "TIME_3", 1);
-
-        LocalTime time = LocalTime.now();
-        if (time.getHour() >= 3 && time.getHour() <= 5) AchievementClient.sendEvent(uuid, "play_at_night", 1);
-        if (time.getHour() >= 6 && time.getHour() <= 8) AchievementClient.sendEvent(uuid, "play_at_dawn", 1);
-
-        // 2. AFK (1 hora)
-        net.minecraft.util.math.Vec3d prevPos = lastPos.get(uuid);
-        if (prevPos != null && currentPos.distanceTo(prevPos) < 0.1) {
-            long afkTime = now - lastMoveTime.getOrDefault(uuid, now);
-            if (afkTime >= 3600000 && sessionUnlocked.add(uuid + "_afk1h")) {
-                AchievementClient.sendEvent(uuid, "afk_seconds", 3600);
-            }
-        } else {
-            lastMoveTime.put(uuid, now);
-        }
+        int seconds = playtimeSession.merge(uuid, 20, Integer::sum);
+        if (seconds >= 36000 && sessionUnlocked.add(uuid + "_time_1")) AchievementClient.sendEvent(uuid, "TIME_1", 1);
+        if (seconds >= 180000 && sessionUnlocked.add(uuid + "_philo_purpose")) AchievementClient.sendEvent(uuid, "PHILO_PURPOSE", 1);
+        if (seconds >= 360000 && sessionUnlocked.add(uuid + "_time_3")) AchievementClient.sendEvent(uuid, "TIME_3", 1);
 
         // 3. DISTANCIA Y MONTURAS
+        net.minecraft.util.math.Vec3d prevPos = lastPos.get(uuid);
         if (prevPos != null) {
             double dist = currentPos.distanceTo(prevPos);
-            if (dist > 0.1) {
+            if (dist > 1.0) { 
                 int totalDist = distanceSession.merge(uuid, (int)dist, Integer::sum);
-                AchievementClient.sendEvent(uuid, "distance_travelled", (int)dist);
                 
                 if (totalDist >= 10000 && totalDist < 10100 && sessionUnlocked.add(uuid + "_dist10k")) AchievementClient.sendEvent(uuid, "DIST_1", 1);
                 if (totalDist >= 100000 && totalDist < 100500 && sessionUnlocked.add(uuid + "_dist100k")) AchievementClient.sendEvent(uuid, "DIST_2", 1);
 
                 if (player.getVehicle() != null) {
-                    AchievementClient.sendEvent(uuid, "distance_mounted", (int)dist);
-                    if (Registries.ENTITY_TYPE.getId(player.getVehicle().getType()).getPath().contains("strider") && player.isInLava()) {
-                        AchievementClient.sendEvent(uuid, "strider_lava_distance", (int)dist);
-                    }
+                    // Solo enviamos eventos de montura si son hitos (aquí podrías añadir umbrales si quisieras)
                 }
             }
         }

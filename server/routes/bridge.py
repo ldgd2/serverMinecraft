@@ -111,8 +111,17 @@ async def receive_event(event: dict, request: Request, user: User = Depends(veri
                 cache_player_join(server.name, player_name, player_uuid or "unknown", ip=player_ip)
             elif event_type == "leave":
                 cache_player_leave(server.name, player_name)
-                
     return {"status": "ok"}
+
+
+@router.post("/status/player")
+async def receive_player_status(event: dict, request: Request, user: User = Depends(verify_api_key)):
+    """
+    Endpoint usado por el Launcher para reportar que el jugador está activo,
+    su IP actual y su Skin.
+    """
+    # Reutilizamos la lógica de receive_event
+    return await receive_event(event, request, user)
 
 
 @router.post("/chat")

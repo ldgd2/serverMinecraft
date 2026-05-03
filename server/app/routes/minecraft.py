@@ -15,7 +15,7 @@ from app.services.minecraft.player_manager import PlayerManager
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/minecraft", tags=["minecraft-integration"])
+router = APIRouter(prefix="/minecraft", tags=["minecraft-integration"])
 
 # --- MODELOS ---
 
