@@ -265,46 +265,34 @@ def setup_skinrestorer_auto(server_name: str):
         # Our MineBridge mod already handles the injection on join.
         config["join"] = config.get("join", {})
         config["join"]["autoFetch"] = {
-            "enabled": False, # Disabled to avoid conflicts and "not found" errors
-            "provider": "MineManager"
+            "enabled": False, 
+            "provider": "mojang" # Set to default to avoid "not registered" warnings even if disabled
         }
         
-        # Ensure providers exist
+        # Super-Robust SkinRestorer Configuration (Fabric 1.21 Compatible)
+        # Ensure 'customProviders' is correctly structured as a map
+        if "customProviders" not in config:
+            config["customProviders"] = {}
+            
+        config["customProviders"]["MineManager"] = {
+            "type": "WEB",
+            "url": f"{app_url}/api/v1/players/skin/%s"
+        }
+
+        # Also ensure it's in the generic providers list for compatibility
         if "providers" not in config:
             config["providers"] = {}
+        
+        config["providers"]["MineManager"] = {
+            "enabled": True,
+            "type": "CUSTOM",
+            "customName": "MineManager"
+        }
         
         # Disable built-in providers to avoid redundant lookups
         for p in ["mojang", "ely_by", "mineskin"]:
             if p in config["providers"]:
                 config["providers"][p]["enabled"] = False
-        
-        # Super-Robust SkinRestorer Configuration (Fabric 1.21 Compatible)
-        if "providers" not in config:
-            config["providers"] = {}
-            
-        # 1. Direct entry in providers map
-        config["providers"]["MineManager"] = {
-            "enabled": True,
-            "type": "WEB",
-            "url": f"{app_url}/api/v1/players/skin/%s"
-        }
-
-        # 2. Map structure inside 'custom' (Specific for some Fabric versions)
-        config["providers"]["custom"] = {
-            "MineManager": {
-                "type": "WEB",
-                "url": f"{app_url}/api/v1/players/skin/%s"
-            }
-        }
-        
-        # 3. Root level customProviders (Alternative)
-        config["customProviders"] = [
-            {
-                "name": "MineManager",
-                "type": "WEB",
-                "url": f"{app_url}/api/v1/players/skin/%s"
-            }
-        ]
 
         # --- DATABASE SYNC: Force SkinRestorer to use our PostgreSQL ---
         try:
