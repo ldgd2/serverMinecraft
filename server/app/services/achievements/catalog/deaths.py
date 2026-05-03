@@ -72,6 +72,7 @@ DEATH_ACHIEVEMENTS = [
     # --- OTROS MOBS (UN TIERS) ---
     # ==========================================
     AchievementDefinition("DEATH_WARDEN", "Silencio eterno", "Muere por el Warden.", AchievementCategory.DEATH, {"death:entity.minecraft.warden": 1}),
+    AchievementDefinition("DEATH_WITHER_SKELETON", "Cenizas negras", "Muere por un Esqueleto Wither.", AchievementCategory.DEATH, {"death:entity.minecraft.wither_skeleton": 1}),
     AchievementDefinition("DEATH_DRAGON", "Cena de Dragon", "Muere por el Dragon del Fin.", AchievementCategory.DEATH, {"death:entity.minecraft.ender_dragon": 1}),
     AchievementDefinition("DEATH_WITHER", "Necrosis", "Muere por el Wither.", AchievementCategory.DEATH, {"death:entity.minecraft.wither": 1}),
     AchievementDefinition("DEATH_IRON_GOLEM", "Justicia de hierro", "Muere por un Iron Golem.", AchievementCategory.DEATH, {"death:entity.minecraft.iron_golem": 1}),

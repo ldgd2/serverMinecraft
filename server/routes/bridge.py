@@ -92,48 +92,19 @@ async def receive_event(event: dict, request: Request, user: User = Depends(veri
             server = db.query(Server).filter(Server.user_id == user.id).first()
             if not server: server = db.query(Server).first()
 
-        if server:
-            if event_type not in ["join", "leave"]:
-                msg = f"{player} {event_type.replace('_', ' ')}"
-                if event_type == "death" and event.get("cause"):
-                    msg = f"{player} murió por {event.get('cause')}"
-                await broadcaster.broadcast_chat(server.name, "System", msg, is_system=True)
-            
+        if server and event_type in ["join", "leave", "achievement"]:
             player_obj = PlayerService.get_player_by_name(db, server, player)
             if player_obj:
-                if event_type == "join":
-                    AchievementService.process_stat_update(db, player_obj, "login_count", 1)
-                    if not player_obj.detail:
-                        player_obj.detail = PlayerDetail(player_id=player_obj.id)
-                    player_obj.detail.last_joined_at = datetime.datetime.utcnow()
-                    db.commit()
+                if event_type == "achievement":
+                    achievement_id = event.get("achievement_id") or event.get("message")
+                    if achievement_id:
+                        AchievementService.unlock_achievement(db, player_obj, achievement_id, server_name=server.name)
+                elif event_type == "join":
+                    cache_player_join(server.name, player, event.get("uuid", "unknown"))
                 elif event_type == "leave":
-                    if player_obj.detail and player_obj.detail.last_joined_at:
-                        now = datetime.datetime.utcnow()
-                        duration = int((now - player_obj.detail.last_joined_at).total_seconds())
-                        if duration > 0:
-                            player_obj.detail.total_playtime_seconds += duration
-                            AchievementService.process_stat_update(db, player_obj, "session_time_seconds", duration)
-                            db.commit()
+                    cache_player_leave(server.name, player)
     return {"status": "ok"}
 
-@router.post("/stats")
-async def receive_stat(stat: dict, db: Session = Depends(get_db), user: User = Depends(verify_api_key)):
-    player_name = stat.get("player")
-    stat_key = stat.get("stat")
-    amount = stat.get("amount", 1)
-    
-    if player_name and stat_key:
-        server = db.query(Server).filter(Server.name == stat.get("server_name")).first()
-        if not server:
-            server = db.query(Server).filter(Server.user_id == user.id).first()
-            if not server: server = db.query(Server).first()
-
-        if server:
-            player = PlayerService.get_player_by_name(db, server, player_name)
-            if player:
-                AchievementService.process_stat_update(db, player, stat_key, amount, value=stat.get("value"))
-    return {"status": "ok"}
 
 @router.post("/chat")
 async def receive_chat(chat: dict, db: Session = Depends(get_db), user: User = Depends(verify_api_key)):
@@ -149,7 +120,7 @@ async def receive_chat(chat: dict, db: Session = Depends(get_db), user: User = D
     if server:
         player = PlayerService.get_player_by_name(db, server, player_name)
         if player:
-            AchievementService.process_stat_update(db, player, "chat_message", 1)
+            AchievementService.process_stat_update(db, player, "chat_message", 1, server_name=server.name)
     return {"status": "ok"}
 
 # --- Lote (Batch) ---
@@ -161,23 +132,9 @@ async def receive_batch(batch: dict, request: Request, db: Session = Depends(get
     chats = batch.get("chats", [])
     server_name = batch.get("server_name")
 
-    # 1. Procesar Eventos y Caché
+    # Procesar solo eventos de conexión y logros
     for event in events:
-        event_type = event.get("type", "")
-        player = event.get("player", "")
-        uuid = event.get("uuid", "unknown")
-        ev_server = event.get("server_name") or server_name
-        
-        if event_type == "join" and player:
-            cache_player_join(ev_server, player, uuid)
-        elif event_type == "leave" and player:
-            cache_player_leave(ev_server, player)
-        
         await receive_event(event, request, user)
-
-    # 2. Procesar Estadísticas
-    for stat in stats:
-        await receive_stat(stat, db, user)
 
     # 3. Procesar Chat
     for chat in chats:
@@ -194,9 +151,6 @@ async def receive_batch(batch: dict, request: Request, db: Session = Depends(get
 
 # --- Legacy & WebSocket ---
 
-@router.post("/status/player")
-async def receive_player_state(request: Request, state: dict, db: Session = Depends(get_db)):
-    return {"status": "ok", "message": "deprecated"}
 
 @router.get("/players/{server_name}")
 async def get_cached_players(server_name: str, user: User = Depends(verify_api_key)):

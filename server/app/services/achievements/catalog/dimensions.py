@@ -2,7 +2,11 @@ from ..base import AchievementDefinition, AchievementCategory
 
 DIMENSION_ACHIEVEMENTS = [
     # --- NETHER ---
-    AchievementDefinition("NETHER_ENTER", "Abandona toda esperanza", "Entra al Nether por primera vez.", AchievementCategory.SPECIAL, {"dimension_enter:minecraft:the_nether": 1}),
+    AchievementDefinition("NETHER_ENTER", "Abandona toda esperanza", "Entra al Nether por primera vez.", AchievementCategory.SPECIAL, {
+        "dimension_enter:minecraft:the_nether": 1, 
+        "dimension:the_nether": 1,
+        "dimension:minecraft:the_nether": 1
+    }),
     AchievementDefinition("BLAZE_KILL", "Crematorio", "Elimina a tu primer Blaze.", AchievementCategory.SPECIAL, {"kill:entity.minecraft.blaze": 1}),
     AchievementDefinition("PIGLIN_TRADE", "Usurero de almas", "Realiza un intercambio con un Piglin.", AchievementCategory.SPECIAL, {"piglin_barter": 1}),
     

@@ -1,87 +1,75 @@
 package com.lider.minebridge.events.items;
 
 import com.lider.minebridge.networking.AchievementClient;
-import net.fabricmc.fabric.api.event.player.UseItemCallback;
-import net.minecraft.enchantment.Enchantment;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
-import net.minecraft.registry.Registries;
 import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.util.TypedActionResult;
-import java.util.List;
-import java.util.Map;
+import net.minecraft.registry.Registries;
+
+import java.util.concurrent.ConcurrentHashMap;
 
 public class ItemLogic {
 
-    public static void init() {
-        // DETECTOR DE USO DE OBJETOS
-        UseItemCallback.EVENT.register((player, world, hand) -> {
-            ItemStack stack = player.getStackInHand(hand);
-            if (!world.isClient) {
-                
-                // CONSUMO GENÉRICO DE COMIDA (1.21.1 Component System)
-                if (stack.get(net.minecraft.component.DataComponentTypes.FOOD) != null) {
-                    AchievementClient.sendEvent(player.getUuidAsString(), "food_eaten", 1);
-                }
+    private static final ConcurrentHashMap<String, Integer> itemsEnchantedSession = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<String, Integer> xpSpentSession = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<String, Integer> anvilUseSession = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<String, Integer> grindstoneUseSession = new ConcurrentHashMap<>();
+    
+    // Rastreo de regalos (Humildad)
+    private static final ConcurrentHashMap<Integer, String> tossedItems = new ConcurrentHashMap<>();
 
-                // CASOS ESPECÍFICOS (Pobres y Super Pollo)
-                if (stack.getItem() == Items.COOKED_BEEF) {
-                    List<ServerPlayerEntity> nearby = world.getEntitiesByClass(ServerPlayerEntity.class, player.getBoundingBox().expand(8.0), p -> p != player);
-                    if (!nearby.isEmpty()) AchievementClient.sendEvent(player.getUuidAsString(), "eat_steak_near_player", 1);
-                }
+    public static void onItemAcquired(ServerPlayerEntity player, ItemStack stack) {
+        String uuid = player.getUuidAsString();
+        String itemId = Registries.ITEM.getId(stack.getItem()).toString();
 
-                if (stack.getItem() == Items.COOKED_CHICKEN && stack.getCount() >= 64) {
-                    AchievementClient.sendEvent(player.getUuidAsString(), "cooked_chicken_stack", 1);
-                }
-            }
-            return TypedActionResult.pass(stack);
-        });
-    }
-
-    public static void onPotionBrewed(String playerUuid, String potionId) {
-        AchievementClient.sendEvent(playerUuid, "potion_brewed:" + potionId, 1);
-        AchievementClient.sendEvent(playerUuid, "total_potions_brewed", 1);
-    }
-
-    public static void onItemEnchanted(ServerPlayerEntity player, ItemStack stack, int levelCost, Map<net.minecraft.registry.entry.RegistryEntry<Enchantment>, Integer> enchantments) {
-        AchievementClient.sendEvent(player.getUuidAsString(), "item_enchanted", 1);
-        AchievementClient.sendEvent(player.getUuidAsString(), "xp_spent_enchanting", levelCost);
+        // 1. LOGROS DE COLECCIÓN
+        if (stack.getItem() == Items.DRAGON_EGG) AchievementClient.sendEvent(uuid, "has_dragon_egg", 1);
+        if (stack.getItem() == Items.POISONOUS_POTATO) AchievementClient.sendEvent(uuid, "item_acquired:minecraft:poisonous_potato", 1);
         
-        if (levelCost >= 30) {
-            AchievementClient.sendEvent(player.getUuidAsString(), "level_30_enchant", 1);
+        // 2. SUPER POLLO (Stack de 64)
+        if (stack.getItem() == Items.COOKED_CHICKEN && stack.getCount() >= 64) {
+            AchievementClient.sendEvent(uuid, "cooked_chicken_stack", 1);
         }
 
-        int totalEnchants = 0;
-        for (Map.Entry<net.minecraft.registry.entry.RegistryEntry<Enchantment>, Integer> entry : enchantments.entrySet()) {
-            String name = entry.getKey().getKey().get().getValue().getPath();
-            int level = entry.getValue();
-            
-            AchievementClient.sendEvent(player.getUuidAsString(), "enchant:" + name + ":" + level, 1);
-            AchievementClient.sendEvent(player.getUuidAsString(), "enchant:" + name, 1);
-            totalEnchants++;
-        }
-
-        if (totalEnchants >= 7) {
-            AchievementClient.sendEvent(player.getUuidAsString(), "maxed_item_enchanted", 1);
-        }
-
-        if (stack.getItem() instanceof net.minecraft.item.BookItem || stack.getItem() instanceof net.minecraft.item.EnchantedBookItem) {
-            AchievementClient.sendEvent(player.getUuidAsString(), "enchant:book", 1);
+        // 3. HUMILDAD (Recoger 64 diamantes tirados por otro)
+        if (stack.getItem() == Items.DIAMOND && stack.getCount() >= 64) {
+            // Nota: Esta lógica requiere seguimiento del objeto tirado, se puede pulir con eventos de entidad item.
         }
     }
 
-    public static void onAnvilUse(ServerPlayerEntity player) {
-        AchievementClient.sendEvent(player.getUuidAsString(), "anvil_use", 1);
-    }
-
-    public static void onGrindstoneUse(ServerPlayerEntity player) {
-        AchievementClient.sendEvent(player.getUuidAsString(), "grindstone_use", 1);
-    }
-
-    public static void onLegendaryItemAcquired(String playerUuid, String itemId) {
-        AchievementClient.sendEvent(playerUuid, "item_acquired:" + itemId, 1);
-        if (itemId.contains("beacon") || itemId.contains("enchanted_golden_apple") || itemId.contains("nether_star")) {
-            AchievementClient.sendEvent(playerUuid, "luxury_item_bought", 1);
+    public static void onItemTossed(ServerPlayerEntity player, ItemStack stack) {
+        if (stack.getItem() == Items.DIAMOND && stack.getCount() >= 64) {
+            AchievementClient.sendEvent(player.getUuidAsString(), "diamonds_gifted", 1);
         }
+    }
+
+    public static void onItemEnchanted(String uuid, int xpLevel) {
+        itemsEnchantedSession.merge(uuid, 1, Integer::sum);
+        xpSpentSession.merge(uuid, xpLevel, Integer::sum);
+        AchievementClient.sendEvent(uuid, "item_enchanted", 1);
+    }
+
+    public static void onAnvilUse(String uuid) {
+        anvilUseSession.merge(uuid, 1, Integer::sum);
+        AchievementClient.sendEvent(uuid, "anvil_use", 1);
+    }
+
+    public static void onToolBroken(String playerUuid, String itemId) {
+        if (itemId.contains("netherite")) {
+            AchievementClient.sendEvent(playerUuid, "netherite_tool_broken", 1);
+        }
+    }
+
+    public static void onPlayerLeave(String uuid) {
+        java.util.Map<String, Integer> stats = new java.util.HashMap<>();
+        Integer enchanted = itemsEnchantedSession.remove(uuid);
+        if (enchanted != null) stats.put("item_enchanted", enchanted);
+        
+        Integer xp = xpSpentSession.remove(uuid);
+        if (xp != null) stats.put("xp_spent_enchanting", xp);
+
+        if (!stats.isEmpty()) AchievementClient.sendSessionSummary(uuid, stats);
+        anvilUseSession.remove(uuid);
+        grindstoneUseSession.remove(uuid);
     }
 }

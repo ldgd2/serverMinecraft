@@ -94,32 +94,16 @@ public class BackendClient {
         notifyStatUpdate(player, stat, value, 1);
     }
 
-    public void notifyStatUpdate(String player, String stat, String value, int amount) {
-        JsonObject json = new JsonObject();
-        json.addProperty("player", player);
-        json.addProperty("stat", stat);
-        json.addProperty("value", value);
-        json.addProperty("amount", amount);
-        json.addProperty("type", "stat_update");
-        
-        batchStats.add(json);
+    public static void notifyStatUpdate(String player, String stat, String value, int amount) {
+        // [DESACTIVADO] El servidor ya no lleva la cuenta de estadísticas individuales.
     }
 
     public void notifyPlayerDeath(String player, String cause, String killer) {
-        JsonObject json = new JsonObject();
-        json.addProperty("player", player);
-        json.addProperty("cause", cause);
-        json.addProperty("killer", killer);
-        json.addProperty("type", "death");
-        
-        batchEvents.add(json);
+        // [DESACTIVADO] El servidor ya no procesa eventos de muerte.
     }
 
     public void notifyServerState(String state) {
-        JsonObject json = new JsonObject();
-        json.addProperty("state", state);
-        
-        postAsync("api/v1/bridge/status", json);
+        // [DESACTIVADO]
     }
 
     public CompletableFuture<String> testConnection() {

@@ -9,8 +9,13 @@ FARMING_ACHIEVEMENTS = [
 
     # --- CULTIVOS ESPECÍFICOS ---
     # Papas (Pobreza)
+    AchievementDefinition("FARM_POTATO_1", "Primeros Pasos", "Cosecha tu primera papa.", AchievementCategory.FARMING, {"crop:minecraft:potatoes": 1, "block_broken:minecraft:potatoes": 1}),
     AchievementDefinition("FARM_POTATO", "Dieta tercermundista", "Cosecha 500 papas.", AchievementCategory.FARMING, {"crop:minecraft:potatoes": 500}),
     
+    # Zanahorias
+    AchievementDefinition("FARM_CARROT_1", "Vitamina A", "Cosecha tu primera zanahoria.", AchievementCategory.FARMING, {"crop:minecraft:carrots": 1, "block_broken:minecraft:carrots": 1}),
+    AchievementDefinition("FARM_CARROT", "Conejo de la Suerte", "Cosecha 500 zanahorias.", AchievementCategory.FARMING, {"crop:minecraft:carrots": 500}),
+
     # Trigo (Trabajo forzado)
     AchievementDefinition("FARM_WHEAT", "Trabajo forzado", "Cosecha 1,000 unidades de trigo.", AchievementCategory.FARMING, {"crop:minecraft:wheat": 1000}),
     
@@ -24,3 +29,4 @@ FARMING_ACHIEVEMENTS = [
     # Bayas (Dolor)
     AchievementDefinition("FARM_BERRY", "Pinchazos dulces", "Cosecha 250 bayas dulces.", AchievementCategory.FARMING, {"crop:minecraft:sweet_berries": 250}),
 ]
+

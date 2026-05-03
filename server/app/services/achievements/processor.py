@@ -23,11 +23,12 @@ class AchievementProcessor:
     """
 
     @staticmethod
-    def process_stat_update(db: Session, player: Player, stat_key: str, increment: int = 1, value: str = None):
+    def process_stat_update(db: Session, player: Player, stat_key: str, increment: int = 1, value: str = None, server_name: str = None):
         """
-        Versión alternativa para el Bridge que recibe el objeto Player directamente.
+        Registra estadísticas básicas (como login_count) y verifica logros de servidor.
+        Ya no sincronizamos estadísticas globales de combate/minería aquí para ahorrar recursos.
         """
-        # 1. Obtener o crear el stat específico
+        # 1. Obtener o crear el stat
         stat = db.query(PlayerStat).filter(
             PlayerStat.player_id == player.id, 
             PlayerStat.stat_key == stat_key
@@ -38,70 +39,108 @@ class AchievementProcessor:
             db.add(stat)
             db.flush()
             
-        # 2. Actualizar valor
         stat.stat_value += increment
         db.commit()
         
-        # 3. Actualizar PlayerAccount (Estadísticas globales/launcher)
-        try:
-            from database.models.players.player_account import PlayerAccount
-            account = db.query(PlayerAccount).filter(
-                (PlayerAccount.uuid == player.uuid) | (PlayerAccount.username == player.name)
-            ).first()
+        # 2. Logros automáticos del servidor (Ej: X veces conectado)
+        if stat_key == "login_count":
+            if stat.stat_value == 100:
+                AchievementProcessor.unlock_achievement(db, player, "LOGIN_100", server_name=server_name)
+            elif stat.stat_value == 500:
+                AchievementProcessor.unlock_achievement(db, player, "LOGIN_500", server_name=server_name)
+        
+        pass
 
-            if account:
-                HOSTILE_MOBS = {
-                    "zombie", "skeleton", "creeper", "spider", "enderman", "witch", "slime", "silverfish",
-                    "ghast", "blaze", "magma_cube", "endermite", "guardian", "shulker", "husk", "stray",
-                    "wither_skeleton", "vex", "evoker", "vindicator", "pillager", "ravager", "hoglin",
-                    "zoglin", "piglin_brute", "warden", "drowned", "phantom", "wither", "ender_dragon", 
-                    "elder_guardian", "ravager"
-                }
+    @staticmethod
+    def unlock_achievement(db: Session, player: Player, achievement_id: str, server_name: str = None):
+        """
+        Desbloquea un logro directamente (usado cuando el Mod detecta el logro).
+        Se encarga de la persistencia y la notificación a la App/Launcher.
+        """
+        # 1. Buscar metadata en el registro
+        from .registry import get_achievement_by_id
+        ach = get_achievement_by_id(achievement_id)
+        
+        name = achievement_id
+        description = "Logro obtenido en el juego"
+        
+        if ach:
+            name = ach.name
+            description = ach.description
 
-                if stat_key.startswith("kill:"):
-                    entity = stat_key.split(":")[-1].lower()
-                    if entity == "player":
-                        account.total_player_kills += increment
-                    elif entity in HOSTILE_MOBS:
-                        account.total_hostile_kills += increment
-                    
-                    # Genocida: todo lo que muera suma (jugadores, hostiles y pasivos)
-                    account.total_genocide_score += increment
-                    account.total_kills += increment
+        # 2. Verificar si ya existe
+        exists = db.query(PlayerAchievement).filter(
+            PlayerAchievement.player_id == player.id,
+            PlayerAchievement.achievement_id == achievement_id
+        ).first()
+
+        if not exists:
+            logger.info(f"🏆 Logro registrado (Mod-Driven): {player.name} -> {name}")
+            
+            new_ach = PlayerAchievement(
+                player_id=player.id,
+                achievement_id=achievement_id,
+                name=name,
+                description=description
+            )
+            db.add(new_ach)
+            db.commit()
+
+            # 3. Notificar vía WebSocket al administrador/launcher/app
+            try:
+                from routes.bridge import manager
+                from database.models.server import Server
+                from database.models.user import User
+                from core.broadcaster import broadcaster
                 
-                elif stat_key == "total_death":
-                    account.total_deaths += increment
-                elif stat_key == "total_block_broken":
-                    account.total_blocks_broken += increment
-                elif stat_key == "total_block_placed":
-                    account.total_blocks_placed += increment
+                # Buscar servidor para el broadcast
+                server = None
+                if server_name:
+                    server = db.query(Server).filter(Server.name == server_name).first()
+                if not server:
+                    server = db.query(Server).filter(Server.id == player.server_id).first()
+                
+                if server:
+                    # Notificar a la App (WebSocket Broadcaster)
+                    # El broadcaster enviará esto a los canales de la app móvil
+                    asyncio.create_task(broadcaster.broadcast_chat(
+                        server.name, 
+                        "System", 
+                        f"🏆 {player.name} ha obtenido: {name}",
+                        is_system=True,
+                        chat_type="achievement"
+                    ))
 
-                db.commit()
-        except Exception as e:
-            logger.error(f"Error updating global PlayerAccount stats: {e}")
-
-        # 4. Verificar logros
-        AchievementProcessor._check_unlocks(db, player, stat_key, stat.stat_value)
+                    # Notificar al Launcher (WebSocket Bridge manager)
+                    admin = db.query(User).filter(User.id == server.user_id).first()
+                    if admin:
+                        loop = _main_loop
+                        if loop and loop.is_running():
+                            asyncio.run_coroutine_threadsafe(
+                                manager.send_achievement(admin.username, player.name, name, description),
+                                loop
+                            )
+            except Exception as e:
+                logger.error(f"Error notificando desbloqueo de logro: {e}")
+            
+            return True
+        return False
 
     @staticmethod
-    def process_event(db: Session, player_uuid: str, event_key: str, increment: int = 1):
+    def process_event(db: Session, player_uuid: str, event_key: str, increment: int = 1, server_name: str = None):
         """
-        Procesa un evento (ej: 'block_broken', 'kill:zombie') para un jugador.
+        ENDPOINT DESACTIVADO para eventos de juego (bloques, muertes).
+        El Mod gestiona esta lógica internamente.
         """
-        # 1. Obtener el jugador por su UUID
-        player = db.query(Player).filter(Player.uuid == player_uuid).first()
-        if not player:
-            logger.warning(f"Player with UUID {player_uuid} not found. Event {event_key} ignored.")
-            return
-
-        # Reutilizar lógica
-        AchievementProcessor.process_stat_update(db, player, event_key, increment)
+        pass
 
     @staticmethod
-    def _check_unlocks(db: Session, player: Player, event_key: str, current_value: int):
+    def _check_unlocks(db: Session, player: Player, event_key: str, current_value: int, server_name: str = None):
         """
-        Busca en el registro maestro qué logros dependen de este evento y 
-        si se cumplen las condiciones.
+        [DEPRECATED/LEGACY] 
+        Mantenemos el código por si en el futuro se quiere procesar algún logro 
+        especial desde el backend (ej: por tiempo de juego), pero ya no se 
+        ejecuta en cada evento de bloque/muerte.
         """
         # Filtrar logros que dependen de este event_key
         potential_achievements = [
@@ -109,66 +148,36 @@ class AchievementProcessor:
             if event_key in ach.requirements
         ]
 
+        if not potential_achievements:
+            return
+
         for ach in potential_achievements:
-            target = ach.requirements[event_key]
+            # 1. Verificar si ya lo tiene desbloqueado
+            exists = db.query(PlayerAchievement).filter(
+                PlayerAchievement.player_id == player.id,
+                PlayerAchievement.achievement_id == ach.id
+            ).first()
+
+            if exists:
+                continue
+
+            # 2. Verificar TODAS las condiciones del logro
+            all_met = True
+            for req_key, req_value in ach.requirements.items():
+                if req_key == event_key:
+                    val = current_value
+                else:
+                    # Consultar DB para otros requisitos
+                    other_stat = db.query(PlayerStat).filter(
+                        PlayerStat.player_id == player.id,
+                        PlayerStat.stat_key == req_key
+                    ).first()
+                    val = other_stat.stat_value if other_stat else 0
+                
+                if val < req_value:
+                    all_met = False
+                    break
             
-            # Si el jugador alcanzó el objetivo
-            if current_value >= target:
-                # Verificar si ya lo tiene desbloqueado
-                exists = db.query(PlayerAchievement).filter(
-                    PlayerAchievement.player_id == player.id,
-                    PlayerAchievement.achievement_id == ach.id
-                ).first()
-
-                if not exists:
-                    # ¡LOGRO DESBLOQUEADO!
-                    logger.info(f"🏆 Logro desbloqueado: {player.name} -> {ach.name}")
-                    
-                    new_ach = PlayerAchievement(
-                        player_id=player.id,
-                        achievement_id=ach.id,
-                        name=ach.name,
-                        description=ach.description
-                    )
-                    db.add(new_ach)
-                    db.commit()
-
-                    # Notificar al servidor vía WebSocket para que el Mod haga saltar el logro
-                    try:
-                        from routes.bridge import manager
-                        from database.models.server import Server
-                        from database.models.user import User
-                        
-                        server = db.query(Server).filter(Server.id == player.server_id).first()
-                        if server:
-                            # 1. Enviar por RCON para feedback visual y sonoro inmediato en el juego
-                            try:
-                                # Chat global
-                                rcon_msg = f'tellraw @a ["", {{"text":"🏆 ¡LOGRO! ","color":"gold","bold":true}}, {{"text":"{player.name}","color":"yellow"}}, {{"text":" ha obtenido: ","color":"white"}}, {{"text":"{ach.name}","color":"aqua","italic":true}}]'
-                                rcon_service.send_command(rcon_msg, server_name=server.name)
-                                
-                                # Título para el jugador que lo obtuvo
-                                title_cmd = f'title {player.name} title {{"text":"🏆 Logro Desbloqueado","color":"gold","bold":true}}'
-                                subtitle_cmd = f'title {player.name} subtitle {{"text":"{ach.name}","color":"yellow"}}'
-                                sound_cmd = f'execute as {player.name} at @s run playsound minecraft:ui.toast.challenge_complete master @s ~ ~ ~ 1.0 1.0'
-                                
-                                rcon_service.send_command(title_cmd, server_name=server.name)
-                                rcon_service.send_command(subtitle_cmd, server_name=server.name)
-                                rcon_service.send_command(sound_cmd, server_name=server.name)
-                            except Exception as rcon_ex:
-                                logger.error(f"Error enviando logro por RCON: {rcon_ex}")
-
-                            # 2. Notificar vía WebSocket al administrador/launcher
-                            admin = db.query(User).filter(User.id == server.user_id).first()
-                            if admin:
-                                # Usar el loop principal guardado al arrancar la app
-                                loop = _main_loop
-                                if loop and loop.is_running():
-                                    asyncio.run_coroutine_threadsafe(
-                                        manager.send_achievement(admin.username, player.name, ach.name, ach.description),
-                                        loop
-                                    )
-                                else:
-                                    logger.warning("[Logros] No hay event loop disponible para enviar logro por WS")
-                    except Exception as e:
-                        logger.error(f"Error enviando logro: {e}")
+            if all_met:
+                # Usar el nuevo método unificado para desbloquear
+                AchievementProcessor.unlock_achievement(db, player, ach.id, server_name=server_name)

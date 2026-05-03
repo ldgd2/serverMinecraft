@@ -41,23 +41,6 @@ async def receive_batch(
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db)
 ):
-    """
-    Endpoint para procesar eventos y chats en lote para optimizar rendimiento.
-    """
-    events = batch.get("events", [])
-    for event_data in events:
-        try:
-            event = MinecraftEvent(**event_data)
-            background_tasks.add_task(
-                AchievementProcessor.process_event,
-                db,
-                event.player_uuid,
-                event.event_key,
-                event.increment
-            )
-        except Exception as e:
-            logger.error(f"❌ Error processing batched minecraft event: {e}")
-
     chats = batch.get("chats", [])
     for chat_data in chats:
         try:
@@ -66,43 +49,7 @@ async def receive_batch(
         except Exception as e:
             logger.error(f"❌ Error processing batched minecraft chat: {e}")
 
-    return {"status": "ok", "processed": {"events": len(events), "chats": len(chats)}}
-
-@router.post("/event")
-async def receive_minecraft_event(
-    request: Request,
-    background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db)
-):
-    """
-    Endpoint para recibir eventos de logros (bloques, muertes, etc.)
-    """
-    try:
-        body = await request.json()
-        if not body:
-             logger.warning("📥 Received empty body in /event")
-             return {"status": "ignored", "reason": "empty body"}
-             
-        logger.info(f"📥 Received Minecraft Event: {body}")
-        
-        event = MinecraftEvent(**body)
-        
-        background_tasks.add_task(
-            AchievementProcessor.process_event,
-            db,
-            event.player_uuid,
-            event.event_key,
-            event.increment
-        )
-        return {"status": "received"}
-    except Exception as e:
-        logger.error(f"❌ Error processing minecraft event: {e}")
-        # Intentar sacar el body crudo para debug si falló el parseo
-        try:
-            raw_body = await request.body()
-            logger.error(f"Raw body that failed: {raw_body.decode()}")
-        except: pass
-        raise HTTPException(status_code=422, detail=str(e))
+    return {"status": "ok", "processed": {"chats": len(chats)}}
 
 @router.post("/chat")
 async def handle_minecraft_chat(chat: MinecraftChat, db: Session = Depends(get_db)):
@@ -167,14 +114,21 @@ async def handle_minecraft_chat(chat: MinecraftChat, db: Session = Depends(get_d
             }
             
             # 1. Incrementar contador de inicios de sesión
-            AchievementProcessor.process_stat_update(db, player, "login_count", 1)
+            AchievementProcessor.process_stat_update(db, player, "login_count", 1, server_name=server.name)
             
             # 2. Logros por horario (Night Owl / Early Bird)
             now = datetime.datetime.utcnow()
             if 3 <= now.hour < 5:
-                AchievementProcessor.process_stat_update(db, player, "play_at_night", 1)
+                AchievementProcessor.unlock_achievement(db, player, "PLAY_AT_NIGHT", server_name=server.name)
             elif 5 <= now.hour < 7:
-                AchievementProcessor.process_stat_update(db, player, "play_at_dawn", 1)
+                AchievementProcessor.unlock_achievement(db, player, "PLAY_AT_DAWN", server_name=server.name)
+
+            # 3. Logro por cumpleaños
+            if player.detail and player.detail.birthday:
+                # El formato es 'MM-DD'
+                today_md = now.strftime("%m-%d")
+                if player.detail.birthday == today_md:
+                    AchievementProcessor.unlock_achievement(db, player, "BIRTHDAY_LOGIN", server_name=server.name)
 
             # 3. Actualizar fecha de último ingreso para cálculos de sesión
             if player.detail:
@@ -186,6 +140,8 @@ async def handle_minecraft_chat(chat: MinecraftChat, db: Session = Depends(get_d
             # Actualizar caché central
             if server.name in PlayerManager._global_online_players:
                 PlayerManager._global_online_players[server.name].pop(chat.player_name, None)
+            
+            # El resumen de sesión se enviará por el endpoint /stats/session
 
     # 3. Guardar en historial (Chat, Join, Leave, Achievement)
     chat_mapping = {
@@ -219,89 +175,47 @@ async def handle_minecraft_chat(chat: MinecraftChat, db: Session = Depends(get_d
 
     # --- PROCESAR LOGROS DE CHAT ---
     if chat.type == "chat" and player:
-        AchievementProcessor.process_stat_update(db, player, "chat_message", 1)
+        AchievementProcessor.process_stat_update(db, player, "chat_message", 1, server_name=server.name)
 
     # 4. Registrar logro si aplica
     if chat.type == "achievement" and player:
-        # Verificar si ya existe para este jugador en este servidor
-        # Usamos el mensaje como ID/Nombre si no viene algo más estructurado
-        exists = db.query(PlayerAchievement).filter(
-            PlayerAchievement.player_id == player.id,
-            PlayerAchievement.name == chat.message
-        ).first()
-
-        if not exists:
-            new_ach = PlayerAchievement(
-                player_id=player.id,
-                achievement_id=f"mod_{chat.message.lower().replace(' ', '_')}",
-                name=chat.message,
-                description="Logro obtenido en el juego"
-            )
-            db.add(new_ach)
-            logger.info(f"🏆 Logro registrado vía Chat: {chat.player_name} -> {chat.message}")
+        # Usamos el nuevo método profesional que busca metadata y notifica a App/Launcher
+        AchievementProcessor.unlock_achievement(db, player, chat.message, server_name=server.name)
     
     db.commit()
 
-    # 4. Retransmitir a la App en tiempo real
-    # El broadcaster usa el nombre del servidor como canal
-    is_system = chat.type in ['join', 'leave', 'achievement']
-    await broadcaster.broadcast_chat(
-        server.name, 
-        chat.player_name if not is_system else "System", 
-        chat.message,
-        is_system=is_system,
-        chat_type=chat.type if is_system else "received"
-    )
-
     return {"status": "ok"}
 
-@router.post("/player_state")
-async def handle_player_state(state: dict, db: Session = Depends(get_db)):
+@router.get("/stats/{player_uuid}")
+async def get_player_stats(player_uuid: str, db: Session = Depends(get_db)):
     """
-    Recibe el estado del jugador (pos, salud, etc.) y calcula distancia/tiempo.
-    El mod envía: pos_x, pos_y, pos_z, player (UUID), health, food, world.
+    Devuelve las estadísticas persistentes para que el Mod cargue sus contadores.
     """
-    player_uuid = state.get("player")
-    if not player_uuid: return {"error": "no player"}
-
-    # 1. Obtener jugador y su detalle
+    from database.models.players.player_stat import PlayerStat
     player = db.query(Player).filter(Player.uuid == player_uuid).first()
     if not player:
-        return {"error": "player not found"}
+        return {}
     
-    if not player.detail:
-        player.detail = PlayerDetail(player_id=player.id)
-        db.add(player.detail)
-        db.flush()
+    stats = db.query(PlayerStat).filter(PlayerStat.player_id == player.id).all()
+    return {s.stat_key: s.stat_value for s in stats}
 
-    # 2. CALCULAR DISTANCIA (Pitágoras entre pos anterior y actual)
-    x = state.get("pos_x", 0)
-    y = state.get("pos_y", 0)
-    z = state.get("pos_z", 0)
-
-    last_x = player.detail.position_x
-    last_y = player.detail.position_y
-    last_z = player.detail.position_z
+@router.post("/stats/session")
+async def receive_session_summary(summary: dict, db: Session = Depends(get_db)):
+    """
+    Recibe el acumulado de la sesión al desconectarse el jugador.
+    """
+    player_uuid = summary.get("player_uuid")
+    stats_to_update = summary.get("stats", {}) # Ej: {"block_broken": 150, "kill:zombie": 5}
     
-    dist = ((x - last_x)**2 + (y - last_y)**2 + (z - last_z)**2)**0.5
-    
-    if 0.1 < dist < 100:  # Evitar teleports o micro-movimientos
-        AchievementProcessor.process_event(db, player_uuid, "distance_travelled", int(dist))
+    player = db.query(Player).filter(Player.uuid == player_uuid).first()
+    if not player:
+        return {"status": "error", "message": "player not found"}
 
-    # 3. CALCULAR TIEMPO (Cada update son ~5 segundos)
-    AchievementProcessor.process_event(db, player_uuid, "playtime_seconds", 5)
-    AchievementProcessor.process_event(db, player_uuid, "session_time_seconds", 5)
-
-    # 4. Actualizar posición y salud en PlayerDetail
-    player.detail.position_x = int(x)
-    player.detail.position_y = int(y)
-    player.detail.position_z = int(z)
-    player.detail.health = int(state.get("health", 20))
-    player.detail.total_playtime_seconds += 5
+    for key, value in stats_to_update.items():
+        AchievementProcessor.process_stat_update(db, player, key, value)
     
     db.commit()
-
-    return {"status": "ok"}
+    return {"status": "ok", "updated": len(stats_to_update)}
 
 @router.post("/send-to-game")
 async def send_to_game(

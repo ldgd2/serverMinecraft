@@ -16,58 +16,61 @@ public class MemeLogic {
     // Flags de sesión — se limpia al desconectarse el jugador
     private static final java.util.Set<String> sessionUnlocked = ConcurrentHashMap.newKeySet();
 
-    /** Llamado cuando el jugador obtiene el efecto de oscuridad del Warden (desde mixin de efectos). */
+    /** Llamado cuando el jugador obtiene el efecto de oscuridad del Warden. */
     public static void onWardenDarknessApplied(ServerPlayerEntity player) {
         String uuid = player.getUuidAsString();
         if (sessionUnlocked.add(uuid + "_darkness")) {
-            AchievementClient.sendEvent(uuid, "warden_darkness_effect", 1);
+            AchievementClient.sendEvent(uuid, "FEAR_PARALYSIS", 1);
         }
     }
 
-    /** Llamado cuando el jugador llega a Y >= 319 (desde AchievementDetectors.onPlayerMove). */
+    /** Llamado cuando el jugador llega a Y >= 319. */
     public static void onMaxHeightReached(ServerPlayerEntity player) {
         String uuid = player.getUuidAsString();
         if (sessionUnlocked.add(uuid + "_height")) {
-            AchievementClient.sendEvent(uuid, "max_height_reached", 1);
+            AchievementClient.sendEvent(uuid, "EVEREST", 1);
         }
     }
 
-    /** Llamado cuando el jugador tiene 10+ efectos activos simultáneamente (desde mixin de efectos). */
+    /** Llamado cuando el jugador tiene 10+ efectos activos simultáneamente. */
     public static void onManyEffectsActive(ServerPlayerEntity player) {
         String uuid = player.getUuidAsString();
         if (sessionUnlocked.add(uuid + "_pharmacy")) {
-            AchievementClient.sendEvent(uuid, "active_effects_count", 10);
+            AchievementClient.sendEvent(uuid, "MANY_EFFECTS", 1);
         }
     }
 
-    /** Llamado al explotar una cama en el Nether (desde mixin de cama). */
+    /** Llamado al explotar una cama en el Nether. */
     public static void onNetherBedExplosion(ServerPlayerEntity player) {
         if (player.getWorld().getRegistryKey() == World.NETHER) {
-            AchievementClient.sendEvent(player.getUuidAsString(), "nether_bed_explosion", 1);
+            AchievementClient.sendEvent(player.getUuidAsString(), "NETHER_SLEEP", 1);
         }
     }
 
-    /** Llamado cuando el jugador recibe daño sin armadura (desde mixin de daño). */
+    /** Llamado cuando el jugador recibe daño sin armadura. */
     public static void onAttackedWithoutArmor(ServerPlayerEntity player) {
         boolean hasArmor = false;
         for (net.minecraft.item.ItemStack armor : player.getInventory().armor) {
             if (!armor.isEmpty()) { hasArmor = true; break; }
         }
         if (!hasArmor) {
-            AchievementClient.sendEvent(player.getUuidAsString(), "attacked_without_armor", 1);
+            AchievementClient.sendEvent(player.getUuidAsString(), "MEME_POV_VILLAGER", 1);
         }
     }
 
     /** Llamado cuando el jugador tira 64+ diamantes al suelo. */
     public static void onItemDropped(ServerPlayerEntity player, net.minecraft.item.ItemStack stack) {
         if (stack.getItem().getTranslationKey().contains("diamond") && stack.getCount() >= 64) {
-            AchievementClient.sendEvent(player.getUuidAsString(), "diamonds_gifted", 64);
+            AchievementClient.sendEvent(player.getUuidAsString(), "MEME_HUMILDAD", 1);
         }
     }
 
     /** Llamado cuando el jugador comercia con un Wandering Trader. */
+    private static final java.util.concurrent.ConcurrentHashMap<String, Integer> traderTrades = new java.util.concurrent.ConcurrentHashMap<>();
     public static void onWanderingTraderTrade(ServerPlayerEntity player) {
-        AchievementClient.sendEvent(player.getUuidAsString(), "wandering_trader_trade", 1);
+        String uuid = player.getUuidAsString();
+        int total = traderTrades.merge(uuid, 1, Integer::sum);
+        if (total == 10) AchievementClient.sendEvent(uuid, "TRADER_10", 1);
     }
 
     /** Llamado cuando el jugador muere en el vacío con el inventario lleno. */
@@ -77,29 +80,18 @@ public class MemeLogic {
             if (player.getInventory().main.get(i).isEmpty()) { isFull = false; break; }
         }
         if (isFull) {
-            AchievementClient.sendEvent(player.getUuidAsString(), "full_inventory_void_death", 1);
+            AchievementClient.sendEvent(player.getUuidAsString(), "MEME_VOID_STARK", 1);
         }
     }
 
-    /**
-     * Llamado cuando el jugador tiene pastel en mano y 5+ jugadores cerca.
-     * Debe llamarse desde un UseItemCallback (evento puntual), NO desde tick.
-     */
+    /** Llamado cuando el jugador tiene pastel en mano y 5+ jugadores cerca. */
     public static void onCakeHeldNearPlayers(ServerPlayerEntity player, int nearbyCount) {
         if (nearbyCount >= 5 && sessionUnlocked.add(player.getUuidAsString() + "_cake")) {
-            AchievementClient.sendEvent(player.getUuidAsString(), "hold_cake_near_players", 1);
+            AchievementClient.sendEvent(player.getUuidAsString(), "MEME_ANTOJEN", 1);
         }
     }
 
-    /** Limpiar flags al desconectarse. */
-    public static void onPlayerLeave(ServerPlayerEntity player) {
-        String uuid = player.getUuidAsString();
-        sessionUnlocked.removeIf(f -> f.startsWith(uuid));
-    }
-
-    // init() ya no registra ningún ServerTickEvents
     public static void init() {
         // Todos los detectores son event-driven.
-        // El pastel se detecta en UseItemCallback — ver AchievementDetectors.register()
     }
 }

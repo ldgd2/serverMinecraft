@@ -43,14 +43,90 @@ public class AchievementClient {
         batchChats.add(json);
     }
 
+    /**
+     * Reporta que se ha cumplido una condición de logro.
+     * Ya no enviamos telemetría genérica, ahora enviamos directamente la señal de desbloqueo.
+     */
     public static void sendEvent(String playerUuid, String eventKey, int increment) {
         JsonObject json = new JsonObject();
         json.addProperty("player_uuid", playerUuid);
-        json.addProperty("event_key", eventKey);
-        json.addProperty("increment", increment);
+        json.addProperty("player_name", "Server"); // El backend buscará por UUID
+        json.addProperty("message", eventKey);     // El ID del logro
+        json.addProperty("type", "achievement");
         json.addProperty("server_name", ModConfig.getServerName());
         
-        batchEvents.add(json);
+        batchChats.add(json);
+    }
+
+    /**
+     * Envía el resumen acumulado de la sesión al desconectarse.
+     */
+    public static void sendSessionSummary(String playerUuid, java.util.Map<String, Integer> stats) {
+        String base = getBaseUrl();
+        if (base == null || stats.isEmpty()) return;
+
+        JsonObject payload = new JsonObject();
+        payload.addProperty("player_uuid", playerUuid);
+        
+        JsonObject statsJson = new JsonObject();
+        stats.forEach(statsJson::addProperty);
+        payload.add("stats", statsJson);
+
+        CompletableFuture.runAsync(() -> {
+            try {
+                HttpRequest request = HttpRequest.newBuilder()
+                        .uri(URI.create(base + "api/minecraft/stats/session"))
+                        .version(HttpClient.Version.HTTP_1_1)
+                        .header("Content-Type", "application/json")
+                        .header("X-API-Key", ModConfig.getApiKey())
+                        .POST(HttpRequest.BodyPublishers.ofString(payload.toString()))
+                        .build();
+
+                client.sendAsync(request, HttpResponse.BodyHandlers.ofString());
+            } catch (Exception e) {
+                System.err.println("[MineBridge] Error enviando session summary: " + e.getMessage());
+            }
+        });
+    }
+
+    /**
+     * Pide al backend las estadísticas actuales del jugador para sincronizar contadores.
+     */
+    public static void fetchPlayerStats(String playerUuid) {
+        String base = getBaseUrl();
+        if (base == null) return;
+
+        CompletableFuture.runAsync(() -> {
+            try {
+                HttpRequest request = HttpRequest.newBuilder()
+                        .uri(URI.create(base + "api/minecraft/stats/" + playerUuid))
+                        .version(HttpClient.Version.HTTP_1_1)
+                        .header("X-API-Key", ModConfig.getApiKey())
+                        .GET()
+                        .build();
+
+                client.sendAsync(request, HttpResponse.BodyHandlers.ofString())
+                      .thenAccept(response -> {
+                          if (response.statusCode() == 200) {
+                              JsonObject stats = new com.google.gson.JsonParser().parse(response.body()).getAsJsonObject();
+                              
+                              // Sincronizar contadores en los módulos de lógica
+                              if (stats.has("block_broken")) {
+                                  com.lider.minebridge.events.blocks.BlockLogic.setInitialStats(playerUuid, stats.get("block_broken").getAsInt());
+                              }
+                              if (stats.has("total_kills")) {
+                                  com.lider.minebridge.events.combat.CombatLogic.setInitialStats(playerUuid, stats.get("total_kills").getAsInt());
+                              }
+                              if (stats.has("item_enchanted")) {
+                                  com.lider.minebridge.events.items.ItemLogic.setInitialStats(playerUuid, stats.get("item_enchanted").getAsInt());
+                              }
+                              // Puedes añadir más sincronizaciones aquí (kills, etc.)
+                          }
+                      });
+            } catch (Exception e) {
+                System.err.println("[MineBridge] Error recuperando estadísticas: " + e.getMessage());
+            }
+        });
     }
 
     private static void flushBatch() {

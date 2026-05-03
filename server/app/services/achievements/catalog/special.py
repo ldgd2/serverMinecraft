@@ -37,7 +37,6 @@ SPECIAL_ACHIEVEMENTS = [
 
     # --- CURIOSIDADES ---
     AchievementDefinition("DRAGON_EGG", "El fin justifica los medios", "Consigue el Huevo de Dragon.", AchievementCategory.SPECIAL, {"has_dragon_egg": 1}),
-    # --- LOGROS DE CULTO ---
     AchievementDefinition("GOD_OF_WAR", "God of war", "Elimina a 1,000 entidades hostiles.", AchievementCategory.SPECIAL, {"hostile_kills": 1000}),
     AchievementDefinition("MOUNT_MASTER", "Montaras", "Recorre 10,000 bloques montado en un animal.", AchievementCategory.SPECIAL, {"distance_mounted": 10000}),
     AchievementDefinition("HUNGER_GAMES", "Los juegos del hambre", "Gana tu primer evento de supervivencia o torneo PVP.", AchievementCategory.SPECIAL, {"tournaments_won": 1}),
@@ -72,4 +71,44 @@ SPECIAL_ACHIEVEMENTS = [
     AchievementDefinition("MEME_POBRES", "ya comieron pobres?", "Consume un Filete (Steak) frente a otro jugador.", AchievementCategory.SPECIAL, {"eat_steak_near_player": 1}),
     AchievementDefinition("MEME_VIBORA", "si fuera una vibora ya te hubiera picado", "Encuentra tu primer Tesoro Enterrado.", AchievementCategory.SPECIAL, {"buried_treasure_found": 1}),
     AchievementDefinition("MEME_SUPER_POLLO", "un super?", "Ten un stack (64) de Pollo Cocinado en el inventario.", AchievementCategory.SPECIAL, {"cooked_chicken_stack": 1}),
+    
+    # --- EDGY & CULTURA DE INTERNET ---
+    AchievementDefinition("MEME_SKILL_ISSUE", "Skill Issue", "Muere contra un Baby Zombie usando armadura de Netherite completa.", AchievementCategory.COMBAT, {"skill_issue_death": 1}),
+    AchievementDefinition("MEME_NO_AFECTO", "Pov: No tienes afecto femenino", "Pica 1,000 bloques de Obsidiana.", AchievementCategory.MINING, {"mine_obsidian": 1000}),
+    AchievementDefinition("MEME_TURBIO", "Turbio...", "Asesina a un Ajolote.", AchievementCategory.SPECIAL, {"kill_axolotl": 1}),
+    AchievementDefinition("MEME_CHAMBA_PRO", "Pendejo no dura nada", "Rompe una herramienta de Netherite por exceso de uso.", AchievementCategory.SPECIAL, {"netherite_tool_broken": 1}),
+    AchievementDefinition("MEME_CINE", "Porque el que graba no ayuda", "Presencia cómo un Creeper elimina a otra entidad.", AchievementCategory.SPECIAL, {"creeper_kill_witness": 1}),
+
+    # --- LOGROS EXISTENCIALES ---
+    AchievementDefinition("PHILO_GUILT", "Todo esto es tu culpa.", "Asesina a un aldeano inocente.", AchievementCategory.SPECIAL, {"kill_villager": 1}),
+    AchievementDefinition("PHILO_PURPOSE", "¿Puedes siquiera recordar por qué viniste aquí?", "Alcanza las 50 horas de juego totales.", AchievementCategory.VETERAN, {"playtime_seconds": 180000}),
+    AchievementDefinition("PHILO_WAKE", "Es hora de que despiertes.", "Regresa al servidor tras una semana de ausencia.", AchievementCategory.SPECIAL, {"return_after_7d": 1}),
+    AchievementDefinition("PHILO_KILL_ENT", "Matar por entretenimiento es inofensivo.", "Elimina a 10,000 entidades totales.", AchievementCategory.COMBAT, {"total_kills": 10000}),
+    AchievementDefinition("PHILO_NECESSARY", "No hay diferencia entre lo que está bien y lo que es necesario.", "Saquea un cofre de una aldea.", AchievementCategory.SPECIAL, {"loot_village_chest": 1}),
+    AchievementDefinition("PHILO_NO_HOME", "No puedes volver a casa.", "Entra en la dimensión del Fin.", AchievementCategory.DIMENSIONS, {"enter_dimension:minecraft:the_end": 1}),
+    AchievementDefinition("PHILO_GOD", "Mata a todos, y eres un dios.", "Elimina a 50,000 entidades totales.", AchievementCategory.COMBAT, {"total_kills": 50000}),
+    AchievementDefinition("PHILO_WEAKNESS", "Este no es el momento para la debilidad.", "Elimina al Warden.", AchievementCategory.COMBAT, {"kill_warden": 1}),
+    AchievementDefinition("PHILO_DAILY", "¿A cuántos mobs has matado hoy?", "Elimina a 500 mobs en una sola sesión.", AchievementCategory.COMBAT, {"session_kills": 500}),
+    AchievementDefinition("PHILO_SLEEP", "¿Al menos duermes tranquilo?", "Duerme en una cama teniendo el efecto de Mal Presagio.", AchievementCategory.SPECIAL, {"sleep_with_bad_omen": 1}),
+
+    # --- CITAS Y SARCASMO ---
+    AchievementDefinition("MEME_WOLF", "El lobo no es un león, pero no actúa en el circo.", "Domestica a tu primer lobo.", AchievementCategory.SPECIAL, {"tame_wolf": 1}),
+    AchievementDefinition("MEME_CROSS", "llevando mi cruz", "Muere teniendo un Tótem en el inventario (pero no en la mano).", AchievementCategory.SPECIAL, {"die_with_totem_in_inv": 1}),
+    AchievementDefinition("MEME_TNT_CRAFT", "no debi inventar el", "Fabrica tu primer bloque de TNT.", AchievementCategory.SPECIAL, {"craft_tnt": 1}),
+    AchievementDefinition("MEME_TRIPLE_THREAT", "Hay tres cosas que salen siempre", "Muere rodeado por un creeper, un zombie y un esqueleto.", AchievementCategory.SPECIAL, {"triple_threat_death": 1}),
+    AchievementDefinition("MEME_FIRST_NIGHT", "He pasado una noche estupenda, pero no ha sido ésta.", "Sobrevive tu primera noche en el mundo.", AchievementCategory.SPECIAL, {"survive_first_night": 1}),
+    AchievementDefinition("MEME_TWO_BRAINS", "Si los seres humanos tuviésemos dos cerebros...", "Muere por tus propios medios (caída o fuego).", AchievementCategory.SPECIAL, {"self_death": 1}),
+    AchievementDefinition("MEME_XP_ERROR", "La experiencia es algo maravilloso.", "Gana tus primeros puntos de experiencia.", AchievementCategory.SPECIAL, {"gain_first_xp": 1}),
+    AchievementDefinition("MEME_FIRST_DEATH", "No es que tenga miedo a morirme...", "Muere por primera vez.", AchievementCategory.SPECIAL, {"first_death": 1}),
+    AchievementDefinition("MEME_DOG_LOVER", "¿Sabes qué me gusta de las personas? Sus perros.", "Ten 5 lobos domesticados al mismo tiempo.", AchievementCategory.SPECIAL, {"tame_5_dogs": 1}),
+    AchievementDefinition("MEME_MEMORY", "No guardo rencor, pero tengo buena memoria.", "Sé eliminado por otro jugador.", AchievementCategory.SOCIAL, {"killed_by_player": 1}),
+    AchievementDefinition("MEME_STAB_FRONT", "Los amigos de verdad te apuñalan de frente.", "Sé eliminado 10 veces por otros jugadores.", AchievementCategory.SOCIAL, {"killed_by_player_10": 1}),
+    AchievementDefinition("MEME_REVENGE", "Espera de mí, lo que recibo de ti.", "Elimina al jugador que te mató por última vez.", AchievementCategory.SOCIAL, {"revenge_kill": 1}),
+
+    # --- ACTITUD Y DESAFÍO ---
+    AchievementDefinition("MEME_GG", "GG", "Escribe 'GG' tras eliminar a un jefe (Boss).", AchievementCategory.SPECIAL, {"gg_after_boss": 1}),
+    AchievementDefinition("MEME_ALL_AGAINST_ME", "Todos contra yo solo", "Muere tras ser atacado por 3 o más jugadores a la vez.", AchievementCategory.SOCIAL, {"died_to_team": 1}),
+    AchievementDefinition("MEME_ONLY_A_GAME", "solo es un juego.....", "Muere teniendo nivel 100 o más de experiencia.", AchievementCategory.SPECIAL, {"die_with_100_lvl": 1}),
+    AchievementDefinition("MEME_TRY_AGAIN", "hazlo otra vez, a lo mejor esta vez sí", "Muere por la misma causa 3 veces seguidas en 5 minutos.", AchievementCategory.SPECIAL, {"repeat_death_streak": 1}),
+    AchievementDefinition("MEME_NO_EGGS", "no hay huevos", "Ataca al Warden con tus propias manos.", AchievementCategory.SPECIAL, {"punch_warden": 1}),
 ]
