@@ -17,7 +17,6 @@ public class BackendClient {
     private final HttpClient httpClient;
     private final Gson gson;
     private WebSocket webSocket;
-    private final java.util.concurrent.CopyOnWriteArrayList<JsonObject> batchPlayerStates = new java.util.concurrent.CopyOnWriteArrayList<>();
     private final java.util.concurrent.CopyOnWriteArrayList<JsonObject> batchEvents = new java.util.concurrent.CopyOnWriteArrayList<>();
     private final java.util.concurrent.CopyOnWriteArrayList<JsonObject> batchStats = new java.util.concurrent.CopyOnWriteArrayList<>();
     private final java.util.concurrent.CopyOnWriteArrayList<JsonObject> batchChats = new java.util.concurrent.CopyOnWriteArrayList<>();
@@ -116,20 +115,6 @@ public class BackendClient {
         batchEvents.add(json);
     }
 
-    public void notifyPlayerState(String player, float health, int food, double x, double y, double z, String world) {
-        JsonObject json = new JsonObject();
-        json.addProperty("player", player);
-        json.addProperty("health", health);
-        json.addProperty("food", food);
-        json.addProperty("pos_x", x);
-        json.addProperty("pos_y", y);
-        json.addProperty("pos_z", z);
-        json.addProperty("world", world);
-        json.addProperty("type", "player_state");
-        
-        batchPlayerStates.add(json);
-    }
-
     public void notifyServerState(String state) {
         JsonObject json = new JsonObject();
         json.addProperty("state", state);
@@ -185,13 +170,9 @@ public class BackendClient {
 
     private void flushBatch() {
         if (baseUrl == null || apiKey == null) return;
-        if (batchPlayerStates.isEmpty() && batchEvents.isEmpty() && batchStats.isEmpty() && batchChats.isEmpty()) return;
+        if (batchEvents.isEmpty() && batchStats.isEmpty() && batchChats.isEmpty()) return;
 
         JsonObject batch = new JsonObject();
-        
-        com.google.gson.JsonArray statesArray = new com.google.gson.JsonArray();
-        while (!batchPlayerStates.isEmpty()) { statesArray.add(batchPlayerStates.remove(0)); }
-        if (statesArray.size() > 0) batch.add("player_states", statesArray);
 
         com.google.gson.JsonArray eventsArray = new com.google.gson.JsonArray();
         while (!batchEvents.isEmpty()) { eventsArray.add(batchEvents.remove(0)); }

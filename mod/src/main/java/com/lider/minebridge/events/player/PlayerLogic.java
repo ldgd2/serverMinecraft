@@ -34,6 +34,19 @@ public class PlayerLogic {
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
             ServerPlayerEntity player = handler.getPlayer();
             AchievementClient.sendChatMessage(player.getUuidAsString(), player.getName().getString(), "ha salido.", "leave");
+            // Limpiar tracking de posición/estado para este jugador
+            com.lider.minebridge.events.modules.AchievementDetectors.onPlayerLeave(player);
+        });
+
+        // DETECCIÓN DE MOVIMIENTO PARA LOGROS DE ALTURA/ESTADO
+        // Corre 1 vez cada 40 ticks (2 segundos) POR JUGADOR — no cada tick
+        final java.util.concurrent.atomic.AtomicInteger tickCounter = new java.util.concurrent.atomic.AtomicInteger(0);
+        net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents.END_SERVER_TICK.register(server -> {
+            if (tickCounter.incrementAndGet() % 40 == 0) {
+                for (ServerPlayerEntity p : server.getPlayerManager().getPlayerList()) {
+                    com.lider.minebridge.events.modules.AchievementDetectors.onPlayerMove(p);
+                }
+            }
         });
     }
 

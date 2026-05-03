@@ -61,14 +61,7 @@ async def receive_batch(batch: dict, request: Request, db: Session = Depends(get
     """
     Recibe un lote de eventos, estadísticas y estados para optimizar la conexión.
     """
-    # 1. Procesar Estados de Jugadores (Solo el último de cada jugador en el lote)
-    player_states = batch.get("player_states", [])
-    if player_states:
-        latest_states = {s.get("player"): s for s in player_states if s.get("player")}
-        for state in latest_states.values():
-            await receive_player_state(request, state, db)
-
-    # 2. Procesar Eventos (incluyendo JOIN/LEAVE para actualizar caché de jugadores)
+    # Procesar Eventos (incluyendo JOIN/LEAVE para actualizar caché de jugadores)
     events = batch.get("events", [])
     server_name = batch.get("server_name")
     for event in events:
@@ -103,6 +96,7 @@ async def receive_batch(batch: dict, request: Request, db: Session = Depends(get
         "stats": len(stats),
         "chats": len(chats)
     }}
+
 
 @router.get("/players/{server_name}")
 async def get_cached_players(server_name: str, user: User = Depends(verify_api_key)):
