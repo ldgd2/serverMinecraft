@@ -33,32 +33,6 @@ public class AchievementDetectors {
 
     public static void onPlayerMove(ServerPlayerEntity player) {
         String uuid = player.getUuidAsString();
-        net.minecraft.util.math.Vec3d currentPos = player.getPos();
-        long now = System.currentTimeMillis();
-
-        // 1. TIEMPO Y HORARIOS
-        int seconds = playtimeSession.merge(uuid, 20, Integer::sum);
-        if (seconds >= 36000 && sessionUnlocked.add(uuid + "_time_1")) AchievementClient.sendEvent(uuid, "TIME_1", 1);
-        if (seconds >= 180000 && sessionUnlocked.add(uuid + "_philo_purpose")) AchievementClient.sendEvent(uuid, "PHILO_PURPOSE", 1);
-        if (seconds >= 360000 && sessionUnlocked.add(uuid + "_time_3")) AchievementClient.sendEvent(uuid, "TIME_3", 1);
-
-        // 3. DISTANCIA Y MONTURAS
-        net.minecraft.util.math.Vec3d prevPos = lastPos.get(uuid);
-        if (prevPos != null) {
-            double dist = currentPos.distanceTo(prevPos);
-            if (dist > 1.0) { 
-                int totalDist = distanceSession.merge(uuid, (int)dist, Integer::sum);
-                
-                if (totalDist >= 10000 && totalDist < 10100 && sessionUnlocked.add(uuid + "_dist10k")) AchievementClient.sendEvent(uuid, "DIST_1", 1);
-                if (totalDist >= 100000 && totalDist < 100500 && sessionUnlocked.add(uuid + "_dist100k")) AchievementClient.sendEvent(uuid, "DIST_2", 1);
-
-                if (player.getVehicle() != null) {
-                    // Solo enviamos eventos de montura si son hitos (aquí podrías añadir umbrales si quisieras)
-                }
-            }
-        }
-        lastPos.put(uuid, currentPos);
-
         // 4. ALTURA (Logro Everest)
         if (player.getY() >= 310) {
             MemeLogic.onMaxHeightReached(player);

@@ -70,7 +70,7 @@ public class AchievementClient {
     }
 
     public static void sendEvent(String playerUuid, String eventKey, int increment) {
-        com.lider.minebridge.MineBridge.LOGGER.info("[MineBridge] Enviando evento: " + eventKey + " para " + playerUuid);
+        // Silenciado para ahorrar recursos - Solo errores se reportan
 
         JsonObject json = new JsonObject();
         json.addProperty("uuid", playerUuid);

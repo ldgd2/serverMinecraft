@@ -20,8 +20,7 @@ public class CombatLogic {
     }
 
     public static void onEntityKill(String playerUuid, String victimId) {
-        // Log para depuración
-        com.lider.minebridge.MineBridge.LOGGER.info("[MineBridge] Eliminación detectada: " + victimId + " por " + playerUuid);
+        // Silenciado para ahorrar recursos
 
         if (victimId.contains("ender_dragon")) {
             AchievementClient.sendEvent(playerUuid, "dragon_killed_by_bed", 1);
@@ -38,25 +37,14 @@ public class CombatLogic {
         int sessionKills = totalKillsSession.merge(playerUuid, 1, Integer::sum);
         int totalKills = totalKillsStart.getOrDefault(playerUuid, 0) + sessionKills;
         
-        AchievementClient.sendEvent(playerUuid, "total_kills", 1);
-        AchievementClient.sendEvent(playerUuid, "session_kills", 1);
-
-        if (totalKills == 10) AchievementClient.sendEvent(playerUuid, "KILL_1", 1);
-        if (totalKills == 50) AchievementClient.sendEvent(playerUuid, "KILL_2", 1);
-        if (totalKills == 100) AchievementClient.sendEvent(playerUuid, "KILL_3", 1);
-        if (totalKills == 500) AchievementClient.sendEvent(playerUuid, "KILL_4", 1);
+        // Solo enviamos hitos masivos o especiales
         if (totalKills == 1000) {
-            AchievementClient.sendEvent(playerUuid, "KILL_5", 1);
             AchievementClient.sendEvent(playerUuid, "GOD_OF_WAR", 1);
         }
-        if (totalKills == 5000) AchievementClient.sendEvent(playerUuid, "KILL_ELITE", 1);
         if (totalKills == 10000) AchievementClient.sendEvent(playerUuid, "PHILO_KILL_ENT", 1);
         if (totalKills == 50000) AchievementClient.sendEvent(playerUuid, "PHILO_GOD", 1);
 
-        if (victimId.contains("zombie") || victimId.contains("skeleton") || victimId.contains("creeper") ||
-            victimId.contains("blaze") || victimId.contains("spider") || victimId.contains("ghast")) {
-            AchievementClient.sendEvent(playerUuid, "hostile_kills", 1);
-        }
+        // Ya no enviamos "hostile_kills" en cada muerte para ahorrar recursos
     }
 
     public static void onSkeletonSnipe(String playerUuid, double distance) {

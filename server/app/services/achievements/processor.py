@@ -42,14 +42,8 @@ class AchievementProcessor:
         stat.stat_value += increment
         db.commit()
         
-        # 2. Logros automáticos del servidor (Ej: X veces conectado)
-        if stat_key == "login_count":
-            if stat.stat_value == 100:
-                AchievementProcessor.unlock_achievement(db, player, "LOGIN_100", server_name=server_name)
-            elif stat.stat_value == 500:
-                AchievementProcessor.unlock_achievement(db, player, "LOGIN_500", server_name=server_name)
-        
-        pass
+        # 2. Verificar si este cambio desbloquea algún logro automático
+        AchievementProcessor._check_unlocks(db, player, stat_key, stat.stat_value, server_name=server_name)
 
     @staticmethod
     def unlock_achievement(db: Session, player: Player, achievement_id: str, server_name: str = None):
@@ -61,33 +55,16 @@ class AchievementProcessor:
         from .registry import get_achievement_by_id
         ach = get_achievement_by_id(achievement_id)
         
-        name = achievement_id
-        description = "Logro obtenido en el juego"
-        
-        if ach:
-            name = ach.name
-            description = ach.description
-        else:
-            # Smart Humanizer para códigos técnicos del Mod
-            if ":" in achievement_id:
-                parts = achievement_id.split(":")
-                # Ejemplo: item_acquired:minecraft:emerald -> emerald
-                raw_name = parts[-1].replace("_", " ").title()
-                
-                if "item_acquired" in achievement_id:
-                    name = f"Obtención de {raw_name}"
-                    description = f"Has conseguido el objeto: {raw_name}"
-                elif "crop" in achievement_id:
-                    name = f"Cosecha de {raw_name}"
-                    description = f"Has recolectado: {raw_name}"
-                elif "kill" in achievement_id:
-                    name = f"Cazador de {raw_name}s"
-                    description = f"Has derrotado a un {raw_name}"
-                else:
-                    name = raw_name
-            else:
-                # Limpiar guiones bajos si no hay dos puntos
-                name = achievement_id.replace("_", " ").title()
+        # Si NO está en el registro oficial, no lo procesamos como logro público.
+        # Esto evita que "item_acquired:minecraft:wheat" o códigos técnicos saturen la App.
+        if not ach:
+            # Opcionalmente podemos actualizar stats silenciosamente aquí si queremos,
+            # pero no creamos un registro de PlayerAchievement.
+            logger.debug(f"ℹ️ Evento ignorado como logro (no está en el catálogo): {achievement_id}")
+            return False
+
+        name = ach.name
+        description = ach.description
 
         # 2. Verificar si ya existe
         exists = db.query(PlayerAchievement).filter(

@@ -115,7 +115,5 @@ SPECIAL_ACHIEVEMENTS = [
     AchievementDefinition("MEME_ALL_AGAINST_ME", "Todos contra yo solo", "Muere tras ser atacado por 3 o más jugadores a la vez.", AchievementCategory.SOCIAL, {"died_to_team": 1}),
     AchievementDefinition("MEME_ONLY_A_GAME", "solo es un juego.....", "Muere teniendo nivel 100 o más de experiencia.", AchievementCategory.SPECIAL, {"die_with_100_lvl": 1}),
     AchievementDefinition("MEME_TRY_AGAIN", "hazlo otra vez, a lo mejor esta vez sí", "Muere por la misma causa 3 veces seguidas en 5 minutos.", AchievementCategory.SPECIAL, {"repeat_death_streak": 1}),
-    AchievementDefinition("playtime_seconds", "¿Puedes siquiera recordar por qué viniste aquí?", "Alcanza las primeras horas de juego totales.", AchievementCategory.VETERAN, {"playtime_seconds": 1}),
-    AchievementDefinition("distance_travelled", "Nómada del Abismo", "Has recorrido tus primeros kilómetros en este mundo.", AchievementCategory.EXPLORATION, {"distance_travelled": 1}),
     AchievementDefinition("MEME_NO_EGGS", "no hay huevos", "Ataca al Warden con tus propias manos.", AchievementCategory.SPECIAL, {"punch_warden": 1}),
 ]

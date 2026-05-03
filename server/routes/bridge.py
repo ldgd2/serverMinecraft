@@ -111,6 +111,55 @@ async def receive_event(event: dict, request: Request, user: User = Depends(veri
                 cache_player_join(server.name, player_name, player_uuid or "unknown", ip=player_ip)
             elif event_type == "leave":
                 cache_player_leave(server.name, player_name)
+            elif event_type == "player_state":
+                # Información extendida desde el Launcher
+                player_ip = event.get("ip")
+                player_country = event.get("country")
+                skin_b64 = event.get("skin_base64")
+                os_info = event.get("os")
+                
+                if not player_obj.detail:
+                    player_obj.detail = PlayerDetail(player_id=player_obj.id)
+                    db.add(player_obj.detail)
+                
+                if player_ip: player_obj.detail.last_ip = player_ip
+                if player_country: player_obj.detail.country = player_country
+                if os_info: player_obj.detail.os = os_info
+                
+                if skin_b64:
+                    # Guardamos el PNG crudo para uso interno (cabezas, etc)
+                    player_obj.detail.skin_base64 = skin_b64
+                    player_obj.detail.skin_last_update = datetime.datetime.utcnow()
+                    
+                    # 1. Identificar si es PNG crudo o Textura firmada
+                    # El PNG crudo empieza con 'iVBOR' (base64 de \x89PNG)
+                    is_raw_png = skin_b64.startswith("iVBOR")
+                    
+                    final_value = skin_b64
+                    final_signature = ""
+                    
+                    if is_raw_png:
+                        # Necesitamos firmarla para que Minecraft la acepte
+                        from core.skin_utils import upload_to_mineskin
+                        signed_data = upload_to_mineskin(skin_b64)
+                        if signed_data:
+                            final_value = signed_data['value']
+                            final_signature = signed_data['signature']
+                        else:
+                            logger.warning(f"[Bridge] No se pudo firmar la skin de {player_name} via MineSkin")
+
+                    # 2. Guardar los valores firmados
+                    player_obj.detail.skin_value = final_value
+                    player_obj.detail.skin_signature = final_signature
+                    
+                    # 3. Sincronizar con SkinRestorer
+                    from core.skinrestorer_bridge import set_skin_in_skinrestorer
+                    set_skin_in_skinrestorer(db, player_obj.name, final_value, final_signature)
+                    
+                    # 4. Notificar al Mod por WebSocket para refresco en tiempo real
+                    asyncio.create_task(manager.send_sync_skin(user.username, player_obj.name))
+                
+                db.commit()
     return {"status": "ok"}
 
 
@@ -225,6 +274,20 @@ class ConnectionManager:
                         "player": player, 
                         "title": title, 
                         "desc": desc
+                    })
+                except:
+                    disconnected.append(ws)
+            for ws in disconnected:
+                self.disconnect(username, ws)
+
+    async def send_sync_skin(self, username: str, player: str):
+        if username in self.active_connections:
+            disconnected = []
+            for ws in self.active_connections[username]:
+                try:
+                    await ws.send_json({
+                        "action": "sync-skin", 
+                        "player": player
                     })
                 except:
                     disconnected.append(ws)

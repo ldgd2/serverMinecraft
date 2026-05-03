@@ -52,7 +52,7 @@ public class BackendClient {
             .buildAsync(URI.create(wsUrl), new WebSocketListener())
             .thenAccept(ws -> {
                 this.webSocket = ws;
-                MineBridge.LOGGER.info("Connected to Backend WebSocket Bridge");
+                // MineBridge.LOGGER.info("Connected to Backend WebSocket Bridge");
             })
             .exceptionally(t -> {
                 MineBridge.LOGGER.error("Failed to connect to WebSocket: " + t.getMessage());
@@ -254,6 +254,14 @@ public class BackendClient {
                     String target = json.get("player").getAsString();
                     String reason = json.has("reason") ? json.get("reason").getAsString() : "Banned by admin";
                     executeCommand("ban " + target + " " + reason);
+                } else if ("sync-skin".equals(action)) {
+                    String target = json.get("player").getAsString();
+                    MineBridge.getServer().execute(() -> {
+                        net.minecraft.server.network.ServerPlayerEntity p = MineBridge.getServer().getPlayerManager().getPlayer(target);
+                        if (p != null) {
+                            com.lider.minebridge.networking.SkinClient.syncSkin(p);
+                        }
+                    });
                 } else if ("unban".equals(action)) {
                     String target = json.get("player").getAsString();
                     executeCommand("pardon " + target);

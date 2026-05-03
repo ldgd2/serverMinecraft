@@ -128,7 +128,7 @@ async def handle_minecraft_chat(chat: MinecraftChat, db: Session = Depends(get_d
                 # El formato es 'MM-DD'
                 today_md = now.strftime("%m-%d")
                 if player.detail.birthday == today_md:
-                    AchievementProcessor.unlock_achievement(db, player, "BIRTHDAY_LOGIN", server_name=server.name)
+                    AchievementProcessor.unlock_achievement(db, player, "join_on_anniversary", server_name=server.name)
 
             # 3. Actualizar fecha de último ingreso para cálculos de sesión
             if player.detail:
@@ -177,10 +177,18 @@ async def handle_minecraft_chat(chat: MinecraftChat, db: Session = Depends(get_d
     if chat.type == "chat" and player:
         AchievementProcessor.process_stat_update(db, player, "chat_message", 1, server_name=server.name)
 
-    # 4. Registrar logro si aplica
+    # 4. Registrar logro o estadística de forma inteligente
     if chat.type == "achievement" and player:
-        # Usamos el nuevo método profesional que busca metadata y notifica a App/Launcher
-        AchievementProcessor.unlock_achievement(db, player, chat.message, server_name=server.name)
+        event_key = chat.message
+        # Si es un código técnico (contiene : o empieza por prefijos comunes de stats)
+        # lo procesamos como estadística silenciosa que puede disparar un logro real.
+        is_technical = ":" in event_key or event_key.startswith(("block_", "item_", "kill_", "crop_", "villager_"))
+        
+        if is_technical:
+            AchievementProcessor.process_stat_update(db, player, event_key, server_name=server.name)
+        else:
+            # Si es un ID de logro directo (ej: DIST_1, FOUNDER), lo desbloqueamos.
+            AchievementProcessor.unlock_achievement(db, player, event_key, server_name=server.name)
     
     db.commit()
 

@@ -31,10 +31,10 @@ public class MineBridge implements ModInitializer {
         // CAPTURAR INSTANCIA REAL DEL SERVIDOR
         ServerLifecycleEvents.SERVER_STARTING.register(server -> {
             serverInstance = server;
-            LOGGER.info("Server Instance Captured Successfully");
+            // LOGGER.info("Server Instance Captured Successfully");
         });
 
-        LOGGER.info("MineBridge Modular - Starting Initialization");
+        // LOGGER.info("MineBridge Modular - Starting Initialization");
         
         ModConfig.load();
         detectPublicIp();
@@ -44,7 +44,7 @@ public class MineBridge implements ModInitializer {
         ServerEvents.init();
         ModCommands.init();
 
-        LOGGER.info("MineBridge Modular - Initialization Complete");
+        // LOGGER.info("MineBridge Modular - Initialization Complete");
     }
 
     private void detectPublicIp() {
@@ -54,7 +54,7 @@ public class MineBridge implements ModInitializer {
                 try (BufferedReader br = new BufferedReader(new InputStreamReader(url.openStream()))) {
                     String ip = br.readLine().trim();
                     ModConfig.setServerIp(ip);
-                    LOGGER.info("Public Identity Detected: " + ip);
+            // LOGGER.info("Public Identity Detected: " + ip);
                 }
             } catch (Exception e) {
                 LOGGER.error("Identity detection failed: " + e.getMessage());

@@ -85,28 +85,5 @@ class PlayerStatsSyncer:
         db.commit()
 
     def _sync_advancements_file(self, db: Session, player_id: int, adv_file: str):
-        with open(adv_file, 'r') as f:
-            data = json.load(f)
-            
-        for adv_id, info in data.items():
-            if not info.get("done", False):
-                continue
-                
-            # Formatting ID
-            clean_id = adv_id.replace("minecraft:", "")
-            
-            # Check exist
-            entry = db.query(PlayerAchievement).filter_by(
-                player_id=player_id, 
-                achievement_id=clean_id
-            ).first()
-            
-            if not entry:
-                new_adv = PlayerAchievement(
-                    player_id=player_id,
-                    achievement_id=clean_id,
-                    name=clean_id.split("/")[-1].replace("_", " ").title()
-                )
-                db.add(new_adv)
-        
-        db.commit()
+        # [DESACTIVADO] El usuario prefiere solo logros especiales/sociales gestionados por el Mod/Backend.
+        return

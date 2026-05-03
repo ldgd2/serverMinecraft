@@ -26,12 +26,20 @@ public class SkinClient {
     }
 
     public static void syncSkin(ServerPlayerEntity player, Runnable onComplete) {
+        // Ejecutar de forma asíncrona sin retrasos innecesarios para que la skin esté lista
+        // antes de que el jugador sea renderizado completamente para los demás.
+        java.util.concurrent.CompletableFuture.runAsync(() -> {
+            performSync(player, onComplete);
+        });
+    }
+
+    private static void performSync(ServerPlayerEntity player, Runnable onComplete) {
         String baseUrl = ModConfig.getBackendUrl();
         if (baseUrl == null || baseUrl.isEmpty() || baseUrl.equals("PENDING")) return;
         
         String url = (baseUrl.endsWith("/") ? baseUrl : baseUrl + "/") + "api/v1/players/skin/" + player.getName().getString();
 
-        MineBridge.LOGGER.info("[MineBridge] Sincronizando skin desde: " + url);
+        // MineBridge.LOGGER.info("[MineBridge] Sincronizando skin desde: " + url);
 
         client.sendAsync(
             HttpRequest.newBuilder()
@@ -58,7 +66,7 @@ public class SkinClient {
                                 // 2. Notificar a TODOS los clientes (Refresco total)
                                 refreshPlayerForOthers(player);
                                 
-                                MineBridge.LOGGER.info("[MineBridge] ✅ Skin inyectada con éxito para: " + player.getName().getString());
+                                // MineBridge.LOGGER.info("[MineBridge] ✅ Skin inyectada con éxito para: " + player.getName().getString());
                                 if (onComplete != null) onComplete.run();
                             } catch (Exception e) {
                                 MineBridge.LOGGER.error("[MineBridge] Error inyectando skin en hilo principal: " + e.getMessage());

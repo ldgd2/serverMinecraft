@@ -54,67 +54,16 @@ public class BlockLogic {
             Block block = state.getBlock();
             String id = Registries.BLOCK.getId(block).getPath();
 
-            // 1. MINERÍA GENERAL (Basado en Mining.py)
-            int sessionCount = blockBrokenSession.merge(uuid, 1, Integer::sum);
-            int totalCount = blockBrokenStart.getOrDefault(uuid, 0) + sessionCount;
-
-            if (totalCount == 100) AchievementClient.sendEvent(uuid, "MINER_1", 1);
-            if (totalCount == 500) AchievementClient.sendEvent(uuid, "MINER_2", 1);
-            if (totalCount == 1000) AchievementClient.sendEvent(uuid, "MINER_3", 1);
-            if (totalCount == 5000) AchievementClient.sendEvent(uuid, "MINER_4", 1);
-            if (totalCount == 10000) AchievementClient.sendEvent(uuid, "MINER_5", 1);
-            if (totalCount == 50000) AchievementClient.sendEvent(uuid, "MINER_ELITE", 1);
-
-            // 2. MINERALES ESPECÍFICOS
+            // 2. MINERALES ESPECÍFICOS (Solo dejamos lo especial/meme)
             for (String ore : TRACKED_ORES) {
-                if (id.contains(ore)) {
-                    com.lider.minebridge.MineBridge.LOGGER.info("[MineBridge] Mineral detectado: " + id + " por " + uuid);
-                    if (ore.contains("diamond")) {
-                        int dm = diamondsMinedSession.merge(uuid, 1, Integer::sum);
-                        if (dm == 1) AchievementClient.sendEvent(uuid, "MINE_DIAMOND", 1);
-                        if (dm == 64) AchievementClient.sendEvent(uuid, "MINE_DIAMOND_64", 1);
-                        AchievementClient.sendEvent(uuid, "mine_diamond", 1);
-                    } 
-                    else if (ore.contains("ancient_debris")) AchievementClient.sendEvent(uuid, "mine_ancient_debris", 1);
-                    else if (ore.contains("emerald")) AchievementClient.sendEvent(uuid, "mine_emerald", 1);
-                    else if (ore.contains("amethyst")) AchievementClient.sendEvent(uuid, "mine_amethyst", 1);
-                    else if (ore.contains("gold")) AchievementClient.sendEvent(uuid, "mine_gold", 1);
-                    else if (id.equals("obsidian")) {
-                        int obs = obsidianMinedSession.merge(uuid, 1, Integer::sum);
-                        if (obs == 1000) AchievementClient.sendEvent(uuid, "MEME_NO_AFECTO", 1);
-                        AchievementClient.sendEvent(uuid, "mine_obsidian", 1);
-                    }
+                if (id.contains(ore) && id.equals("obsidian")) {
+                    int obs = obsidianMinedSession.merge(uuid, 1, Integer::sum);
+                    if (obs == 1000) AchievementClient.sendEvent(uuid, "MEME_NO_AFECTO", 1);
                     break;
                 }
             }
 
-            // 3. CULTIVOS (Farming.py)
-            for (String crop : TRACKED_CROPS) {
-                if (id.contains(crop)) {
-                    boolean isMature = false;
-                    if (block instanceof CropBlock c) isMature = c.isMature(state);
-                    else if (block instanceof NetherWartBlock) isMature = state.get(NetherWartBlock.AGE) == 3;
-                    else if (block instanceof SweetBerryBushBlock) isMature = state.get(SweetBerryBushBlock.AGE) == 3;
-                    else isMature = true;
-
-                    if (isMature) {
-                        int totalFarming = cropsHarvestedSession.merge(uuid, 1, Integer::sum);
-                        java.util.Map<String, Integer> pCrops = cropsSpecificSession.computeIfAbsent(uuid, k -> new java.util.HashMap<>());
-                        int specCount = pCrops.merge(id, 1, Integer::sum);
-
-                        // Thresholds generales
-                        if (totalFarming == 1000) AchievementClient.sendEvent(uuid, "FARM_1", 1);
-                        if (totalFarming == 50000) AchievementClient.sendEvent(uuid, "FARM_3", 1);
-
-                        // Thresholds específicos
-                        AchievementClient.sendEvent(uuid, "crop:minecraft:" + id, 1);
-                        if (id.equals("potatoes") && specCount == 500) AchievementClient.sendEvent(uuid, "FARM_POTATO", 1);
-                        if (id.equals("carrots") && specCount == 500) AchievementClient.sendEvent(uuid, "FARM_CARROT", 1);
-                        if (id.equals("wheat") && specCount == 1000) AchievementClient.sendEvent(uuid, "FARM_WHEAT", 1);
-                    }
-                    break;
-                }
-            }
+            // 3. CULTIVOS (Eliminado por ser intrusivo - Solo se guardan estadisticas al final)
         });
 
         // JUKEBOX Y COFRES DE ALDEA
@@ -123,29 +72,16 @@ public class BlockLogic {
                 Block block = world.getBlockState(hitResult.getBlockPos()).getBlock();
                 String uuid = serverPlayer.getUuidAsString();
 
-                // 1. Tocadiscos
-                if (block instanceof net.minecraft.block.JukeboxBlock) {
-                    net.minecraft.item.ItemStack stack = player.getStackInHand(hand);
-                    if (stack.get(net.minecraft.component.DataComponentTypes.JUKEBOX_PLAYABLE) != null) {
-                        AchievementClient.sendEvent(uuid, "music_disc_played", 1);
-                        AchievementClient.sendEvent(uuid, "MISC_MUSIC", 1);
-                    }
-                }
-
-                // 2. Cofres (Aldea y Tesoro)
+                // 2. Cofres (Aldea y Tesoro - Mantenemos por ser Especiales)
                 if (block == net.minecraft.block.Blocks.CHEST) {
                     net.minecraft.server.world.ServerWorld sw = (net.minecraft.server.world.ServerWorld) world;
                     net.minecraft.util.math.BlockPos pos = hitResult.getBlockPos();
                     
-                    // Aldea
                     if (sw.getStructureAccessor().getStructureContaining(pos, net.minecraft.registry.tag.StructureTags.VILLAGE).hasChildren()) {
-                        AchievementClient.sendEvent(uuid, "loot_village_chest", 1);
                         AchievementClient.sendEvent(uuid, "PHILO_NECESSARY", 1);
                     }
                     
-                    // Tesoro Enterrado (Usamos el tag ON_TREASURE_MAPS)
                     if (sw.getStructureAccessor().getStructureContaining(pos, net.minecraft.registry.tag.StructureTags.ON_TREASURE_MAPS).hasChildren()) {
-                        AchievementClient.sendEvent(uuid, "buried_treasure_found", 1);
                         AchievementClient.sendEvent(uuid, "MEME_VIBORA", 1);
                     }
                 }

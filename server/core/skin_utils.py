@@ -27,3 +27,32 @@ def download_and_crop_head(skin_url: str, output_path: str, size: int = 64):
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     final.save(output_path)
     return output_path
+
+def upload_to_mineskin(base64_png: str) -> dict:
+    """
+    Sube un PNG base64 a MineSkin para obtener una textura firmada por Mojang.
+    Retorna {'value': '...', 'signature': '...'} o None.
+    """
+    try:
+        # MineSkin prefiere multipart/form-data
+        url = "https://api.mineskin.org/generate/upload"
+        
+        # Decodificar para enviar como archivo
+        image_data = base64.b64decode(base64_png)
+        files = {'file': ('skin.png', image_data, 'image/png')}
+        
+        # Opcional: visibilidad pública (0) o privada (1)
+        data = {'visibility': 0}
+        
+        resp = requests.post(url, files=files, data=data, timeout=20)
+        if resp.status_code == 200:
+            json_data = resp.json()
+            texture = json_data.get('data', {}).get('texture', {})
+            return {
+                'value': texture.get('value'),
+                'signature': texture.get('signature')
+            }
+        return None
+    except Exception as e:
+        print(f"[SkinUtils] Error en MineSkin: {e}")
+        return None
