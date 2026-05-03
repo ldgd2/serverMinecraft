@@ -1,4 +1,4 @@
-# ── Python ──────────────────────────────────────────────────────────────────
+# ── Python ───────────────────────────────────────────────────────────────────
 __pycache__/
 *.py[cod]
 *.pyo
@@ -7,44 +7,41 @@ __pycache__/
 *.egg-info/
 .eggs/
 
-# ── Virtual environments ─────────────────────────────────────────────────────
+# ── Virtual environments ──────────────────────────────────────────────────────
 venv/
 .venv/
 env/
 .env
+!.env.example
 
-# ── PyInstaller build artifacts ──────────────────────────────────────────────
-# Exclude the compiled dist/ folder (exe is copied to server/static/versions/)
+# ── PyInstaller build artifacts ───────────────────────────────────────────────
 minecraftLauncher/dist/
 minecraftLauncher/build/
 
-# ── Logs ─────────────────────────────────────────────────────────────────────
+# ── Logs ──────────────────────────────────────────────────────────────────────
 *.log
 logs/
 
-# ── OS ───────────────────────────────────────────────────────────────────────
+# ── OS ────────────────────────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
 
-# ── IDE ──────────────────────────────────────────────────────────────────────
+# ── IDE ───────────────────────────────────────────────────────────────────────
 .vscode/settings.json
 .idea/
 
-# ── Secrets ──────────────────────────────────────────────────────────────────
-*.env
-!.env.example
+# ── Server static — binarios, uploads, skins, etc. ───────────────────────────
+# Los archivos se suben al VPS vía API (empaquetar.py → POST /upload)
+# Nada de esto debe ir a GitHub
+server/static/
 
-# ── Server static: ALLOW versioned executables in git ────────────────────────
-# Los ejecutables del launcher viven aquí y se suben al repo
-# para que el VPS solo haga git pull
-!server/static/versions/
-!server/static/versions/**
-!server/static/versions.json
+# ── Packager credentials ──────────────────────────────────────────────────────
+minecraftLauncher/.packager_config
 
-# ── Flutter ──────────────────────────────────────────────────────────────────
+# ── Flutter ───────────────────────────────────────────────────────────────────
 appserve/.dart_tool/
 appserve/build/
 
-# ── Minecraft mod ────────────────────────────────────────────────────────────
+# ── Minecraft mod ─────────────────────────────────────────────────────────────
 mod/build/
 mod/.gradle/
