@@ -78,9 +78,10 @@ public class AchievementDetectors {
         }
         lastPos.put(uuid, currentPos);
 
-        // 4. ALTURA
-        double y = player.getY();
-        if (y >= 319) AchievementClient.sendEvent(uuid, "max_height_reached", 1);
+        // 4. ALTURA (Logro Everest)
+        if (player.getY() >= 310) {
+            MemeLogic.onMaxHeightReached(player);
+        }
 
         // 5. EFECTOS
         if (player.hasStatusEffect(net.minecraft.entity.effect.StatusEffects.DARKNESS)) {

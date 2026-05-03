@@ -111,7 +111,21 @@ class AchievementProcessor:
                         chat_type="achievement"
                     ))
 
-                    # Notificar al Launcher (WebSocket Bridge manager)
+                    # 3. Notificar In-Game vía RCON (Cartelito y Sonido)
+                    rcon_service.send_command(
+                        server.name,
+                        f'title {player.name} title {{"text":"🏆 Logro Obtenido!", "color":"gold", "bold":true}}'
+                    )
+                    rcon_service.send_command(
+                        server.name,
+                        f'title {player.name} subtitle {{"text":"{name}", "color":"yellow"}}'
+                    )
+                    rcon_service.send_command(
+                        server.name,
+                        f'playsound minecraft:ui.toast.challenge_complete master {player.name}'
+                    )
+
+                    # 4. Notificar al Launcher (WebSocket Bridge manager)
                     admin = db.query(User).filter(User.id == server.user_id).first()
                     if admin:
                         loop = _main_loop

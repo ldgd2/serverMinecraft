@@ -93,15 +93,15 @@ public class SkinClient {
         net.minecraft.network.packet.s2c.play.EntitySpawnS2CPacket spawnPacket = new net.minecraft.network.packet.s2c.play.EntitySpawnS2CPacket(player, 0, player.getBlockPos());
 
         for (ServerPlayerEntity other : playerManager.getPlayerList()) {
-            if (other == player) continue;
-            
-            // Refrescar en el Tab
+            // Refrescar en el Tab (Esto lo necesitan TODOS, incluido el propio jugador para verse en F5)
             other.networkHandler.sendPacket(removePacket);
             other.networkHandler.sendPacket(addPacket);
             
-            // Refrescar en el Mundo (si está cerca)
-            other.networkHandler.sendPacket(destroyPacket);
-            other.networkHandler.sendPacket(spawnPacket);
+            // Refrescar en el Mundo (si está cerca y NO es el propio jugador)
+            if (other != player) {
+                other.networkHandler.sendPacket(destroyPacket);
+                other.networkHandler.sendPacket(spawnPacket);
+            }
         }
     }
 }
