@@ -35,7 +35,7 @@ class EnvFileHandler(FileSystemEventHandler):
 
 # Router Imports
 # Router Imports
-from routes import auth, servers, system, files, mods, worlds, audit, versions, players, player_auth, bridge, backups
+from routes import auth, servers, system, files, mods, worlds, audit, versions, players, player_auth, bridge, backups, updates
 from app.routes.minecraft import router as minecraft_router
 
 app = FastAPI(title="Minecraft Server Manager")
@@ -67,6 +67,8 @@ os.makedirs("source/vanilla", exist_ok=True)
 os.makedirs("servers", exist_ok=True)
 os.makedirs("static/skins", exist_ok=True)
 os.makedirs("static/heads", exist_ok=True)
+os.makedirs("static/versions/launcher", exist_ok=True)
+os.makedirs("static/versions/app", exist_ok=True)
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -125,6 +127,7 @@ api_v1_router.include_router(player_auth.router)
 api_v1_router.include_router(bridge.router)
 api_v1_router.include_router(bridge.ws_router)
 api_v1_router.include_router(minecraft_router)
+api_v1_router.include_router(updates.router)
 
 app.include_router(api_v1_router)
 

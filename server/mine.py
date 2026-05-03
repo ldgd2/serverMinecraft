@@ -159,12 +159,13 @@ def show_menu():
         table.add_row("14", "System", "Update Deps", "Install/Update python requirements (Pillow, etc)")
         table.add_row("15", "ULTIMATE", "SETUP", "Configura TODO de una vez (IP, RCON, Skins, App)")
         table.add_row("16", "Database", "Clean Achievements", "Eliminar logros basura/intrusivos de la BD")
+        table.add_row("17", "Updates", "Version Manager", "Publicar nueva versión del Launcher o App")
         table.add_row("0", "Exit", "Quit", "Close the CLI")
         
         console.print(table)
         console.print("\n")
 
-        choice = Prompt.ask("[bold yellow]❯ Select an option[/bold yellow]", choices=["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "0"], default="1")
+        choice = Prompt.ask("[bold yellow]❯ Select an option[/bold yellow]", choices=["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "0"], default="1")
         import subprocess
         script_path = os.path.abspath(__file__)
         python_exe = sys.executable
@@ -216,9 +217,96 @@ def show_menu():
             cleanup_script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "scripts", "cleanup_achievements.py")
             subprocess.run([python_exe, cleanup_script])
             Prompt.ask("\n[dim]Press Enter to continue...[/dim]")
+        elif choice == "17":
+            _manage_versions(console)
+            Prompt.ask("\n[dim]Press Enter to continue...[/dim]")
         elif choice == "0":
             console.print("[bold cyan]Goodbye![/bold cyan]")
             sys.exit(0)
+
+
+def _manage_versions(console):
+    """Gestor interactivo de versiones para Launcher y App."""
+    import json
+
+    static_dir    = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
+    versions_dir  = os.path.join(static_dir, "versions")
+    versions_file = os.path.join(static_dir, "versions.json")
+
+    platforms = ["launcher", "app"]
+    platform_files = {"launcher": "launcher.exe", "app": "app.apk"}
+
+    def load_pointer() -> dict:
+        if os.path.exists(versions_file):
+            with open(versions_file) as f:
+                return json.load(f)
+        return {"launcher": "1.0.0", "app": "1.0.0"}
+
+    def save_pointer(data: dict):
+        os.makedirs(static_dir, exist_ok=True)
+        with open(versions_file, "w") as f:
+            json.dump(data, f, indent=2)
+
+    def get_available(platform: str) -> list:
+        folder = os.path.join(versions_dir, platform)
+        os.makedirs(folder, exist_ok=True)
+        return sorted(
+            [d for d in os.listdir(folder) if os.path.isdir(os.path.join(folder, d))],
+            key=lambda v: tuple(int(x) for x in v.split(".") if x.isdigit())
+        )
+
+    pointer = load_pointer()
+
+    # ── Mostrar estado actual ────────────────────────────────────────────────
+    table = Table(show_header=True, header_style="bold yellow", box=box.SIMPLE_HEAVY, expand=True)
+    table.add_column("Plataforma", style="bold cyan", width=12)
+    table.add_column("Puntero actual", style="bold green", width=16)
+    table.add_column("Versiones disponibles en servidor", style="dim")
+    table.add_column("Archivo esperado", style="dim white", width=16)
+
+    for p in platforms:
+        available = get_available(p)
+        pointer_ver = pointer.get(p, "—")
+        available_str = ", ".join(available) if available else "[dim red]ninguna[/dim red]"
+        table.add_row(p.upper(), pointer_ver, available_str, platform_files[p])
+
+    console.print("\n")
+    console.print(Panel.fit("[bold cyan]📦 Version Manager[/bold cyan]\n[dim]Las carpetas están en: static/versions/{platform}/{version}/[/dim]", border_style="cyan"))
+    console.print(table)
+    console.print()
+    console.print("[dim]💡 Para agregar una versión: crea la carpeta y sube el archivo por SCP.[/dim]")
+    console.print("[dim]   Ej: static/versions/launcher/1.1.0/launcher.exe[/dim]")
+    console.print()
+
+    platform = Prompt.ask("[cyan]¿Qué plataforma configurar?[/cyan]", choices=["launcher", "app", "cancelar"], default="launcher")
+    if platform == "cancelar":
+        return
+
+    available = get_available(platform)
+    if not available:
+        console.print(f"[red]No hay carpetas de versión en static/versions/{platform}/[/red]")
+        console.print(f"[dim]Sube el archivo primero y crea la carpeta correspondiente.[/dim]")
+        return
+
+    console.print(f"\nVersiones disponibles para [cyan]{platform}[/cyan]: [green]{', '.join(available)}[/green]")
+    current = pointer.get(platform, "1.0.0")
+
+    new_version = Prompt.ask(f"[yellow]¿A qué versión apuntar?[/yellow]", choices=available, default=available[-1])
+
+    # Verificar que el archivo existe
+    expected_file = os.path.join(versions_dir, platform, new_version, platform_files[platform])
+    if not os.path.exists(expected_file):
+        console.print(f"[yellow]⚠️  El archivo [bold]{expected_file}[/bold] no existe.[/yellow]")
+        console.print(f"[dim]Los clientes verán la nueva versión pero la descarga fallará hasta que subas el archivo.[/dim]")
+        if Prompt.ask("¿Continuar de todas formas?", choices=["si", "no"], default="no") == "no":
+            return
+
+    pointer[platform] = new_version
+    save_pointer(pointer)
+
+    console.print(f"\n[bold green]✓ {platform.upper()} ahora apunta a la versión {new_version}[/bold green]")
+    console.print(f"[dim]Los clientes lo detectarán en su próximo inicio.[/dim]")
+
 
 if __name__ == "__main__":
     app()
