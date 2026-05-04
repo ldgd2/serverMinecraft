@@ -88,15 +88,6 @@ public class PlayerLogic {
             onPlayerLeaveCleanup(uuid);
         });
 
-        final java.util.concurrent.atomic.AtomicInteger tickCounter = new java.util.concurrent.atomic.AtomicInteger(0);
-        net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents.END_SERVER_TICK.register(server -> {
-            if (tickCounter.incrementAndGet() % 400 == 0) {
-                for (ServerPlayerEntity p : server.getPlayerManager().getPlayerList()) {
-                    com.lider.minebridge.events.modules.AchievementDetectors.onPlayerMove(p);
-                    if (p.experienceLevel >= 100) AchievementClient.sendEvent(p.getUuidAsString(), "xp_level", 100);
-                }
-            }
-        });
     }
 
     public static void setInitialStats(String uuid, int totalDeaths, long lastSeen) {

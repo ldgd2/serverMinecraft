@@ -8,6 +8,8 @@ import net.fabricmc.api.EnvType;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.loader.api.FabricLoader;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
+import com.lider.minebridge.networking.payload.AchievementUnlockPayload;
+import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.minecraft.server.MinecraftServer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,18 +26,15 @@ public class MineBridge implements ModInitializer {
 
     @Override
     public void onInitialize() {
-        if (FabricLoader.getInstance().getEnvironmentType() != EnvType.SERVER) {
-            return;
-        }
+        // Register custom payloads
+        PayloadTypeRegistry.playC2S().register(AchievementUnlockPayload.ID, AchievementUnlockPayload.CODEC);
+        PayloadTypeRegistry.playS2C().register(com.lider.minebridge.networking.payload.UpdateCountdownPayload.ID, com.lider.minebridge.networking.payload.UpdateCountdownPayload.CODEC);
+        PayloadTypeRegistry.playS2C().register(com.lider.minebridge.networking.payload.SyncSkinPayload.ID, com.lider.minebridge.networking.payload.SyncSkinPayload.CODEC);
         
-        // CAPTURAR INSTANCIA REAL DEL SERVIDOR
         ServerLifecycleEvents.SERVER_STARTING.register(server -> {
             serverInstance = server;
-            // LOGGER.info("Server Instance Captured Successfully");
         });
 
-        // LOGGER.info("MineBridge Modular - Starting Initialization");
-        
         ModConfig.load();
         detectPublicIp();
 
@@ -43,6 +42,19 @@ public class MineBridge implements ModInitializer {
 
         ServerEvents.init();
         ModCommands.init();
+
+        // Register payload receiver
+        net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.registerGlobalReceiver(AchievementUnlockPayload.ID, (payload, context) -> {
+            context.server().execute(() -> {
+                if (backendClient != null) {
+                    com.lider.minebridge.networking.AchievementClient.sendEvent(
+                        context.player().getUuidAsString(),
+                        payload.achievementKey(),
+                        1
+                    );
+                }
+            });
+        });
 
         // LOGGER.info("MineBridge Modular - Initialization Complete");
     }

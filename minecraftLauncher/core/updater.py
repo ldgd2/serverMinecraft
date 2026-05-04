@@ -253,13 +253,94 @@ del "%~f0"
 
 # ── API pública ───────────────────────────────────────────────────────────────
 
+def check_for_mod_update(silent: bool = True) -> dict | None:
+    """Consulta si hay una actualización del mod cliente."""
+    current_mod_version = config.get("minebridge_mod_version", "0.0.0")
+    base = _get_api_base()
+    if not base:
+        return None
+    url = f"{base}/updates/check/modclient?current_version={current_mod_version}"
+    try:
+        resp = requests.get(url, timeout=5)
+        if resp.status_code == 200:
+            data = resp.json().get("data", {})
+            if data.get("has_update") and data.get("download_url"):
+                return data
+    except Exception as e:
+        if not silent:
+            print(f"[Updater] Error comprobando mod: {e}")
+    return None
+
+
+def install_mod_update(download_url: str, latest_version: str):
+    """Descarga el mod y lo instala en todos los perfiles configurados."""
+    import shutil
+    import minecraft_launcher_lib
+    
+    print(f"[Updater] Descargando modclient v{latest_version}...")
+    tmp_path = None
+    try:
+        resp = requests.get(download_url, timeout=60)
+        resp.raise_for_status()
+        
+        fd, tmp_path = tempfile.mkstemp(suffix=".jar")
+        with os.fdopen(fd, 'wb') as f:
+            f.write(resp.content)
+            
+        base_dir = config.get("minecraft_dir") or minecraft_launcher_lib.utils.get_minecraft_directory()
+        
+        # 1. Instalar en todos los perfiles aislados
+        profiles_dir = os.path.join(base_dir, "profiles")
+        if os.path.exists(profiles_dir):
+            for prof in os.listdir(profiles_dir):
+                mods_dir = os.path.join(profiles_dir, prof, "mods")
+                if os.path.exists(mods_dir):
+                    # Borrar versiones anteriores
+                    for m in os.listdir(mods_dir):
+                        if "minebridge" in m.lower() and m.endswith(".jar"):
+                            try: os.remove(os.path.join(mods_dir, m))
+                            except: pass
+                    # Copiar nueva versión
+                    shutil.copy2(tmp_path, os.path.join(mods_dir, "minebridge-client.jar"))
+                    print(f"[Updater] Mod instalado en perfil: {prof}")
+                    
+        # 2. Instalar en el directorio mods global por si acaso
+        global_mods = os.path.join(base_dir, "mods")
+        os.makedirs(global_mods, exist_ok=True)
+        for m in os.listdir(global_mods):
+            if "minebridge" in m.lower() and m.endswith(".jar"):
+                try: os.remove(os.path.join(global_mods, m))
+                except: pass
+        shutil.copy2(tmp_path, os.path.join(global_mods, "minebridge-client.jar"))
+        
+        config.set("minebridge_mod_version", latest_version)
+        print(f"[Updater] Modclient actualizado exitosamente a v{latest_version}.")
+        
+    except Exception as e:
+        print(f"[Updater] Error instalando mod: {e}")
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            try: os.remove(tmp_path)
+            except: pass
+
+
 def check_and_prompt(root_window=None, log_cb=None):
     """
     Comprueba actualizaciones en background.
-    Si hay update, abre la ventana animada de descarga.
+    1. Si hay update del modclient, lo descarga e instala en los perfiles silenciosamente.
+    2. Si hay update del launcher, abre la ventana animada de descarga.
     Llamar desde main.py después de crear la instancia de LauncherApp.
     """
     def _worker():
+        # Check mod update silently first
+        mod_info = check_for_mod_update(silent=True)
+        if mod_info:
+            latest_mod = mod_info.get("latest_version")
+            url_mod = mod_info.get("download_url")
+            if latest_mod and url_mod:
+                install_mod_update(url_mod, latest_mod)
+
+        # Check launcher update
         info = check_for_update(silent=True)
         if not info:
             return

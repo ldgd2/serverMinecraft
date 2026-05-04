@@ -45,3 +45,13 @@ appserve/build/
 # ── Minecraft mod ─────────────────────────────────────────────────────────────
 mod/build/
 mod/.gradle/
+mod/.gradle_home/
+mod/.jdk21/
+mod/jdk21.zip
+mod/clientmod/build/
+mod/clientmod/.gradle/
+mod/servermod/build/
+mod/servermod/.gradle/
+
+# Packager config in root
+.packager_config

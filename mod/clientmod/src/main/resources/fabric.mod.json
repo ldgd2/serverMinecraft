@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "id": "minebridge",
+  "version": "${version}",
+  "name": "MineBridge",
+  "description": "Bridge between Minecraft Server and Administrative Backend",
+  "authors": [
+    "Lider"
+  ],
+  "contact": {
+    "homepage": "https://fabricmc.net/",
+    "sources": "https://github.com/FabricMC/fabric-example-mod"
+  },
+  "license": "MIT",
+  "icon": "assets/minebridge/icon.png",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "com.lider.minebridge.MineBridge"
+    ],
+    "client": [
+      "com.lider.minebridge.MineBridgeClient"
+    ]
+  },
+  "mixins": [
+    "minebridge.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.15.0",
+    "minecraft": ">=1.14",
+    "java": ">=17",
+    "fabric-api": "*"
+  },
+  "suggests": {
+    "modmenu": "*"
+  }
+}

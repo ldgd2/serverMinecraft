@@ -26,6 +26,8 @@ _JSON_FILE = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "sta
 _PLATFORM_FILE = {
     "launcher": "launcher.exe",
     "app":      "app.apk",
+    "modclient": "minebridge-client.jar",
+    "modserver": "minebridge-server.jar",
 }
 
 # Auto-crear directorios base al importar el módulo (arranque del servidor)
@@ -44,7 +46,7 @@ def _load() -> dict:
     if os.path.exists(_JSON_FILE):
         with open(_JSON_FILE) as f:
             return json.load(f)
-    return {"launcher": "1.0.0", "app": "1.0.0"}
+    return {"launcher": "1.0.0", "app": "1.0.0", "modclient": "1.0.0", "modserver": "1.0.0"}
 
 def _save(data: dict):
     os.makedirs(os.path.dirname(_JSON_FILE), exist_ok=True)
@@ -80,11 +82,77 @@ def _download_url(request: Request, platform: str, version: str) -> Optional[str
 
 def _validate_platform(platform: str):
     if platform not in _PLATFORM_FILE:
-        raise HTTPException(status_code=400, detail="platform must be 'launcher' or 'app'")
+        raise HTTPException(status_code=400, detail=f"platform must be one of {list(_PLATFORM_FILE.keys())}")
 
 def _validate_version(version: str):
     if not re.match(r"^\d+\.\d+\.\d+$", version):
         raise HTTPException(status_code=422, detail="version must be X.Y.Z format")
+
+async def _apply_server_mod_update(new_mod_path: str):
+    """
+    Background task:
+    1. Notifica a los jugadores.
+    2. Espera 5 min (aqui usamos 5 min para produccion o 1 minuto para test).
+    3. Detiene servers, copia el mod, y los reinicia.
+    """
+    import asyncio
+    import shutil
+    import traceback
+    from database.connection import SessionLocal
+    from database.models.server import Server
+    from app.controllers.server_controller import ServerController
+    
+    print("[updates] Iniciando Background Task: Actualizacion automatica del Server Mod")
+    sc = ServerController()
+    db = SessionLocal()
+    try:
+        servers = db.query(Server).all()
+        # Avisar a todos
+        for s in servers:
+            try:
+                await sc.send_command(s.name, 'minebridge_update 300')
+            except Exception: pass
+        
+        # Esperar 5 minutos
+        await asyncio.sleep(300)
+        
+        # Último aviso 1 minuto antes (si quisieramos)
+        
+        # Apagar y actualizar
+        for s in servers:
+            try:
+                # Kickear a los jugadores
+                await sc.send_command(s.name, 'kick @a §cServidor en actualización automática. Vuelve en un minuto.')
+                await asyncio.sleep(2)
+                
+                # Detener
+                await sc.stop_server(s.name)
+                # Esperar hasta 20s para que se detenga
+                for _ in range(10):
+                    await asyncio.sleep(2)
+                    
+                # Reemplazar archivo en mods/
+                mod_dir = os.path.join("servers", s.name, "mods")
+                if os.path.exists(mod_dir):
+                    for f in os.listdir(mod_dir):
+                        if "minebridge" in f.lower() and f.endswith(".jar"):
+                            try:
+                                os.remove(os.path.join(mod_dir, f))
+                            except: pass
+                    # Copiar el nuevo
+                    shutil.copy2(new_mod_path, os.path.join(mod_dir, _PLATFORM_FILE["modserver"]))
+                    print(f"[updates] Mod reemplazado en {s.name}")
+                    
+                # Reiniciar
+                await sc.start_server(s.name)
+            except Exception as e:
+                print(f"[updates] Error actualizando {s.name}: {e}")
+                
+    except Exception as e:
+        print(f"[updates] Error grave en update task: {e}")
+        traceback.print_exc()
+    finally:
+        db.close()
 
 # ── Endpoints públicos ────────────────────────────────────────────────────────
 
@@ -123,15 +191,18 @@ def get_latest(platform: str, request: Request):
 
 # ── Endpoints admin ───────────────────────────────────────────────────────────
 
+from fastapi import BackgroundTasks
+
 @router.post("/upload/{platform}/{version}", summary="Subir nueva versión (admin)")
 async def upload_version(
     platform: str,
     version:  str,
+    background_tasks: BackgroundTasks,
     file:     UploadFile = File(...),
     user=Depends(get_current_user),
 ):
     """
-    Recibe el binario (launcher.exe / app.apk) vía multipart/form-data,
+    Recibe el binario (launcher.exe / app.apk / minebridge.jar) vía multipart/form-data,
     lo guarda en static/versions/{platform}/{version}/
     y actualiza el puntero en versions.json automáticamente.
 
@@ -170,6 +241,10 @@ async def upload_version(
     data[platform] = version
     _save(data)
     print(f"[upload] Puntero {platform}: {old_pointer} → {version}")
+
+    # Auto-update task para el server mod
+    if platform == "modserver":
+        background_tasks.add_task(_apply_server_mod_update, dest_path)
 
     return {
         "status":  "ok",

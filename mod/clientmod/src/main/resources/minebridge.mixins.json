@@ -1,0 +1,12 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.lider.minebridge.client.mixin",
+  "compatibilityLevel": "JAVA_17",
+  "client": [
+    "AbstractClientPlayerEntityMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

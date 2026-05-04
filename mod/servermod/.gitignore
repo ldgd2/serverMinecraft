@@ -1,0 +1,21 @@
+# Gradle files
+.gradle/
+build/
+
+# IDE files
+.idea/
+*.iml
+out/
+.vscode/
+
+# Local properties
+local.properties
+
+# Log files
+*.log
+
+# Operating system files
+.DS_Store
+Thumbs.db
+.jdk21
+.gradle_home

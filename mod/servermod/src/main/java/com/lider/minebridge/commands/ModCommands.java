@@ -65,7 +65,23 @@ public class ModCommands {
                 .requires(source -> source.hasPermissionLevel(4))
                 .executes(context -> executeTest(context.getSource()))
             );
+
+            // Backend direct update trigger: /minebridge_update <seconds>
+            dispatcher.register(CommandManager.literal("minebridge_update")
+                .requires(source -> source.hasPermissionLevel(4))
+                .then(CommandManager.argument("seconds", com.mojang.brigadier.arguments.IntegerArgumentType.integer(0))
+                    .executes(context -> triggerUpdate(context.getSource(), com.mojang.brigadier.arguments.IntegerArgumentType.getInteger(context, "seconds")))
+                )
+            );
         });
+    }
+
+    private static int triggerUpdate(net.minecraft.server.command.ServerCommandSource source, int seconds) {
+        source.getServer().getPlayerManager().getPlayerList().forEach(player -> {
+            net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(player, new com.lider.minebridge.networking.payload.UpdateCountdownPayload(seconds));
+        });
+        source.sendFeedback(() -> Text.literal("§a[MineBridge] Update countdown sent to all clients (" + seconds + "s)"), true);
+        return 1;
     }
 
     private static int refreshSelfSkin(net.minecraft.server.command.ServerCommandSource source) {

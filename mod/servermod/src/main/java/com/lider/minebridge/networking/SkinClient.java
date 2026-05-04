@@ -64,7 +64,7 @@ public class SkinClient {
                                 player.getGameProfile().getProperties().put("textures", new Property("textures", value, signature));
 
                                 // 2. Notificar a TODOS los clientes (Refresco total)
-                                refreshPlayerForOthers(player);
+                                refreshPlayerForOthers(player, value, signature);
                                 
                                 // MineBridge.LOGGER.info("[MineBridge] ✅ Skin inyectada con éxito para: " + player.getName().getString());
                                 if (onComplete != null) onComplete.run();
@@ -85,30 +85,27 @@ public class SkinClient {
         });
     }
 
-    /**
-     * Fuerza a que todos los demás jugadores vuelvan a cargar la entidad y el perfil de este jugador.
-     */
-    public static void refreshPlayerForOthers(ServerPlayerEntity player) {
+    public static void refreshPlayerForOthers(ServerPlayerEntity player, String value, String signature) {
         var playerManager = MineBridge.getServer().getPlayerManager();
         if (playerManager == null) return;
 
-        // 1. Paquete para actualizar la lista (Propiedades del Profile)
-        // Usamos UPDATE_LISTED para refrescar las propiedades (incluyendo texturas) en el Tab
-        PlayerListS2CPacket addPacket = new PlayerListS2CPacket(EnumSet.of(PlayerListS2CPacket.Action.ADD_PLAYER, PlayerListS2CPacket.Action.UPDATE_LISTED), java.util.List.of(player));
-        
-        // 2. Paquetes para destruir y volver a spawnear la entidad (Visual)
-        net.minecraft.network.packet.s2c.play.EntitiesDestroyS2CPacket destroyPacket = new net.minecraft.network.packet.s2c.play.EntitiesDestroyS2CPacket(player.getId());
-        net.minecraft.network.packet.s2c.play.EntitySpawnS2CPacket spawnPacket = new net.minecraft.network.packet.s2c.play.EntitySpawnS2CPacket(player, 0, player.getBlockPos());
+        net.minecraft.network.packet.s2c.play.PlayerRemoveS2CPacket removePacket = 
+            new net.minecraft.network.packet.s2c.play.PlayerRemoveS2CPacket(java.util.List.of(player.getUuid()));
+            
+        PlayerListS2CPacket addPacket = 
+            new PlayerListS2CPacket(EnumSet.of(PlayerListS2CPacket.Action.ADD_PLAYER, PlayerListS2CPacket.Action.UPDATE_LISTED), java.util.List.of(player));
+            
+        com.lider.minebridge.networking.payload.SyncSkinPayload payload = 
+            new com.lider.minebridge.networking.payload.SyncSkinPayload(player.getUuid(), value, signature);
 
         for (ServerPlayerEntity other : playerManager.getPlayerList()) {
-            // Refrescar en el Tab (Esto lo necesitan TODOS)
-            other.networkHandler.sendPacket(addPacket);
-            
-            // Refrescar en el Mundo (si está cerca y NO es el propio jugador)
-            if (other != player && other.getWorld() == player.getWorld()) {
-                // Solo enviar si el jugador está en el rango de visión (opcional, pero EntitySpawn lo hace el motor)
-                other.networkHandler.sendPacket(destroyPacket);
-                other.networkHandler.sendPacket(spawnPacket);
+            if (net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.canSend(other, com.lider.minebridge.networking.payload.SyncSkinPayload.ID)) {
+                // Client mod is installed, use the ultra-smooth native payload injection
+                net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(other, payload);
+            } else {
+                // Vanilla client fallback: remove and add to tablist
+                other.networkHandler.sendPacket(removePacket);
+                other.networkHandler.sendPacket(addPacket);
             }
         }
     }
