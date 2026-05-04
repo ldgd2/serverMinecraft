@@ -264,18 +264,22 @@ class SetVersionBody(BaseModel):
 
 @router.put("/set/{platform}", summary="Apuntar a versión ya subida (admin)")
 def set_version(platform: str, body: SetVersionBody, user=Depends(get_current_user)):
-    """Cambia el puntero sin subir archivo (la versión ya debe existir en disco)."""
+    """
+    Actualiza el puntero en versions.json.
+    Si la versión es la misma que la actual, lo fuerza igual
+    (útil para reemplazar el binario del día sin cambiar número de versión).
+    La carpeta y el archivo pueden no existir aún si el upload aún está en proceso,
+    por eso no validamos la existencia del archivo.
+    """
     _validate_platform(platform)
-    dest = os.path.join(_BASE_DIR, platform, body.version, _PLATFORM_FILE[platform])
-    if not os.path.exists(dest):
-        raise HTTPException(
-            status_code=404,
-            detail=f"No existe {_PLATFORM_FILE[platform]} en versions/{platform}/{body.version}/"
-        )
+    _validate_version(body.version)
     data = _load()
+    old = data.get(platform, "ninguno")
     data[platform] = body.version
     _save(data)
-    return {"status": "ok", "message": f"Puntero {platform} → {body.version}", "data": data}
+    action = "actualizado" if old != body.version else "re-confirmado (mismo número, nuevo binario)"
+    return {"status": "ok", "message": f"Puntero {platform}: {old} → {body.version} ({action})", "data": data}
+
 
 @router.get("/list/{platform}", summary="Listar versiones disponibles (admin)")
 def list_versions(platform: str, user=Depends(get_current_user)):

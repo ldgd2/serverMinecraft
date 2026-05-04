@@ -251,6 +251,114 @@ async def get_player_skin_data(identifier: str, db: Session = Depends(get_db)):
 
     raise HTTPException(status_code=404, detail="Skin not found or not generated yet")
 
+
+@router.get("/skin/{identifier}/hash", summary="Hash ligero de la skin (para caché del cliente)")
+async def get_skin_hash(identifier: str, db: Session = Depends(get_db)):
+    """
+    Devuelve solo el hash MD5 de la skin value.
+    El cliente Flutter lo usa para saber si su caché local sigue siendo válida
+    sin tener que descargar toda la imagen.
+    """
+    import hashlib, uuid as _uuid
+    from database.models.players.player import Player
+    from database.models.players.player_account import PlayerAccount
+
+    player = None
+    try:
+        val = _uuid.UUID(identifier)
+        player = db.query(Player).filter(Player.uuid == str(val)).first()
+    except ValueError:
+        player = db.query(Player).filter(Player.name == identifier).first()
+
+    account = None
+    if not player:
+        try:
+            val = _uuid.UUID(identifier)
+            account = db.query(PlayerAccount).filter(PlayerAccount.uuid == str(val)).first()
+        except ValueError:
+            account = db.query(PlayerAccount).filter(PlayerAccount.username == identifier).first()
+
+    detail = player.detail if player else None
+    skin_value = (detail.skin_value if detail else None) or (account.skin_value if account else None)
+
+    if not skin_value:
+        # Devuelve hash del nombre para que sea estable aunque no haya skin
+        skin_value = identifier
+
+    skin_hash = hashlib.md5(skin_value.encode()).hexdigest()[:12]
+    return {"status": "ok", "data": {"hash": skin_hash}}
+
+
+@router.get("/skin/{identifier}/head", summary="Cabeza PNG del jugador (para la app)")
+async def get_skin_head(identifier: str, db: Session = Depends(get_db)):
+    """
+    Devuelve la cabeza del jugador como imagen PNG 64x64.
+    Genera y cachea el archivo en static/heads/. Si la skin cambió, regenera.
+    """
+    from fastapi.responses import FileResponse, Response
+    from database.models.players.player import Player
+    from database.models.players.player_account import PlayerAccount
+    from core.skin_utils import extract_skin_url, download_and_crop_head
+    import os, uuid as _uuid, hashlib, requests as _req
+
+    player, account = None, None
+    try:
+        val = _uuid.UUID(identifier)
+        player = db.query(Player).filter(Player.uuid == str(val)).first()
+    except ValueError:
+        player = db.query(Player).filter(Player.name == identifier).first()
+
+    if not player:
+        try:
+            val = _uuid.UUID(identifier)
+            account = db.query(PlayerAccount).filter(PlayerAccount.uuid == str(val)).first()
+        except ValueError:
+            account = db.query(PlayerAccount).filter(PlayerAccount.username == identifier).first()
+
+    detail = player.detail if player else None
+    username = (player.name if player else None) or (account.username if account else identifier)
+    skin_value = (detail.skin_value if detail else None) or (account.skin_value if account else None)
+
+    head_dir = "static/heads"
+    os.makedirs(head_dir, exist_ok=True)
+
+    # Use hash-based filename to auto-invalidate when skin changes
+    skin_hash = hashlib.md5((skin_value or username).encode()).hexdigest()[:12]
+    head_path = f"{head_dir}/{username}_{skin_hash}.png"
+    legacy_path = f"{head_dir}/{username}.png"
+
+    if os.path.exists(head_path):
+        return FileResponse(head_path, media_type="image/png")
+
+    # Try to generate the head
+    generated = False
+    if skin_value:
+        skin_url = extract_skin_url(skin_value)
+        if skin_url:
+            try:
+                download_and_crop_head(skin_url, head_path)
+                generated = True
+            except Exception:
+                pass
+
+    # Fallback: use legacy path or mc-heads
+    if not generated:
+        if os.path.exists(legacy_path):
+            return FileResponse(legacy_path, media_type="image/png")
+        # Proxy mc-heads.net for premium players
+        try:
+            r = _req.get(f"https://mc-heads.net/avatar/{username}/64", timeout=5)
+            if r.status_code == 200:
+                with open(head_path, "wb") as f:
+                    f.write(r.content)
+                return FileResponse(head_path, media_type="image/png")
+        except Exception:
+            pass
+        raise HTTPException(status_code=404, detail="Head image not available")
+
+    return FileResponse(head_path, media_type="image/png")
+
+
 @router.get("/{server_name}/details/{player_identifier}")
 def get_player_details(
     server_name: str,

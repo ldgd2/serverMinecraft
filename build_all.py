@@ -124,6 +124,32 @@ def _upload_binary(cfg: dict, token: str, platform: str, version: str, filepath:
         body_err = e.read().decode('utf-8')
         raise RuntimeError(f"Upload falló ({e.code}): {body_err}")
 
+def _force_set_version(cfg: dict, token: str, platform: str, version: str):
+    """
+    Llama a PUT /api/v1/updates/set/{platform} para que el backend apunte a esta versión.
+    Si la versión es la misma que la actual, fuerza el apuntado igualmente
+    (garantiza que el server sirve lo que acababas de compilar hoy).
+    """
+    url = f"{cfg['api_url']}/api/v1/updates/set/{platform}"
+    payload = json.dumps({"version": version}).encode('utf-8')
+    req = urllib.request.Request(
+        url, data=payload,
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+        },
+        method="PUT"
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as r:
+            resp = json.loads(r.read())
+            print(f"  [✓] {platform} apunta ahora a v{version}: {resp.get('message', 'OK')}")
+    except urllib.error.HTTPError as e:
+        # Si falla por 404 (versión no existía aún), el upload ya lo registró, ignorar
+        body_err = e.read().decode('utf-8')
+        print(f"  [!] set/{platform} devolvió {e.code}: {body_err[:120]}")
+
+
 # --- Versiones Helpers ---
 def _bump(version: str, tipo: str) -> str:
     parts = [int(x) for x in version.split('.')]
@@ -195,6 +221,7 @@ def build_launcher(cfg: dict, token: str):
     print("\n  [>] Publicando en el servidor...")
     try:
         _upload_binary(cfg, token, "launcher", new_v, exe_path)
+        _force_set_version(cfg, token, "launcher", new_v)
     except Exception as e:
         print(f"  [X] Falló la subida: {e}")
 
@@ -243,6 +270,7 @@ def build_app(cfg: dict, token: str):
     print("\n  [>] Publicando en el servidor...")
     try:
         _upload_binary(cfg, token, "app", new_v, apk_path)
+        _force_set_version(cfg, token, "app", new_v)
     except Exception as e:
         print(f"  [X] Falló la subida: {e}")
 
@@ -350,7 +378,9 @@ def build_mods(cfg: dict, token: str):
     print("\n  [>] Publicando en el servidor...")
     try:
         _upload_binary(cfg, token, "modclient", new_v, c_jar)
+        _force_set_version(cfg, token, "modclient", new_v)
         _upload_binary(cfg, token, "modserver", new_v, s_jar)
+        _force_set_version(cfg, token, "modserver", new_v)
     except Exception as e:
         print(f"  [X] Falló la subida de mods: {e}")
 
