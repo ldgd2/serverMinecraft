@@ -70,8 +70,23 @@ def _latest_version(platform: str) -> str:
             return sorted(versions, key=_version_tuple)[-1]
     return "1.0.0"
 
+def _get_filename(platform: str, version: str) -> Optional[str]:
+    """Busca el archivo real en el disco para una plataforma y versión."""
+    base_name = _PLATFORM_FILE.get(platform)
+    if not base_name: return None
+    
+    # Caso especial modclient: puede ser .jar o .zip
+    if platform == "modclient":
+        base_dir = os.path.join(_BASE_DIR, platform, version)
+        if os.path.isdir(base_dir):
+            for f in os.listdir(base_dir):
+                if f.startswith("minebridge-client") and (f.endswith(".jar") or f.endswith(".zip")):
+                    return f
+    
+    return base_name
+
 def _download_url(request: Request, platform: str, version: str) -> Optional[str]:
-    filename = _PLATFORM_FILE.get(platform)
+    filename = _get_filename(platform, version)
     if not filename:
         return None
     file_path = os.path.join(_BASE_DIR, platform, version, filename)
@@ -231,23 +246,37 @@ async def upload_version(
     Recibe el binario (launcher.exe / app.apk / minebridge.jar) vía multipart/form-data,
     lo guarda en static/versions/{platform}/{version}/
     y actualiza el puntero en versions.json automáticamente.
-
-    El empaquetador local llama este endpoint — sin SCP, sin git.
-    Si la carpeta no existe, la crea automáticamente.
     """
     _validate_platform(platform)
     _validate_version(version)
 
     dest_dir  = os.path.join(_BASE_DIR, platform, version)
-    filename  = _PLATFORM_FILE[platform]
+    
+    # Determinar nombre de archivo: usar el original para modclient si es zip/jar
+    original_filename = file.filename
+    if platform == "modclient" and original_filename:
+        if original_filename.lower().endswith(".zip"):
+            filename = "minebridge-client.zip"
+        else:
+            filename = "minebridge-client.jar"
+    else:
+        filename = _PLATFORM_FILE[platform]
+        
     dest_path = os.path.join(dest_dir, filename)
 
-    # Auto-crear carpeta si no existe (con log explícito)
+    # Auto-crear carpeta si no existe
     if not os.path.isdir(dest_dir):
         os.makedirs(dest_dir, exist_ok=True)
         print(f"[upload] Carpeta creada: {dest_dir}")
     else:
         print(f"[upload] Usando carpeta existente: {dest_dir}")
+    
+    # Limpiar archivos previos en esa versión (para evitar tener .jar y .zip a la vez)
+    if platform == "modclient":
+        for f in os.listdir(dest_dir):
+            if f.startswith("minebridge-client"):
+                try: os.remove(os.path.join(dest_dir, f))
+                except: pass
 
     # Stream al disco en chunks de 1 MB
     print(f"[upload] Guardando {filename} en {dest_dir}...")

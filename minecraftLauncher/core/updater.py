@@ -73,178 +73,77 @@ def _is_frozen() -> bool:
 
 # ── Ventana de descarga animada ───────────────────────────────────────────────
 
-class _UpdateWindow:
-    """Ventana tkinter con barra de progreso y animación para la descarga."""
+def download_and_install_launcher(url: str, progress_callback=None, status_callback=None):
+    """
+    Descarga e instala la actualización del launcher.
+    progress_callback(percent: int)
+    status_callback(text: str)
+    """
+    if not _is_frozen():
+        if status_callback: status_callback("Simulando descarga...")
+        for i in range(0, 101, 10):
+            if progress_callback: progress_callback(i)
+            time.sleep(0.1)
+        if status_callback: status_callback("¡Listo! (Simulado)")
+        return True
 
-    def __init__(self, root, latest_version: str, download_url: str, on_complete, on_cancel):
-        import tkinter as tk
-        from tkinter import ttk
+    exe_dir = os.path.dirname(sys.executable)
+    try:
+        tmp_fd, tmp_path = tempfile.mkstemp(suffix=".exe", dir=exe_dir)
+        os.close(tmp_fd)
+    except Exception as e:
+        if status_callback: status_callback(f"Error: {e}")
+        return False
 
-        self.root         = root
-        self.download_url = download_url
-        self.on_complete  = on_complete
-        self.on_cancel    = on_cancel
-        self._cancelled   = False
+    try:
+        if status_callback: status_callback("Conectando...")
+        resp = requests.get(url, stream=True, timeout=60)
+        resp.raise_for_status()
+        total = int(resp.headers.get("content-length", 0))
+        done  = 0
+        with open(tmp_path, "wb") as f:
+            for chunk in resp.iter_content(chunk_size=65536):
+                if chunk:
+                    f.write(chunk)
+                    done += len(chunk)
+                    if total:
+                        pct = int(done * 100 / total)
+                        if progress_callback: progress_callback(pct)
+                        if status_callback: 
+                            kb = done // 1024
+                            status_callback(f"Descargando... {kb} KB ({pct}%)")
+    except Exception as e:
+        if status_callback: status_callback(f"Error de descarga: {e}")
+        try: os.remove(tmp_path)
+        except: pass
+        return False
 
-        win = tk.Toplevel(root)
-        self.win = win
-        win.title("Actualización disponible")
-        win.geometry("460x280")
-        win.resizable(False, False)
-        win.configure(bg="#1e2028")
-        win.transient(root)
-        win.grab_set()
+    if status_callback: status_callback("Preparando instalación...")
+    apply_launcher_update(tmp_path)
+    return True
 
-        # Centrar
-        win.update_idletasks()
-        x = root.winfo_rootx() + (root.winfo_width()  // 2) - 230
-        y = root.winfo_rooty() + (root.winfo_height() // 2) - 140
-        win.geometry(f"+{x}+{y}")
 
-        # ── Header ──
-        tk.Label(win, text="⬆  Nueva versión disponible",
-                 fg="#7CBF52", bg="#1e2028",
-                 font=("Segoe UI", 14, "bold")).pack(pady=(24, 4))
+def apply_launcher_update(tmp_path: str):
+    """Crea el script .bat para reemplazar el ejecutable y relanzar."""
+    import shutil
+    
+    # Ruta destino: C:/Games/minecraftLauncher/launcher.exe
+    system_drive = os.environ.get("SystemDrive", "C:")
+    # Asegurar que termina en backslash para que join funcione como ruta absoluta
+    if not system_drive.endswith("\\"): system_drive += "\\"
+    
+    target_dir = os.path.join(system_drive, "Games", "minecraftLauncher")
+    target_exe = os.path.join(target_dir, "launcher.exe")
+    
+    current_exe = sys.executable
+    pid = os.getpid()
+    
+    try:
+        os.makedirs(target_dir, exist_ok=True)
+    except:
+        pass
 
-        tk.Label(win,
-                 text=f"Versión actual: {LAUNCHER_VERSION}  →  Nueva: {latest_version}",
-                 fg="#8B949E", bg="#1e2028",
-                 font=("Segoe UI", 10)).pack()
-
-        # ── Barra de progreso ──
-        prog_frame = tk.Frame(win, bg="#1e2028")
-        prog_frame.pack(fill="x", padx=30, pady=(24, 6))
-
-        style = ttk.Style()
-        style.theme_use("default")
-        style.configure("MC.Horizontal.TProgressbar",
-                         troughcolor="#2d333b",
-                         background="#5D8A3C",
-                         thickness=18)
-
-        self.progress = ttk.Progressbar(prog_frame, style="MC.Horizontal.TProgressbar",
-                                         orient="horizontal", length=400, mode="determinate")
-        self.progress.pack(fill="x")
-
-        self.status_label = tk.Label(win, text="Listo para descargar...",
-                                     fg="#8B949E", bg="#1e2028",
-                                     font=("Segoe UI", 9))
-        self.status_label.pack()
-
-        # ── Botones ──
-        btn_frame = tk.Frame(win, bg="#1e2028")
-        btn_frame.pack(pady=20)
-
-        self.dl_btn = tk.Button(btn_frame,
-                                text="Descargar e instalar",
-                                bg="#5D8A3C", fg="white",
-                                font=("Segoe UI", 10, "bold"),
-                                relief="flat", cursor="hand2",
-                                padx=18, pady=8,
-                                command=self._start_download)
-        self.dl_btn.pack(side="left", padx=8)
-
-        tk.Button(btn_frame,
-                  text="Más tarde",
-                  bg="#2d333b", fg="#8B949E",
-                  font=("Segoe UI", 10),
-                  relief="flat", cursor="hand2",
-                  padx=18, pady=8,
-                  command=self._cancel).pack(side="left", padx=8)
-
-    def _set_status(self, text: str):
-        self.status_label.config(text=text)
-        self.win.update_idletasks()
-
-    def _start_download(self):
-        self.dl_btn.config(state="disabled", text="Descargando...")
-        self._set_status("Iniciando conexión...")
-        threading.Thread(target=self._download_worker, daemon=True).start()
-
-    def _download_worker(self):
-        try:
-            self._do_download()
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
-            self.win.after(0, lambda: self._show_error(f"Error fatal: {e}"))
-
-    def _show_error(self, msg: str):
-        from tkinter import messagebox
-        self._set_status(f"Error: {msg}")
-        messagebox.showerror("Error de actualización", msg, parent=self.win)
-        self.dl_btn.config(state="normal", text="Reintentar")
-
-    def _do_download(self):
-        if not _is_frozen():
-            # En modo desarrollo simular
-            for i in range(0, 101, 10):
-                if self._cancelled: return
-                self.win.after(0, lambda v=i: self.progress.config(value=v))
-                self.win.after(0, lambda v=i: self._set_status(f"Simulando descarga... {v}%"))
-                time.sleep(0.1)
-            self.win.after(0, lambda: self._set_status("(Modo desarrollo — simulado)"))
-            self.win.after(1000, self.win.destroy)
-            return
-
-        # Descarga real
-        exe_dir = os.path.dirname(sys.executable)
-        try:
-            tmp_fd, tmp_path = tempfile.mkstemp(suffix=".exe", dir=exe_dir)
-            os.close(tmp_fd)
-        except Exception as e:
-            self.win.after(0, lambda: self._set_status(f"Error: {e}"))
-            return
-
-        try:
-            resp = requests.get(self.download_url, stream=True, timeout=60)
-            resp.raise_for_status()
-            total = int(resp.headers.get("content-length", 0))
-            done  = 0
-            with open(tmp_path, "wb") as f:
-                for chunk in resp.iter_content(chunk_size=65536):
-                    if self._cancelled:
-                        f.close()
-                        os.remove(tmp_path)
-                        return
-                    if chunk:
-                        f.write(chunk)
-                        done += len(chunk)
-                        if total:
-                            pct = int(done * 100 / total)
-                            kb  = done // 1024
-                            self.win.after(0, lambda p=pct, k=kb: (
-                                self.progress.config(value=p),
-                                self._set_status(f"Descargando... {k} KB  ({p}%)")
-                            ))
-        except Exception as e:
-            self.win.after(0, lambda: self._show_error(f"Error de descarga: {e}"))
-            try: os.remove(tmp_path)
-            except: pass
-            return
-
-        self.win.after(0, lambda: self._set_status("Instalando actualización..."))
-        self.win.after(500, lambda: self._apply(tmp_path))
-
-    def _apply(self, tmp_path: str):
-        import shutil
-        
-        # Determinar ruta destino: C:/Games/minecraftLauncher/launcher.exe
-        # Usamos la unidad del sistema (normalmente C:)
-        system_drive = os.environ.get("SystemDrive", "C:")
-        target_dir = os.path.join(system_drive, "\\Games", "minecraftLauncher")
-        target_exe = os.path.join(target_dir, "launcher.exe")
-        
-        current_exe = sys.executable
-        pid = os.getpid()
-        
-        try:
-            os.makedirs(target_dir, exist_ok=True)
-        except:
-            pass # Fallback if no permissions to create C:/Games (unlikely on home PC)
-
-        # El .bat espera a que el proceso muera, mueve el temporal a la carpeta Games y relanza
-        bat_content = f"""@echo off
+    bat_content = f"""@echo off
 title Actualizador Minecraft
 echo Finalizando actualizacion...
 :wait_process
@@ -265,38 +164,111 @@ if %ERRORLEVEL% NEQ 0 (
     set "FINAL_EXE={target_exe}"
 )
 
-:: Relanzar desde la carpeta correcta para evitar errores de DLL
+:: Relanzar
 echo [✓] Relanzando...
 start "" "%FINAL_EXE%"
 del "%~f0"
 """
-        # Guardar .bat en temp para no dejar basura en la carpeta original
-        bat_path = os.path.join(tempfile.gettempdir(), "_mc_updater.bat")
-        with open(bat_path, "w") as f:
-            f.write(bat_content)
+    bat_path = os.path.join(tempfile.gettempdir(), "_mc_updater.bat")
+    with open(bat_path, "w") as f:
+        f.write(bat_content)
+        
+    # Ejecutar .bat y salir
+    subprocess.Popen(["cmd.exe", "/c", bat_path], 
+                     creationflags=subprocess.CREATE_NEW_CONSOLE if os.name == 'nt' else 0)
+    sys.exit(0)
+
+
+# ── Ventana de descarga animada (Para uso automático al inicio) ───────────────
+
+class _UpdateWindow:
+    """Ventana con estética Minecraft para la descarga."""
+
+    def __init__(self, root, latest_version: str, download_url: str, on_complete=None, on_cancel=None):
+        import tkinter as tk
+        from ui.theme import Colors, mc_font
+        from ui.widgets import PanoramaBackground, MinecraftPanel, MinecraftButton, MinecraftLabel
+
+        self.root = root
+        self.download_url = download_url
+        
+        self.win = tk.Toplevel(root)
+        self.win.title("Actualización disponible")
+        self.win.geometry("500x320")
+        self.win.resizable(False, False)
+        self.win.overrideredirect(True) # Ventana sin bordes para estética premium
+        self.win.transient(root)
+        self.win.grab_set()
+
+        # Centrar
+        x = root.winfo_rootx() + (root.winfo_width()  // 2) - 250
+        y = root.winfo_rooty() + (root.winfo_height() // 2) - 160
+        self.win.geometry(f"+{x}+{y}")
+
+        # Fondo con panorama
+        self.bg = PanoramaBackground(self.win, overlay_alpha=200)
+        self.bg.place(relx=0, rely=0, relwidth=1, relheight=1)
+
+        # Panel central
+        panel = MinecraftPanel(self.bg)
+        panel.place(relx=0.05, rely=0.05, relwidth=0.9, relheight=0.9)
+
+        # Título
+        MinecraftLabel(panel, text="Actualización Disponible", size=18, color=Colors.PREMIUM_GREEN).pack(pady=(20, 5))
+        
+        tk.Label(panel, text=f"v{LAUNCHER_VERSION}  →  v{latest_version}", 
+                 font=mc_font(10), fg=Colors.GRAY_TEXT, bg=Colors.PANEL_DARK).pack()
+
+        # Barra de progreso custom (Contenedor con borde)
+        self.prog_container = tk.Frame(panel, bg=Colors.PANEL_BORDER, height=24)
+        self.prog_container.pack(fill="x", padx=40, pady=(20, 10))
+        self.prog_container.pack_propagate(False)
+        
+        # El fondo de la barra (Negro Minecraft)
+        self.prog_bg = tk.Frame(self.prog_container, bg="#000000")
+        self.prog_bg.pack(fill="both", expand=True, padx=2, pady=2)
+        self.prog_bg.pack_propagate(False)
+
+        # La barra verde
+        self.prog_bar = tk.Frame(self.prog_bg, bg=Colors.PREMIUM_GREEN, width=0)
+        self.prog_bar.pack(side="left", fill="y")
+
+        self.status_lbl = MinecraftLabel(panel, text="¿Deseas descargar e instalar ahora?", 
+                                         size=10, color=Colors.WHITE, bg=Colors.PANEL_DARK)
+        self.status_lbl.pack(pady=5)
+
+        # Botones
+        self.btn_frame = tk.Frame(panel, bg=Colors.PANEL_DARK)
+        self.btn_frame.pack(side="bottom", pady=20)
+
+        self.dl_btn = MinecraftButton(self.btn_frame, text="Descargar e Instalar", width=200, height=36,
+                                      command=self._start)
+        self.dl_btn.pack(side="left", padx=5)
+
+        MinecraftButton(self.btn_frame, text="Luego", width=100, height=36,
+                        command=self.win.destroy).pack(side="left", padx=5)
+
+    def _start(self):
+        self.dl_btn.configure_state(True)
+        self.dl_btn.set_text("Descargando...")
+        threading.Thread(target=self._worker, daemon=True).start()
+
+    def _worker(self):
+        def _update_prog(pct):
+            w = int(420 * (pct / 100)) # 420 es el ancho aprox del prog_frame (500*0.9 - 80)
+            self.prog_bar.config(width=w)
             
-        self.win.after(0, lambda: self._set_status("¡Listo! Relanzando..."))
-        self.win.after(500, lambda: self._relaunch_final(bat_path))
+        def _update_status(txt):
+            self.status_lbl.set_text(txt)
 
-    def _relaunch_final(self, bat_path: str):
-        # Usar Popen con CREATE_NEW_CONSOLE para que el .bat siga vivo tras cerrar python
-        subprocess.Popen(["cmd.exe", "/c", bat_path], 
-                         creationflags=subprocess.CREATE_NEW_CONSOLE if os.name == 'nt' else 0)
-        sys.exit(0)
-
-    def _relaunch(self):
-        bat_path = os.path.join(os.path.dirname(sys.executable), "_updater.bat")
-        subprocess.Popen(["cmd.exe", "/c", bat_path],
-                         creationflags=subprocess.CREATE_NEW_CONSOLE,
-                         close_fds=True)
-        time.sleep(0.3)
-        sys.exit(0)
-
-    def _cancel(self):
-        self._cancelled = True
-        if self.on_cancel:
-            self.on_cancel()
-        self.win.destroy()
+        success = download_and_install_launcher(
+            self.download_url, 
+            progress_callback=lambda p: self.win.after(0, lambda: _update_prog(p)),
+            status_callback=lambda t: self.win.after(0, lambda: _update_status(t))
+        )
+        if not success:
+            self.win.after(0, lambda: self.dl_btn.configure_state(False))
+            self.win.after(0, lambda: self.dl_btn.set_text("Reintentar"))
 
 
 # ── API pública ───────────────────────────────────────────────────────────────
@@ -320,25 +292,34 @@ def check_for_mod_update(silent: bool = True) -> dict | None:
     return None
 
 
-def install_mod_update(download_url: str, latest_version: str):
+def install_mod_update(download_url: str, latest_version: str, progress_callback=None, status_callback=None):
     """Descarga el mod (o pack de mods en .zip) y lo instala en todos los perfiles."""
     import shutil
     import zipfile
     import minecraft_launcher_lib
     
-    print(f"[Updater] Descargando mod/pack v{latest_version}...")
+    if status_callback: status_callback(f"Descargando mod v{latest_version}...")
     tmp_path = None
     try:
-        resp = requests.get(download_url, timeout=60)
+        resp = requests.get(download_url, stream=True, timeout=60)
         resp.raise_for_status()
         
+        total = int(resp.headers.get("content-length", 0))
+        done = 0
+        
         # Detectar si es zip por la URL o por el contenido
-        is_zip = download_url.lower().endswith(".zip") or resp.content.startswith(b'PK\x03\x04')
+        is_zip = download_url.lower().endswith(".zip")
         
         fd, tmp_path = tempfile.mkstemp(suffix=".zip" if is_zip else ".jar")
         with os.fdopen(fd, 'wb') as f:
-            f.write(resp.content)
+            for chunk in resp.iter_content(chunk_size=65536):
+                if chunk:
+                    f.write(chunk)
+                    done += len(chunk)
+                    if total and progress_callback:
+                        progress_callback(int(done * 100 / total))
             
+        if status_callback: status_callback("Instalando mods...")
         base_dir = config.get("minecraft_dir") or minecraft_launcher_lib.utils.get_minecraft_directory()
         master_mod_dir = os.path.join(base_dir, "launcher_data", "mods")
         
@@ -348,12 +329,9 @@ def install_mod_update(download_url: str, latest_version: str):
         os.makedirs(master_mod_dir, exist_ok=True)
         
         if is_zip:
-            print("[Updater] Extrayendo pack de mods (.zip)...")
+            if status_callback: status_callback("Extrayendo pack de mods...")
             with zipfile.ZipFile(tmp_path, 'r') as zip_ref:
-                # Extraer solo archivos .jar (seguridad y limpieza)
-                for member in zip_ref.namelist():
-                    if member.lower().endswith(".jar"):
-                        zip_ref.extract(member, master_mod_dir)
+                zip_ref.extractall(master_mod_dir)
         else:
             # Es un solo .jar (el mod base)
             shutil.copy2(tmp_path, os.path.join(master_mod_dir, "minebridge-client.jar"))
@@ -377,39 +355,35 @@ def install_mod_update(download_url: str, latest_version: str):
             except: pass
 
 def inject_mod_to_profile(profile_path: str):
-    """Copia TODOS los mods maestros al perfil indicado."""
+    """Sincroniza TODOS los archivos del almacén maestro al perfil indicado."""
     import shutil
     import minecraft_launcher_lib
     
     base_dir = config.get("minecraft_dir") or minecraft_launcher_lib.utils.get_minecraft_directory()
     master_mod_dir = os.path.join(base_dir, "launcher_data", "mods")
     
-    if not os.path.exists(master_mod_dir) or not os.listdir(master_mod_dir):
+    if not os.path.exists(master_mod_dir):
         return
         
     mods_dir = os.path.join(profile_path, "mods")
-    os.makedirs(mods_dir, exist_ok=True)
     
-    # 1. Limpiar mods previos que sean gestionados por el launcher 
-    # (Borramos todos los .jar para asegurar sincronización total con el pack del servidor)
-    # Si el usuario quiere mods personales, debería ponerlos en una carpeta aparte o el launcher
-    # debería tener una lista blanca. Por ahora, para simplificar: sincronización total.
-    for f in os.listdir(mods_dir):
-        if f.lower().endswith(".jar"):
-            # Opcional: Solo borrar si "minebridge" está en el nombre o si queremos sync total
-            # El usuario pidió "distribuirlo", así que asumimos sync de la carpeta mods.
-            try: os.remove(os.path.join(mods_dir, f))
-            except: pass
+    # 1. Limpiar carpeta de mods para sincronización total
+    if os.path.exists(mods_dir):
+        try: shutil.rmtree(mods_dir)
+        except: pass
+    os.makedirs(mods_dir, exist_ok=True)
             
-    # 2. Copiar todos los del almacén maestro
-    for mod_file in os.listdir(master_mod_dir):
-        if mod_file.lower().endswith(".jar"):
-            src = os.path.join(master_mod_dir, mod_file)
-            dst = os.path.join(mods_dir, mod_file)
-            try:
+    # 2. Copiar todo el contenido del almacén maestro
+    for item in os.listdir(master_mod_dir):
+        src = os.path.join(master_mod_dir, item)
+        dst = os.path.join(mods_dir, item)
+        try:
+            if os.path.isdir(src):
+                shutil.copytree(src, dst)
+            else:
                 shutil.copy2(src, dst)
-            except Exception as e:
-                print(f"[Updater] Error copiando {mod_file}: {e}")
+        except Exception as e:
+            print(f"[Updater] Error sincronizando {item}: {e}")
 
 
 def check_and_prompt(root_window=None, log_cb=None):

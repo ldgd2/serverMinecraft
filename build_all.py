@@ -389,10 +389,34 @@ def build_mods(cfg: dict, token: str):
 
     print("\n  [>] Publicando en el servidor...")
     try:
-        _upload_binary(cfg, token, "modclient", new_v, c_jar)
+        # ── Empaquetado Especial del Cliente (Soporte para mods adicionales) ──
+        mods_add_dir = os.path.join(MOD_DIR, 'modsaddclient')
+        if os.path.exists(mods_add_dir) and os.listdir(mods_add_dir):
+            print(f"  [>] Detectados mods adicionales en {mods_add_dir}. Empaquetando ZIP...")
+            client_package = os.path.join(CLIENT_DIR, 'build', 'libs', f'minebridge-client-pack-{new_v}.zip')
+            
+            with zipfile.ZipFile(client_package, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                # 1. Agregar el mod principal
+                zipf.write(c_jar, os.path.basename(c_jar))
+                # 2. Agregar los extras
+                for root, _, files in os.walk(mods_add_dir):
+                    for file in files:
+                        full_path = os.path.join(root, file)
+                        rel_path = os.path.relpath(full_path, mods_add_dir)
+                        zipf.write(full_path, rel_path)
+            
+            # Subir el ZIP en lugar del JAR
+            _upload_binary(cfg, token, "modclient", new_v, client_package)
+        else:
+            # Subida normal (solo el JAR)
+            _upload_binary(cfg, token, "modclient", new_v, c_jar)
+            
         _force_set_version(cfg, token, "modclient", new_v)
+        
+        # El server mod siempre es un JAR (por ahora)
         _upload_binary(cfg, token, "modserver", new_v, s_jar)
         _force_set_version(cfg, token, "modserver", new_v)
+        
     except Exception as e:
         print(f"  [X] Falló la subida de mods: {e}")
 

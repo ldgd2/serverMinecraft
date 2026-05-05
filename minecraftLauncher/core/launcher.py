@@ -1,6 +1,7 @@
 import subprocess
 import os
 import threading
+import json
 import minecraft_launcher_lib
 from config.manager import config
 from core.versions import get_installed_versions
@@ -450,15 +451,40 @@ def get_versions_by_profile(modloader):
     installed = get_installed_versions()
     modloader = (modloader or "Vanilla").lower()
     
+    base_dir = config.get("minecraft_dir") or minecraft_launcher_lib.utils.get_minecraft_directory()
+    
     filtered = []
     for v in installed:
         v_lower = v.lower()
+        
+        # 1. Check by name (fastest)
+        is_fabric = "fabric" in v_lower
+        is_forge = "forge" in v_lower or "fml" in v_lower
+        is_optifine = "optifine" in v_lower
+        
+        # 2. Deep check if name is ambiguous
+        if not is_fabric and not is_forge and not is_optifine:
+            # Check the JSON file for clues
+            v_json = os.path.join(base_dir, "versions", v, f"{v}.json")
+            if os.path.exists(v_json):
+                try:
+                    with open(v_json, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                        main_class = data.get("mainClass", "")
+                        if "fabricmc" in main_class: is_fabric = True
+                        elif "minecraftforge" in main_class: is_forge = True
+                        elif "optifine" in main_class: is_optifine = True
+                except: pass
+
+        # Filter logic
         if modloader == "vanilla":
-             if "fabric" not in v_lower and "forge" not in v_lower and "optifine" not in v_lower:
+             if not is_fabric and not is_forge and not is_optifine:
                  filtered.append(v)
-        else:
-             if modloader in v_lower:
-                 filtered.append(v)
+        elif modloader == "fabric":
+             if is_fabric: filtered.append(v)
+        elif modloader == "forge":
+             if is_forge: filtered.append(v)
+             
     return filtered
 
 def filter_versions(modloader, base_version):

@@ -171,8 +171,16 @@ class DownloadsView(tk.Frame):
         mc_ver = ""
         if hasattr(self, "_fabric_mc_entry"):
             mc_ver = self._fabric_mc_entry.get().strip()
+
         if not mc_ver:
-            self._status_var.set("Ingresa una versión de Minecraft base para Fabric.")
+            # Mostrar instaladas por defecto
+            from core.launcher import get_versions_by_profile
+            installed = get_versions_by_profile("Fabric")
+            if installed:
+                self._status_var.set(f"Mostrando {len(installed)} versiones instaladas.")
+                self._populate_list(installed, set(installed), "Fabric")
+            else:
+                self._status_var.set("Ingresa una versión de Minecraft base para Fabric.")
             return
 
         self._mc_version_for_fabric.set(mc_ver)
@@ -198,8 +206,16 @@ class DownloadsView(tk.Frame):
         mc_ver = ""
         if hasattr(self, "_forge_mc_entry"):
             mc_ver = self._forge_mc_entry.get().strip()
+
         if not mc_ver:
-            self._status_var.set("Ingresa una versión de Minecraft base para Forge.")
+            # Mostrar instaladas por defecto
+            from core.launcher import get_versions_by_profile
+            installed = get_versions_by_profile("Forge")
+            if installed:
+                self._status_var.set(f"Mostrando {len(installed)} versiones instaladas.")
+                self._populate_forge_list([(v, v) for v in installed], set(installed))
+            else:
+                self._status_var.set("Ingresa una versión de Minecraft base para Forge.")
             return
 
         self._mc_version_for_forge.set(mc_ver)

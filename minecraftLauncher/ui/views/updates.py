@@ -58,20 +58,24 @@ class UpdatesView(tk.Frame):
         # ── Progress bar (hidden until download) ─────────────────────────────
         prog_frame = tk.Frame(panel, bg=Colors.PANEL_DARK)
         prog_frame.pack(fill="x", padx=50)
-
-        style = ttk.Style()
-        style.theme_use("default")
-        style.configure("MC.Horizontal.TProgressbar",
-                        troughcolor=Colors.PANEL_BORDER,
-                        background=Colors.PREMIUM_GREEN,
-                        thickness=14)
-
-        self.progress = ttk.Progressbar(
-            prog_frame, style="MC.Horizontal.TProgressbar",
-            orient="horizontal", mode="determinate"
-        )
-        # Hidden by default — shown when downloading
         self._progress_frame = prog_frame
+
+        # Barra de progreso custom (Contenedor con borde)
+        self.prog_container = tk.Frame(prog_frame, bg=Colors.PANEL_BORDER, height=24)
+        self.prog_container.pack_propagate(False)
+        
+        # El fondo de la barra (Negro Minecraft)
+        self.prog_bg = tk.Frame(self.prog_container, bg="#000000")
+        self.prog_bg.pack(fill="both", expand=True, padx=2, pady=2)
+        self.prog_bg.pack_propagate(False)
+
+        # La barra verde
+        self.prog_bar = tk.Frame(self.prog_bg, bg=Colors.PREMIUM_GREEN, width=0)
+        self.prog_bar.pack(side="left", fill="y")
+        
+        # Alias para compatibilidad
+        self.progress = self.prog_container
+        self._progress_bar_internal = self.prog_bar
 
         # ── Buttons ──────────────────────────────────────────────────────────
         btn_frame = tk.Frame(panel, bg=Colors.PANEL_DARK)
@@ -120,10 +124,16 @@ class UpdatesView(tk.Frame):
 
     def _hide_progress(self):
         self.progress.pack_forget()
-        self.progress["value"] = 0
+        self._progress_bar_internal.config(width=0)
 
     def _set_progress(self, value: int):
-        self.progress["value"] = value
+        # El ancho total del contenedor es aprox panel_width * 0.7 - 100
+        # Pero podemos usar winfo_width() del contenedor para ser precisos
+        w_total = self.prog_bg.winfo_width()
+        if w_total <= 1: w_total = 400 # Fallback
+        
+        w_now = int(w_total * (value / 100))
+        self._progress_bar_internal.config(width=w_now)
         self.update_idletasks()
 
     # ── Check for updates ─────────────────────────────────────────────────────
@@ -139,69 +149,111 @@ class UpdatesView(tk.Frame):
 
     def _check_worker(self):
         try:
-            from core.updater import check_for_update, LAUNCHER_VERSION
-            info = check_for_update(silent=False)
+            from core.updater import check_for_update, check_for_mod_update, LAUNCHER_VERSION
+            l_info = check_for_update(silent=False)
+            m_info = check_for_mod_update(silent=False)
         except Exception as e:
             self.after(0, lambda: self._on_check_error(str(e)))
             return
 
-        self.after(0, lambda: self._on_check_done(info))
+        self.after(0, lambda: self._on_check_done(l_info, m_info))
 
     def _on_check_error(self, err: str):
         self._checking = False
         self.check_btn.set_text("Buscar actualizaciones")
         self._set_status(f"No se pudo conectar al servidor.\n{err}", Colors.RED if hasattr(Colors, 'RED') else "#e05252")
 
-    def _on_check_done(self, info):
+    def _on_check_done(self, l_info, m_info):
         self._checking = False
         self.check_btn.set_text("Buscar actualizaciones")
 
-        if not info:
-            self._set_status("✓  ¡Ya tienes la última versión!", Colors.PREMIUM_GREEN)
-            self._set_changelog("Tu launcher está completamente actualizado.")
+        if not l_info and not m_info:
+            self._set_status("✓  ¡Todo está actualizado!", Colors.PREMIUM_GREEN)
+            self._set_changelog("Tu launcher y mods están en la última versión.")
             return
 
-        latest  = info.get("latest_version", "?")
-        url     = info.get("download_url", "")
+        status_text = ""
+        changelog_text = ""
+        download_data = {}
 
-        self._set_status(
-            f"Nueva versión disponible: v{latest}\n"
-            f"Tu versión actual: v{info.get('current_version', VERSION)}",
-            Colors.YELLOW
-        )
-        self._set_changelog(f"Versión {latest} lista para descargar.")
+        if l_info:
+            latest = l_info.get("latest_version", "?")
+            status_text += f"Launcher: v{VERSION} → v{latest}\n"
+            changelog_text += f"• Launcher v{latest} disponible.\n"
+            download_data["launcher"] = l_info
 
-        if url:
-            # Show download button
-            self._show_download_option(latest, url)
+        if m_info:
+            latest = m_info.get("latest_version", "?")
+            current = config.get("minebridge_mod_version", "0.0.0")
+            status_text += f"Mods: v{current} → v{latest}\n"
+            changelog_text += f"• Mods v{latest} disponibles.\n"
+            download_data["mods"] = m_info
 
-    def _show_download_option(self, latest: str, url: str):
-        """Muestra el botón de descarga y la barra de progreso."""
-        # Reemplaza el texto del check button temporalmente
-        self.check_btn.set_text(f"⬇  Descargar v{latest}")
-        self.check_btn.config(command=lambda: self._do_download(url))
+        self._set_status(status_text.strip(), Colors.YELLOW)
+        self._set_changelog(changelog_text.strip())
 
-    def _do_download(self, url: str):
+        if download_data:
+            self._show_download_option(download_data)
+
+    def _show_download_option(self, download_data: dict):
+        """Muestra el botón de descarga para lo que esté pendiente."""
+        txt = "⬇  Descargar todo" if len(download_data) > 1 else f"⬇  Descargar {'Launcher' if 'launcher' in download_data else 'Mods'}"
+        self.check_btn.set_text(txt)
+        self.check_btn.config(command=lambda: self._do_download_all(download_data))
+
+    def _do_download_all(self, download_data: dict):
         self.check_btn.set_text("Descargando...")
-        self.check_btn.config(state="disabled")
+        self.check_btn.configure_state(True)
         self._show_progress()
-        self._set_status("Descargando actualización...", Colors.YELLOW)
-        threading.Thread(target=self._download_worker, args=(url,), daemon=True).start()
+        self._set_status("Iniciando descargas...", Colors.YELLOW)
+        
+        threading.Thread(target=self._download_all_worker, args=(download_data,), daemon=True).start()
 
-    def _download_worker(self, url: str):
+    def _download_all_worker(self, download_data: dict):
         try:
-            from core.updater import _UpdateWindow
-            # Reutilizamos la ventana animada del updater
-            root = self.winfo_toplevel()
-            self.after(0, lambda: _UpdateWindow(
-                root,
-                latest_version="?",
-                download_url=url,
-                on_complete=None,
-                on_cancel=lambda: self.after(0, self._reset_btn)
-            ))
+            from core.updater import download_and_install_launcher, install_mod_update
+            
+            def _update_prog(pct):
+                self._set_progress(pct)
+                
+            def _update_status(txt):
+                self._set_status(txt, Colors.YELLOW)
+
+            # 1. Download Mods if available
+            if "mods" in download_data:
+                m_info = download_data["mods"]
+                url = m_info.get("download_url")
+                version = m_info.get("latest_version")
+                install_mod_update(
+                    url, version,
+                    progress_callback=lambda p: self.after(0, lambda: _update_prog(p)),
+                    status_callback=lambda t: self.after(0, lambda: _update_status(t))
+                )
+
+            # 2. Download Launcher if available
+            if "launcher" in download_data:
+                url = download_data["launcher"].get("download_url")
+                success = download_and_install_launcher(
+                    url,
+                    progress_callback=lambda p: self.after(0, lambda: _update_prog(p)),
+                    status_callback=lambda t: self.after(0, lambda: _update_status(t))
+                )
+                if not success:
+                    self.after(0, self._on_download_failed)
+                    return
+                
+            self.after(0, lambda: self._set_status("✓ ¡Actualización completada!", Colors.PREMIUM_GREEN))
+            self.after(0, lambda: self.check_btn.set_text("Cerrar"))
+            self.after(0, lambda: self.check_btn.configure_state(False))
+            self.after(0, self._hide_progress)
+
         except Exception as e:
             self.after(0, lambda: self._on_check_error(str(e)))
+
+    def _on_download_failed(self):
+        self.check_btn.configure_state(False)
+        self.check_btn.set_text("Reintentar descarga")
+        self._set_status("Error al descargar la actualización.", Colors.RED if hasattr(Colors, 'RED') else "#e05252")
 
     def _reset_btn(self):
         self.check_btn.set_text("Buscar actualizaciones")
