@@ -2,7 +2,7 @@ import os
 import shutil
 import asyncio
 import subprocess
-from typing import Dict, List
+from typing import Dict, List, Optional
 from sqlalchemy.orm import Session
 from database.models import Server
 from app.services.minecraft.process import MinecraftProcess
