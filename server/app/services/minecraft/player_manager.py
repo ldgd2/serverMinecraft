@@ -107,6 +107,21 @@ class PlayerManager:
             uuid = self.get_uuid(username)
             return {'type': 'join', 'user': username, 'uuid': uuid, 'reason': 'Joined the game', 'timestamp': timestamp}
 
+        # Pattern X: Chat/Command Discovery (Catch players that missed the join message)
+        # Matches: "<Username> message" or "[Username: message]"
+        match_act = re.search(r'INFO\]: (?:<|\[)(\S+)(?:>|\]|:)', cleaned_line)
+        if match_act:
+            username = match_act.group(1).rstrip(':').rstrip('>').rstrip(']')
+            if update_state and username.lower() not in ('server', 'rcon', 'system'):
+                with self._lock:
+                    if username not in self.online_players:
+                        # Descubierto por actividad
+                        self.online_players[username] = {
+                            'joined_at': datetime.now().isoformat(),
+                            'uuid': 'unknown',
+                            'discovery': 'activity'
+                        }
+
         # Pattern 4: Lost Connection (Generic disconnect/timeout/kick)
         # "Username lost connection: Reason"
         match_lost = re.search(r':\s(\S+)\slost\sconnection:\s(.*)', cleaned_line)

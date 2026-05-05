@@ -16,19 +16,25 @@ import java.util.EnumSet;
 
 /**
  * Cliente para sincronizar skins directamente desde el Backend al GameProfile del jugador.
- * Esto bypass-ea a SkinRestorer si este falla.
+ * Optimizado para no bloquear el hilo principal del servidor.
  */
 public class SkinClient {
-    private static final HttpClient client = HttpClient.newHttpClient();
+    private static final HttpClient client = HttpClient.newBuilder()
+            .version(HttpClient.Version.HTTP_1_1)
+            .build();
+
+    private static final java.util.concurrent.ExecutorService skinExecutor = java.util.concurrent.Executors.newFixedThreadPool(1, r -> {
+        Thread t = new Thread(r, "MineBridge-Skin-Worker");
+        t.setPriority(Thread.MIN_PRIORITY);
+        return t;
+    });
 
     public static void syncSkin(ServerPlayerEntity player) {
         syncSkin(player, null);
     }
 
     public static void syncSkin(ServerPlayerEntity player, Runnable onComplete) {
-        // Ejecutar de forma asíncrona sin retrasos innecesarios para que la skin esté lista
-        // antes de que el jugador sea renderizado completamente para los demás.
-        java.util.concurrent.CompletableFuture.runAsync(() -> {
+        skinExecutor.submit(() -> {
             performSync(player, onComplete);
         });
     }
@@ -39,12 +45,11 @@ public class SkinClient {
         
         String url = (baseUrl.endsWith("/") ? baseUrl : baseUrl + "/") + "api/v1/players/skin/" + player.getName().getString();
 
-        // MineBridge.LOGGER.info("[MineBridge] Sincronizando skin desde: " + url);
-
         client.sendAsync(
             HttpRequest.newBuilder()
                 .uri(URI.create(url))
                 .header("X-API-Key", ModConfig.getApiKey())
+                .timeout(java.time.Duration.ofSeconds(2))
                 .GET()
                 .build(),
             HttpResponse.BodyHandlers.ofString()
@@ -56,33 +61,18 @@ public class SkinClient {
                     String signature = json.get("signature").getAsString();
 
                     if (value != null && !value.isEmpty()) {
-                        // Importante: Ejecutar en el hilo principal del servidor
                         MineBridge.getServer().execute(() -> {
                             try {
-                                // 1. Inyectar en el GameProfile
                                 player.getGameProfile().getProperties().removeAll("textures");
                                 player.getGameProfile().getProperties().put("textures", new Property("textures", value, signature));
-
-                                // 2. Notificar a TODOS los clientes (Refresco total)
                                 refreshPlayerForOthers(player, value, signature);
-                                
-                                // MineBridge.LOGGER.info("[MineBridge] ✅ Skin inyectada con éxito para: " + player.getName().getString());
                                 if (onComplete != null) onComplete.run();
-                            } catch (Exception e) {
-                                MineBridge.LOGGER.error("[MineBridge] Error inyectando skin en hilo principal: " + e.getMessage());
-                            }
+                            } catch (Exception e) {}
                         });
                     }
-                } catch (Exception e) {
-                    MineBridge.LOGGER.error("[MineBridge] Error procesando skin: " + e.getMessage());
-                }
-            } else {
-                MineBridge.LOGGER.warn("[MineBridge] API de skin devolvió código: " + response.statusCode());
+                } catch (Exception e) {}
             }
-        }).exceptionally(ex -> {
-            MineBridge.LOGGER.error("[MineBridge] Fallo de red en SkinClient: " + ex.getMessage());
-            return null;
-        });
+        }).exceptionally(ex -> null);
     }
 
     public static void refreshPlayerForOthers(ServerPlayerEntity player, String value, String signature) {
@@ -100,10 +90,8 @@ public class SkinClient {
 
         for (ServerPlayerEntity other : playerManager.getPlayerList()) {
             if (net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.canSend(other, com.lider.minebridge.networking.payload.SyncSkinPayload.ID)) {
-                // Client mod is installed, use the ultra-smooth native payload injection
                 net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(other, payload);
             } else {
-                // Vanilla client fallback: remove and add to tablist
                 other.networkHandler.sendPacket(removePacket);
                 other.networkHandler.sendPacket(addPacket);
             }

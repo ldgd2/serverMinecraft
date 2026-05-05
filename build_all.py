@@ -48,39 +48,24 @@ def _load_env_url() -> str:
     return remote_url, local_url
 
 def _load_api_config() -> dict:
-    remote_url, local_url = _load_env_url()
-    cfg = {
-        "api_url": remote_url,
-        "local_url": local_url
-    } # Default from env
+    cfg = {}
     if os.path.exists(_API_CFG_FILE):
         for line in open(_API_CFG_FILE, encoding='utf-8').readlines():
             if '=' in line:
                 k, v = line.strip().split('=', 1)
                 cfg[k] = v
     
-    # Overwrite derived values if explicitly saved
-    if cfg.get('target_ip') and cfg.get('target_port'):
-        target_ip = cfg['target_ip']
-        port = cfg['target_port']
-        
-        # IP for the packager to connect to the backend
-        connect_ip = target_ip if target_ip != "0.0.0.0" else "127.0.0.1"
-        cfg['api_url'] = f"http://{connect_ip}:{port}"
-        
-        # IP to be injected into the mod as "Public/Remote"
-        # If 0.0.0.0, we try to find the real IP for the mod, or fallback to 127.0.0.1
-        mod_ip = target_ip
-        if mod_ip == "0.0.0.0":
-            try:
-                import urllib.request
-                mod_ip = urllib.request.urlopen('https://api.ipify.org', timeout=3).read().decode('utf8')
-            except:
-                mod_ip = "127.0.0.1"
-        
-        cfg['mod_public_url'] = f"http://{mod_ip}:{port}"
-        cfg['local_url'] = f"http://127.0.0.1:{port}"
-        
+    # Valores por defecto si no existen
+    cfg.setdefault("server_mod_ip", "127.0.0.1")
+    cfg.setdefault("server_mod_port", "8000")
+    cfg.setdefault("client_mod_ip", "0.0.0.0")
+    cfg.setdefault("client_mod_port", "8000")
+    
+    # URL base para que el empaquetador hable con la API (USA LA IP DE CLIENTE PARA LOGIN)
+    connect_ip = cfg["client_mod_ip"] if cfg["client_mod_ip"] != "0.0.0.0" else "127.0.0.1"
+    cfg['api_url'] = f"http://{connect_ip}:{cfg['client_mod_port']}"
+    cfg['local_url'] = f"http://127.0.0.1:{cfg['server_mod_port']}"
+    
     return cfg
 
 def configure_packager():
@@ -90,44 +75,32 @@ def configure_packager():
     print("  ║      CONFIGURACIÓN DEL EMPAQUETADOR  ║")
     print("  ╚══════════════════════════════════════╝")
     
-    # 1. Red y Host
-    # Intentar sacar valores actuales para sugerirlos
-    current_ip = cfg.get("target_ip") or "0.0.0.0"
-    current_port = cfg.get("target_port") or "8000"
-    
-    print(f"\n  [1] Red y Servidor Objetivo")
-    new_ip = input(f"      IP o Dominio del VPS [{current_ip}]: ").strip()
-    cfg['target_ip'] = new_ip if new_ip else current_ip
-    
-    new_port = input(f"      Puerto del Backend [{current_port}]: ").strip()
-    cfg['target_port'] = new_port if new_port else current_port
-    
-    # Recalcular URLs base
-    cfg['api_url'] = f"http://{cfg['target_ip']}:{cfg['target_port']}"
-    cfg['local_url'] = f"http://127.0.0.1:{cfg['target_port']}"
+    # --- 1. Red Servidor ---
+    print(f"\n  [1] Red para el MOD DEL SERVIDOR (Internal)")
+    new_s_ip = input(f"      IP Servidor [{cfg['server_mod_ip']}]: ").strip()
+    if new_s_ip: cfg['server_mod_ip'] = new_s_ip
+    new_s_port = input(f"      Puerto Servidor [{cfg['server_mod_port']}]: ").strip()
+    if new_s_port: cfg['server_mod_port'] = new_s_port
 
-    # 2. Credenciales
-    print(f"\n  [2] Credenciales de Administrador (API)")
-    current_user = cfg.get('username') or 'admin'
-    new_user = input(f"      Usuario admin [{current_user}]: ").strip()
-    cfg['username'] = new_user if new_user else current_user
-    
+    # --- 2. Red Cliente ---
+    print(f"\n  [2] Red para el MOD DEL CLIENTE (Public)")
+    new_c_ip = input(f"      IP Cliente [{cfg['client_mod_ip']}]: ").strip()
+    if new_c_ip: cfg['client_mod_ip'] = new_c_ip
+    new_c_port = input(f"      Puerto Cliente [{cfg['client_mod_port']}]: ").strip()
+    if new_c_port: cfg['client_mod_port'] = new_c_port
+
+    # --- 3. Credenciales ---
+    print(f"\n  [3] Credenciales y Seguridad")
+    new_user = input(f"      Usuario Admin [{cfg.get('username','admin')}]: ").strip()
+    if new_user: cfg['username'] = new_user
     import getpass
-    print("      Introduce la contraseña (deja vacío para no cambiar)")
-    new_pass = getpass.getpass(f"      Contraseña para '{cfg['username']}': ").strip()
-    if new_pass:
-        cfg['password'] = new_pass
-        
-    # 3. API Key del Mod
-    print(f"\n  [3] Firma y Seguridad del Mod")
-    current_key = cfg.get('mod_api_key') or 'PENDING'
-    print("      Esta es la API Key que el mod usará para hablar con el backend.")
-    new_key = input(f"      API Key del Mod [{current_key}]: ").strip()
-    cfg['mod_api_key'] = new_key if new_key else current_key
+    new_pass = getpass.getpass("      Nueva Contraseña (vacío para omitir): ").strip()
+    if new_pass: cfg['password'] = new_pass
     
-    _save_api_config(cfg)
-    print("\n  [✓] Configuración base guardada.")
+    new_key = input(f"      API Key del Mod [{cfg.get('mod_api_key','PENDING')}]: ").strip()
+    if new_key: cfg['mod_api_key'] = new_key
 
+    _save_api_config(cfg)
     # 4. Test de Conexión
     print(f"\n  [>] Verificando Conexión con {cfg['api_url']}...")
     try:
@@ -478,31 +451,32 @@ def build_mods(cfg: dict, token: str):
     c_props = os.path.join(CLIENT_DIR, 'gradle.properties')
     s_props = os.path.join(SERVER_DIR, 'gradle.properties')
     mod_config_java = os.path.join(SERVER_DIR, 'src', 'main', 'java', 'com', 'lider', 'minebridge', 'config', 'ModConfig.java')
+    client_config_java = os.path.join(CLIENT_DIR, 'src', 'main', 'java', 'com', 'lider', 'minebridge', 'config', 'ClientConfig.java')
     
+    original_server_java = None
+    original_client_java = None
+
     try:
         current, c_content = _mod_current_version(c_props)
         _, s_content = _mod_current_version(s_props)
-    except Exception as e:
-        print(f"  [X] Error: {e}"); return
+        
+        # --- Inyectar configuración ---
+        print("  [>] Inyectando IP y API Key en los Mods...")
+        server_url = f"http://{cfg['server_mod_ip']}:{cfg['server_mod_port']}"
+        client_url = f"http://{cfg['client_mod_ip']}:{cfg['client_mod_port']}"
+        
+        if os.path.exists(mod_config_java):
+            with open(mod_config_java, 'r', encoding='utf-8') as f: original_server_java = f.read()
+            new_s = original_server_java.replace('private static String backendUrl = "PENDING";', f'private static String backendUrl = "{server_url}";')
+            new_s = new_s.replace('private static String localUrl = "PENDING";', f'private static String localUrl = "{cfg["local_url"]}";')
+            new_s = new_s.replace('private static String apiKey = "PENDING";', f'private static String apiKey = "{cfg["mod_api_key"]}";')
+            with open(mod_config_java, 'w', encoding='utf-8') as f: f.write(new_s)
 
-    # --- Inyectar configuración en ModConfig.java ---
-    original_java_content = None
-    if os.path.exists(mod_config_java):
-        print("  [>] Inyectando IP y API Key en ModConfig.java...")
-        with open(mod_config_java, 'r', encoding='utf-8') as f:
-            original_java_content = f.read()
-        
-        new_java_content = original_java_content
-        # Inyectar ambas URLs para que el mod decida cuál usar
-        public_url = cfg.get('mod_public_url', cfg['api_url'])
-        new_java_content = new_java_content.replace('private static String backendUrl = "PENDING";', f'private static String backendUrl = "{public_url}";')
-        new_java_content = new_java_content.replace('private static String localUrl = "PENDING";', f'private static String localUrl = "{cfg["local_url"]}";')
-        new_java_content = new_java_content.replace('private static String apiKey = "PENDING";', f'private static String apiKey = "{cfg["mod_api_key"]}";')
-        
-        with open(mod_config_java, 'w', encoding='utf-8') as f:
-            f.write(new_java_content)
-    
-    try:
+        if os.path.exists(client_config_java):
+            with open(client_config_java, 'r', encoding='utf-8') as f: original_client_java = f.read()
+            new_c = original_client_java.replace('private static String backendUrl = "PENDING";', f'private static String backendUrl = "{client_url}";')
+            with open(client_config_java, 'w', encoding='utf-8') as f: f.write(new_c)
+
         new_v, label = _ask_bump(current)
         print(f"\n  → {current}  →  {new_v}  [{label}]")
         if input("  ¿Continuar? [s/N]: ").strip().lower() not in ('s', 'si', 'y', 'yes'):
@@ -612,11 +586,13 @@ def build_mods(cfg: dict, token: str):
     except Exception as e:
         print(f"  [X] Falló la compilación o subida: {e}")
     finally:
-        # Restaurar ModConfig.java para evitar dejar credenciales en el código fuente
-        if original_java_content:
-            print("  [>] Restaurando ModConfig.java a su estado original...")
-            with open(mod_config_java, 'w', encoding='utf-8') as f:
-                f.write(original_java_content)
+        # Restaurar códigos fuente para evitar dejar IPs privadas
+        if original_server_java:
+            print("  [>] Restaurando ModConfig.java...")
+            with open(mod_config_java, 'w', encoding='utf-8') as f: f.write(original_server_java)
+        if original_client_java:
+            print("  [>] Restaurando ClientConfig.java...")
+            with open(client_config_java, 'w', encoding='utf-8') as f: f.write(original_client_java)
 
 
 # --- Main ---

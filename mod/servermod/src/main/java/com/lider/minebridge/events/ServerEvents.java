@@ -16,14 +16,16 @@ import net.minecraft.server.network.ServerPlayerEntity;
 public class ServerEvents {
 
     public static void init() {
-        // Inicializar cada dominio por separado
+        // Solo mantenemos la lógica de conexión (Join/Leave) en el servidor
         PlayerLogic.init();
-        BlockLogic.init();
-        CombatLogic.init();
-        ItemLogic.init();
-        WorldLogic.init();
-        MemeLogic.init();
-        EconomyLogic.init();
+        
+        // El resto se ha movido al CLIENTE para liberar al servidor de cálculos
+        // BlockLogic.init();
+        // CombatLogic.init();
+        // ItemLogic.init();
+        // WorldLogic.init();
+        // MemeLogic.init();
+        // EconomyLogic.init();
     }
 
     /**

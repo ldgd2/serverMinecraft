@@ -352,8 +352,14 @@ async def websocket_status(websocket: WebSocket, name: str):
                         
              if needs_send:
                   status_count += 1
-                  print(f"[WS SEND] Status {name} (msg #{status_count}): RAM={stats.get('ram_usage_mb')}MB, CPU={stats.get('cpu_usage_percent')}%, Players={len(players)}")
-                  await websocket.send_json(current_state)
+                  # Obtener lista completa y unificada
+                  players_list = process.get_online_players()
+                  print(f"[WS SEND] Status {name} (msg #{status_count}): RAM={stats.get('ram_usage_mb')}MB, CPU={stats.get('cpu_usage_percent')}%, Players={len(players_list)}")
+                  await websocket.send_json({
+                      "stats": stats,
+                      "players": players_list,
+                      "count": len(players_list)
+                  })
                   last_sent = current_state
                   
              await asyncio.sleep(2)
@@ -421,18 +427,6 @@ async def broadcast_server_updates():
 @router.on_event("startup")
 async def startup_event():
     asyncio.create_task(broadcast_server_updates())
-
-# This one is prefixed by /servers, so it would be /servers/api/v1/ws/bridge
-# But the mod expects /api/v1/ws/bridge.
-# I will define it in a way that handles the correct path or I'll move it to main.py
-# Actually, I can just use a relative path if the router allows it, or better, 
-# since I want it at the root, I'll use a different router or just fix the path here if I can.
-# To be safe and clean, I'll define it here but without the router prefix if possible, 
-# or just remember the prefix.
-# Wait, I'll just change the path to match the prefix:
-# If I keep it here, it will be /servers/api/v1/ws/bridge.
-# Let's check if the mod can be updated to use that or if I should move it.
-# Moving it to main.py is cleaner for root-level routes.
 
 @router.websocket("/{name}/chat")
 async def websocket_chat(websocket: WebSocket, name: str, username: str = None):
@@ -778,39 +772,3 @@ async def get_chat_history(name: str, db: Session = Depends(get_db), current_use
     # Reverse to get chronological order
     mapped = [m.to_dict() for m in reversed(messages)]
     return APIResponse(status="success", message="Chat history retrieved", data=mapped)
-# (Endpoints previously under /{name}/masterbridge/ have been deleted)
-
-@router.get("/{name}/export")
-async def export_server(name: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Export server as a ZIP file"""
-    try:
-        from app.services.minecraft.service import server_service
-        zip_path = await server_service.export_server(db, name)
-        return FileResponse(
-            path=zip_path,
-            media_type="application/zip",
-            filename=f"{name}_backup.zip"
-        )
-    except FileNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.post("/import")
-async def import_server(
-    file: UploadFile = File(...), 
-    request: Request = None, 
-    db: Session = Depends(get_db), 
-    current_user: User = Depends(get_current_user)
-):
-    """Import server from a ZIP file"""
-    try:
-        from app.services.minecraft.service import server_service
-        server = await server_service.import_server(db, file)
-        AuditService.log_action(db, current_user, "IMPORT_SERVER", request.client.host if request else "Local", f"Imported server {server.name}")
-        return APIResponse(status="success", message="Server imported successfully", data={"name": server.name})
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-

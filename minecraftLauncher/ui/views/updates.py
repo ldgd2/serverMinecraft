@@ -157,7 +157,7 @@ class UpdatesView(tk.Frame):
     def _on_check_error(self, err: str):
         self._checking = False
         self.check_btn.set_text("Buscar actualizaciones")
-        self._set_status(f"No se pudo conectar al servidor.\n{err}", Colors.RED if hasattr(Colors, 'RED') else "#e05252")
+        self._set_status(f"No se pudo conectar al servidor.\n{err}", Colors.NOPREMIUM_RED)
 
     def _on_check_done(self, l_info, m_info):
         self._checking = False
@@ -207,6 +207,7 @@ class UpdatesView(tk.Frame):
 
     def _download_all_worker(self, download_data: dict):
         try:
+            import requests
             from core.updater import download_and_install_launcher, install_mod_update
             
             def _update_prog(pct):
@@ -215,49 +216,73 @@ class UpdatesView(tk.Frame):
             def _update_status(txt):
                 self.after(0, lambda: self._set_status(txt, Colors.YELLOW))
 
-            # 1. Download Mods if available
-            if "mods" in download_data:
-                m_info = download_data["mods"]
-                url = m_info.get("download_url")
-                version = m_info.get("latest_version")
-                if not url:
-                    raise Exception("URL de descarga de mods no disponible.")
+            # 1. Preparar lista de tareas con tamaños para ordenar
+            tasks = []
+            for key, info in download_data.items():
+                url = info.get("download_url")
+                if not url: continue
                 
-                _update_status(f"⬇ Descargando Mods v{version}...")
-                success = install_mod_update(
-                    url, version,
-                    progress_callback=_update_prog,
-                    status_callback=_update_status
-                )
-                if not success:
-                    raise Exception("Error durante la instalación de los mods.")
+                # Intentar obtener tamaño real
+                size = info.get("size_bytes")
+                if not size:
+                    try:
+                        r = requests.head(url, timeout=5, allow_redirects=True)
+                        size = int(r.headers.get("content-length", 0))
+                    except: size = 999999999 # Fallback pesado si falla el head
+                
+                tasks.append({
+                    "type": key,
+                    "url": url,
+                    "version": info.get("latest_version", "?"),
+                    "size": size
+                })
 
-            # 2. Download Launcher if available
-            if "launcher" in download_data:
-                l_info = download_data["launcher"]
-                url = l_info.get("download_url")
-                version = l_info.get("latest_version")
-                if not url:
-                    raise Exception("URL de descarga del Launcher no disponible.")
+            # 2. Ordenar por tamaño (menor a mayor)
+            tasks.sort(key=lambda x: x["size"])
+
+            # 3. Ejecutar en orden
+            for task in tasks:
+                self.after(0, self._hide_progress) # Reset bar
+                self.after(100, self._show_progress)
                 
-                _update_status(f"⬇ Descargando Launcher v{version}...")
+                # Extraer nombre de archivo limpio de la URL
+                filename = task["url"].split("/")[-1].split("?")[0]
+                if not filename: filename = "archivo_descarga"
                 
-                success = download_and_install_launcher(
-                    url,
-                    progress_callback=_update_prog,
-                    status_callback=_update_status
-                )
-                # Nota: Si tiene éxito, download_and_install_launcher termina en os._exit(0)
-                if not success:
-                    raise Exception("Error durante la actualización del Launcher.")
-                return
+                # Función para formatear el estado: "$nombre           $descargado/$total"
+                def _update_formatted_status(mb_txt):
+                    # Usamos padding para empujar el tamaño a la derecha
+                    # La etiqueta tiene wraplength, así que un formato simple basta
+                    combined = f"{filename:<30} {mb_txt}"
+                    self.after(0, lambda: self._set_status(combined, Colors.YELLOW))
+
+                if task["type"] == "mods":
+                    _update_formatted_status("Conectando...")
+                    success = install_mod_update(
+                        task["url"], task["version"],
+                        progress_callback=_update_prog,
+                        status_callback=_update_formatted_status
+                    )
+                    if not success:
+                        raise Exception("Error durante la instalación de los mods.")
                 
-            self.after(0, lambda: self._set_status("✓ ¡Actualización completada!", Colors.PREMIUM_GREEN))
-            self.after(0, lambda: self.check_btn.set_text("✓ Completado"))
+                elif task["type"] == "launcher":
+                    _update_formatted_status("Conectando...")
+                    success = download_and_install_launcher(
+                        task["url"],
+                        progress_callback=_update_prog,
+                        status_callback=_update_formatted_status
+                    )
+                    if not success:
+                        raise Exception("Error durante la actualización del Launcher.")
+                    return
+                
+            self.after(0, lambda: self._set_status("✓ ¡Todo completado con éxito!", Colors.PREMIUM_GREEN))
+            self.after(0, lambda: self.check_btn.set_text("✓ Finalizado"))
 
         except Exception as e:
             err_msg = f"Error: {str(e)}"
-            self.after(0, lambda: self._set_status(err_msg, Colors.RED))
+            self.after(0, lambda: self._set_status(err_msg, Colors.NOPREMIUM_RED))
             self.after(0, lambda: self.check_btn.set_text("Reintentar"))
             self.after(0, lambda: self.check_btn.configure_state(False))
             print(f"[Updates] Worker error: {e}")
@@ -283,7 +308,7 @@ class UpdatesView(tk.Frame):
             self.app.show_home_view()
 
     def trigger_auto_update(self, latest, url):
-        """Inicia la descarga automáticamente al detectar un update crítico."""
+        """Inicia la descarga automáticamente al detectar un update crítico del launcher."""
         data = {
             "launcher": {
                 "latest_version": latest,
@@ -291,8 +316,19 @@ class UpdatesView(tk.Frame):
             }
         }
         self._set_status(f"Nueva versión v{latest} detectada.", Colors.YELLOW)
-        # Usamos _do_download_all para que se ejecute en un thread y no bloquee
+        self.after(1000, lambda: self._do_download_all(data))
+
+    def trigger_mod_update(self, latest, url):
+        """Inicia la descarga de mods automáticamente al aceptar el aviso."""
+        data = {
+            "mods": {
+                "latest_version": latest,
+                "download_url": url
+            }
+        }
+        self._set_status(f"Nuevos mods v{latest} detectados.", Colors.YELLOW)
         self.after(1000, lambda: self._do_download_all(data))
 
     def on_show(self):
+        # Al mostrar, podemos limpiar estados previos si se desea
         pass

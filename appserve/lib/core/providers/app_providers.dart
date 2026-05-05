@@ -190,24 +190,70 @@ class ServerProvider extends ChangeNotifier {
   }
 
   Future<void> selectServer(String name, String username) async {
+    // Evitar recargar si ya está seleccionado y cargando
+    if (_selectedServer?.name == name && _isLoading) return;
+
     _isLoading = true;
     notifyListeners();
     
-    final server = _servers.firstWhere((s) => s.name == name, orElse: () => _selectedServer!);
-    _selectedServer = server;
-    _consoleLogs = ''; 
-    _chatMessages = [];
-    
-    _closeWebSockets();
-    _connectToConsole(name);
-    _connectToStatus(name);
-    _connectToChat(name, username);
-    await loadChatHistory(name);
-    await loadPlayers(name);
-    await loadMods(name);
-    
-    _isLoading = false;
-    notifyListeners();
+    try {
+      final server = _servers.firstWhere((s) => s.name == name, orElse: () => _selectedServer!);
+      _selectedServer = server;
+      _consoleLogs = ''; 
+      _chatMessages = [];
+      
+      _closeWebSockets();
+      _connectToConsole(name);
+      _connectToStatus(name);
+      _connectToChat(name, username);
+      
+      // Cargar datos pesados en paralelo
+      await Future.wait([
+        loadChatHistory(name),
+        loadPlayers(name),
+        loadMods(name),
+      ]);
+    } catch (e) {
+      debugPrint('Select Server Error: $e');
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  // --- Quick Commands (Honest Pro Suite) ---
+  
+  Future<void> executeQuickCommand(String serverName, String cmdType, Map<String, dynamic> params) async {
+    String finalCmd = '';
+    switch (cmdType) {
+      // Teletransporte Avanzado
+      case 'tp_all_me': finalCmd = 'tp @a @s'; break;
+      case 'tp_player_to_player': finalCmd = 'tp ${params['player']} ${params['target']}'; break;
+      case 'tp_player_to_coords': finalCmd = 'tp ${params['player']} ${params['x']} ${params['y']} ${params['z']}'; break;
+      case 'tp_all_to_coords': finalCmd = 'tp @a ${params['x']} ${params['y']} ${params['z']}'; break;
+      
+      // Clima y Tiempo
+      case 'weather_clear': finalCmd = 'weather clear 999999'; break;
+      case 'time_day': finalCmd = 'time set day'; break;
+      
+      // Mantenimiento & Rendimiento
+      case 'save_backup': finalCmd = 'save-all'; break;
+      case 'purge_items': finalCmd = 'kill @e[type=item]'; break;
+      case 'check_tps': finalCmd = 'tps'; break;
+      
+      // COMANDOS DE EVENTOS (Sin romper la emoción)
+      case 'global_glow': finalCmd = 'effect give @a glowing 30'; break;
+      case 'visual_lightning': finalCmd = 'execute at @a run summon lightning_bolt ~ ~ ~'; break;
+      case 'global_title': finalCmd = 'title @a title {"text":"${params['text']}","color":"gold"}'; break;
+      
+      // Seguridad & Whitelist
+      case 'whitelist_on': finalCmd = 'whitelist on'; break;
+      case 'whitelist_off': finalCmd = 'whitelist off'; break;
+      case 'stop_fire': finalCmd = 'gamerule doFireTick false'; break;
+      case 'stop_tnt': finalCmd = 'gamerule tntExplodes false'; break;
+      default: return;
+    }
+    await sendCommand(serverName, finalCmd);
   }
 
   // --- Players Management ---
@@ -410,7 +456,11 @@ class ServerProvider extends ChangeNotifier {
   }
 
   void sendChatMessage(String name, String message, String username) {
-    _chatChannel?.sink.add(jsonEncode({'type': 'send_chat', 'username': username, 'message': message}));
+    _chatChannel?.sink.add(jsonEncode({
+      'type': 'send_chat', 
+      'username': username, 
+      'message': message
+    }));
   }
 
   Future<void> loadCreationStats({bool force = false}) async {

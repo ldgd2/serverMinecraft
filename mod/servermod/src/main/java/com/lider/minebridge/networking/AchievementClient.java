@@ -22,27 +22,29 @@ public class AchievementClient {
         return url.endsWith("/") ? url : url + "/";
     }
 
+    private static final java.util.concurrent.ExecutorService networkExecutor = java.util.concurrent.Executors.newSingleThreadExecutor(r -> {
+        Thread t = new Thread(r, "MineBridge-Network-Worker");
+        t.setPriority(Thread.MIN_PRIORITY); // Prioridad mínima para no robar CPU al juego
+        return t;
+    });
+
     private static void sendRequest(String endpoint, JsonObject payload) {
         String base = getBaseUrl();
         if (base == null) return;
 
-        CompletableFuture.runAsync(() -> {
+        networkExecutor.submit(() -> {
             try {
                 HttpRequest request = HttpRequest.newBuilder()
                         .uri(URI.create(base + endpoint))
                         .header("Content-Type", "application/json")
                         .header("X-API-Key", ModConfig.getApiKey())
+                        .timeout(java.time.Duration.ofSeconds(2)) // Máximo 2 segundos de espera
                         .POST(HttpRequest.BodyPublishers.ofString(payload.toString()))
                         .build();
 
-                client.sendAsync(request, HttpResponse.BodyHandlers.ofString())
-                      .thenAccept(response -> {
-                          if (response.statusCode() >= 400) {
-                              System.err.println("[MineBridge] Error en " + endpoint + ": " + response.statusCode() + " " + response.body());
-                          }
-                      });
+                client.sendAsync(request, HttpResponse.BodyHandlers.ofString());
             } catch (Exception e) {
-                System.err.println("[MineBridge] Error de red: " + e.getMessage());
+                // Silencio total en errores de red para no saturar el log ni el server thread
             }
         });
     }

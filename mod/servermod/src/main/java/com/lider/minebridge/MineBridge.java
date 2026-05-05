@@ -30,6 +30,7 @@ public class MineBridge implements ModInitializer {
         PayloadTypeRegistry.playC2S().register(AchievementUnlockPayload.ID, AchievementUnlockPayload.CODEC);
         PayloadTypeRegistry.playS2C().register(com.lider.minebridge.networking.payload.UpdateCountdownPayload.ID, com.lider.minebridge.networking.payload.UpdateCountdownPayload.CODEC);
         PayloadTypeRegistry.playS2C().register(com.lider.minebridge.networking.payload.SyncSkinPayload.ID, com.lider.minebridge.networking.payload.SyncSkinPayload.CODEC);
+        PayloadTypeRegistry.playC2S().register(com.lider.minebridge.networking.payload.MarketplaceRequestPayload.ID, com.lider.minebridge.networking.payload.MarketplaceRequestPayload.CODEC);
         
         ServerLifecycleEvents.SERVER_STARTING.register(server -> {
             serverInstance = server;
@@ -42,6 +43,13 @@ public class MineBridge implements ModInitializer {
 
         ServerEvents.init();
         ModCommands.init();
+
+        net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.registerGlobalReceiver(com.lider.minebridge.networking.payload.MarketplaceRequestPayload.ID, (payload, context) -> {
+            context.server().execute(() -> {
+                com.google.gson.JsonArray trades = com.google.gson.JsonParser.parseString(payload.tradeData()).getAsJsonArray();
+                com.lider.minebridge.marketplace.MarketplaceManager.openMarketplace(context.player(), trades);
+            });
+        });
 
         // Register payload receiver
         net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.registerGlobalReceiver(AchievementUnlockPayload.ID, (payload, context) -> {

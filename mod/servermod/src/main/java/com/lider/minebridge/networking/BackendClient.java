@@ -164,30 +164,33 @@ public class BackendClient {
             .exceptionally(t -> "FAILED: " + t.getMessage());
     }
 
-    private void postAsync(String endpoint, JsonObject data) {
-        if (baseUrl == null || apiKey == null) return;
-        
-        try {
-            String jsonBody = data.toString();
-            // MineBridge.LOGGER.info("DEBUG: Sending POST to " + endpoint + ": " + jsonBody);
-            
-            HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(activeUrl + endpoint))
-                .version(HttpClient.Version.HTTP_1_1) // Double check version here
-                .header("Content-Type", "application/json")
-                .header("X-API-Key", apiKey)
-                .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
-                .build();
+    private static final java.util.concurrent.ExecutorService networkExecutor = java.util.concurrent.Executors.newFixedThreadPool(2);
 
-            httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
-                .thenAccept(res -> {
-                    if (res.statusCode() >= 400) {
-                        MineBridge.LOGGER.warn("Backend error (" + res.statusCode() + ") on " + endpoint + ": " + res.body());
-                    }
-                });
-        } catch (Exception e) {
-            MineBridge.LOGGER.error("Failed to send async request to " + endpoint + ": " + e.getMessage());
-        }
+    private void postAsync(String endpoint, JsonObject data) {
+        if (activeUrl == null || apiKey == null) return;
+        
+        networkExecutor.submit(() -> {
+            try {
+                String jsonBody = data.toString();
+                HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(activeUrl + endpoint))
+                    .version(HttpClient.Version.HTTP_1_1)
+                    .header("Content-Type", "application/json")
+                    .header("X-API-Key", apiKey)
+                    .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
+                    .timeout(java.time.Duration.ofSeconds(5))
+                    .build();
+
+                httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
+                    .thenAccept(res -> {
+                        if (res.statusCode() >= 400) {
+                            // MineBridge.LOGGER.warn("Backend error (" + res.statusCode() + ") on " + endpoint);
+                        }
+                    }).exceptionally(t -> null);
+            } catch (Exception e) {
+                // Silently fail to avoid console spam during lag
+            }
+        });
     }
 
     private void flushBatch() {

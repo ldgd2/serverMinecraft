@@ -35,7 +35,7 @@ class EnvFileHandler(FileSystemEventHandler):
 
 # Router Imports
 # Router Imports
-from routes import auth, servers, system, files, mods, worlds, audit, versions, players, player_auth, bridge, backups, updates
+from routes import auth, servers, system, files, mods, worlds, audit, versions, players, player_auth, bridge, backups, updates, trades
 from app.routes.minecraft import router as minecraft_router
 
 app = FastAPI(title="Minecraft Server Manager")
@@ -128,6 +128,7 @@ api_v1_router.include_router(bridge.router)
 api_v1_router.include_router(bridge.ws_router)
 api_v1_router.include_router(minecraft_router)
 api_v1_router.include_router(updates.router)
+api_v1_router.include_router(trades.router)
 
 app.include_router(api_v1_router)
 
@@ -179,7 +180,20 @@ async def startup_event():
         queries = [
             "ALTER TABLE player_accounts ADD COLUMN IF NOT EXISTS total_player_kills INTEGER DEFAULT 0;",
             "ALTER TABLE player_accounts ADD COLUMN IF NOT EXISTS total_hostile_kills INTEGER DEFAULT 0;",
-            "ALTER TABLE player_accounts ADD COLUMN IF NOT EXISTS total_genocide_score INTEGER DEFAULT 0;"
+            "ALTER TABLE player_accounts ADD COLUMN IF NOT EXISTS total_genocide_score INTEGER DEFAULT 0;",
+            """
+            CREATE TABLE IF NOT EXISTS trades (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                seller_name TEXT NOT NULL,
+                buyer_name TEXT,
+                selling_item JSON NOT NULL,
+                asking_item JSON NOT NULL,
+                counter_offer_item JSON,
+                status TEXT DEFAULT 'OPEN',
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                expires_at DATETIME
+            );
+            """
         ]
         for query in queries:
             db.execute(text(query))

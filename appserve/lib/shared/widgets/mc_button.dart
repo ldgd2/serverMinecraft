@@ -11,6 +11,7 @@ class McButton extends StatelessWidget {
   final bool isDanger;
   final bool isSecondary;
   final double? width;
+  final Color? color;
 
   const McButton({
     super.key,
@@ -21,21 +22,22 @@ class McButton extends StatelessWidget {
     this.isDanger = false,
     this.isSecondary = false,
     this.width,
+    this.color,
   });
 
   @override
   Widget build(BuildContext context) {
-    Color bg = isDanger
+    Color bg = color ?? (isDanger
         ? AppColors.offline
         : isSecondary
             ? AppColors.backgroundOverlay
-            : AppColors.grassGreen;
+            : AppColors.grassGreen);
 
-    Color border = isDanger
+    Color border = color != null ? color!.withOpacity(0.8) : (isDanger
         ? AppColors.offline.withOpacity(0.5)
         : isSecondary
             ? AppColors.border
-            : AppColors.grassGreenDark;
+            : AppColors.grassGreenDark);
 
     return SizedBox(
       width: width,

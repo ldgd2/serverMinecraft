@@ -118,8 +118,13 @@ def download_and_install_launcher(url: str, progress_callback=None, status_callb
                         pct = int(done * 100 / total)
                         if progress_callback: progress_callback(pct)
                         if status_callback: 
+                            done_mb = done / (1024 * 1024)
+                            total_mb = total / (1024 * 1024)
+                            status_callback(f"{done_mb:.1f} MB / {total_mb:.1f} MB")
+                    else:
+                        if status_callback:
                             kb = done // 1024
-                            status_callback(f"Descargando... {kb} KB ({pct}%)")
+                            status_callback(f"Descargando... {kb} KB")
     except Exception as e:
         if status_callback: status_callback(f"Error de descarga: {e}")
         try: os.remove(tmp_path)
@@ -359,7 +364,12 @@ def install_mod_update(download_url: str, latest_version: str, progress_callback
                     f.write(chunk)
                     done += len(chunk)
                     if total and progress_callback:
-                        progress_callback(int(done * 100 / total))
+                        pct = int(done * 100 / total)
+                        progress_callback(pct)
+                        if status_callback:
+                            done_mb = done / (1024 * 1024)
+                            total_mb = total / (1024 * 1024)
+                            status_callback(f"{done_mb:.1f} MB / {total_mb:.1f} MB")
             
         if status_callback: status_callback("Instalando mods...")
         base_dir = config.get("minecraft_dir") or minecraft_launcher_lib.utils.get_minecraft_directory()
@@ -399,9 +409,11 @@ def install_mod_update(download_url: str, latest_version: str, progress_callback
 
         config.set("minebridge_mod_version", latest_version)
         print(f"[Updater] Mod/Pack instalado correctamente (v{latest_version})")
+        return True
 
     except Exception as e:
         print(f"[Updater] Error instalando actualización de mods: {e}")
+        return False
     finally:
         if tmp_path and os.path.exists(tmp_path):
             try: os.remove(tmp_path)
@@ -488,13 +500,15 @@ def check_and_prompt(app, log_cb=None):
                 app.after(0, lambda: app.on_launcher_update_detected(latest, url))
                 return
 
-        # 2. Check mod update silently
+        # 2. Check mod update
         if config.get("auto_sync_mods"):
             mod_info = check_for_mod_update(silent=True)
             if mod_info:
                 latest_mod = mod_info.get("latest_version")
                 url_mod = mod_info.get("download_url")
-                if latest_mod and url_mod:
-                    install_mod_update(url_mod, latest_mod)
+                
+                # En lugar de instalar directo, avisamos a la UI para que muestre el aviso
+                if latest_mod and url_mod and hasattr(app, "on_mod_update_detected"):
+                    app.after(0, lambda: app.on_mod_update_detected(latest_mod, url_mod))
 
     threading.Thread(target=_worker, daemon=True).start()

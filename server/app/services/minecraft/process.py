@@ -105,7 +105,7 @@ class MinecraftProcess:
             new_lines.append(f"\n-Xmx{self.ram_mb}M\n")
             new_lines.append(f"-Xms{self.ram_mb}M\n")
             
-            # Aikar's flags for modern forge
+            # Aikar's flags optimized for 6GB RAM / 6 Cores
             aikar_flags = [
                 "-XX:+UseG1GC",
                 "-XX:+ParallelRefProcEnabled",
@@ -114,16 +114,18 @@ class MinecraftProcess:
                 "-XX:+DisableExplicitGC",
                 "-XX:G1NewSizePercent=30",
                 "-XX:G1MaxNewSizePercent=40",
-                "-XX:G1HeapRegionSize=8M",
+                "-XX:G1HeapRegionSize=16M",
                 "-XX:G1ReservePercent=20",
                 "-XX:G1HeapWastePercent=5",
                 "-XX:G1MixedGCCountTarget=4",
                 "-XX:InitiatingHeapOccupancyPercent=15",
-                "-XX:G1MixedGCLiveThresholdPercent=90",
+                "-XX:G1MixedGCLiveThresholdPercent=35",
                 "-XX:G1RSetUpdatingPauseTimePercent=5",
                 "-XX:SurvivorRatio=32",
                 "-XX:+PerfDisableSharedMem",
-                "-XX:MaxTenuringThreshold=1"
+                "-XX:MaxTenuringThreshold=1",
+                "-Dusing.aikars.flags=https://mcflags.emc.gs",
+                "-Daikars.new.flags=true"
             ]
             for flag in aikar_flags:
                 new_lines.append(f"{flag}\n")
@@ -318,28 +320,40 @@ class MinecraftProcess:
         return None
 
     async def write(self, command: str):
+        # Limpiar comando (quitar / inicial si lo tiene)
+        command = command.lstrip('/')
+        
+        # 1. Intentar por STDIN (el método más rápido)
         if self.process and self.process.stdin:
-            self.process.stdin.write(f"{command}\n".encode())
-            await self.process.stdin.drain()
-        else:
-            # Fallback: intenta RCON TCP para procesos recuperados sin stdin
             try:
-                from app.services.minecraft.rcon import _RconClient
-                import os
-                host = os.getenv("RCON_HOST", "127.0.0.1")
-                port = int(os.getenv("RCON_PORT", "25575"))
-                password = os.getenv("RCON_PASSWORD", "")
-                if password:
-                    client = _RconClient(host, port, password)
-                    client.send(command)
-                    return
-            except Exception as rcon_err:
-                pass  # RCON no disponible, mostrar warning
-            msg = f"WARNING: Cannot write to {self.name} (Recovered process has no stdin access). Please restart the server from the manager to regain control."
-            print(msg)
-            # Add to console subscribers so user sees it
-            for q in self.log_subscribers:
-                await q.put(f"[MANAGER] {msg}")
+                self.process.stdin.write(f"{command}\n".encode())
+                await self.process.stdin.drain()
+                return True
+            except Exception as e:
+                print(f"WARN: Falló STDIN para {self.name}: {e}")
+        
+        # 2. Fallback: Intentar por RCON (indispensable si el proceso fue recuperado o el pipe se rompió)
+        try:
+            from app.services.minecraft.rcon import _RconClient
+            import os
+            # Priorizar RCON del servidor específico si estuviera configurado, si no, usar variables de entorno
+            host = os.getenv("RCON_HOST", "127.0.0.1")
+            port = int(os.getenv("RCON_PORT", "25575"))
+            password = os.getenv("RCON_PASSWORD", "")
+            
+            if password:
+                # Usar un timeout corto para no bloquear el hilo
+                client = _RconClient(host, port, password)
+                client.send(command)
+                return True
+        except Exception:
+            pass
+            
+        msg = f"ERROR: No se pudo enviar comando a {self.name} (STDIN y RCON fallaron)."
+        print(msg)
+        for q in self.log_subscribers:
+            await q.put(f"[MANAGER] {msg}")
+        return False
 
 
     def _add_activity(self, type: str, user: str, reason: str = None, timestamp: str = None):
@@ -375,17 +389,34 @@ class MinecraftProcess:
     
     # --- Player Management Methods ---
     def get_online_players(self):
-        # 1. Intentar con la caché del Bridge (fuente de verdad más eficiente pushed por el Mod)
+        # 1. Obtener lista del Bridge (Mod)
+        bridge_players = {}
         try:
             from routes.bridge import server_player_cache
             cached = server_player_cache.get(self.name)
-            if cached is not None:
-                return [{"username": name, **data} for name, data in cached.items()]
-        except Exception:
-            pass
+            if cached:
+                bridge_players = cached
+        except Exception: pass
             
-        # 2. Fallback: log parsing (solo si el mod no está conectado)
-        return self.player_manager.get_players()
+        # 2. Obtener lista de los Logs (Fallback/Detector de inconsistencias)
+        log_players = self.player_manager.get_players() # Devuelve lista de dicts
+        
+        # 3. Fusionar (El Bridge manda, pero los Logs confirman si alguien falta)
+        final_players = []
+        seen_names = set()
+        
+        # Meter primero los del Bridge (tienen más info: IP, skin, etc)
+        for name, data in bridge_players.items():
+            final_players.append({"username": name, **data})
+            seen_names.add(name.lower())
+            
+        # Añadir los que están en logs pero no en bridge
+        for p in log_players:
+            if p['username'].lower() not in seen_names:
+                final_players.append(p)
+                seen_names.add(p['username'].lower())
+        
+        return final_players
     
     async def kick_player(self, username: str):
         if not self.is_running() or self._status != "ONLINE":
@@ -585,23 +616,34 @@ class MinecraftProcess:
         print(f"INFO: Teleported {username} to {target_username} on {self.name}")
         return True
 
-    async def tp_player_to_coords(self, username: str, x: float, y: float, z: float):
-        if not self.is_running() or self._status != "ONLINE":
+    async def tp_player_to_coords(self, username: str, x: Any, y: Any, z: Any):
+        if not self.is_running() or self.status == "OFFLINE":
             return False
-        await self.write(f"tp {username} {x} {y} {z}")
-        print(f"INFO: Teleported {username} to {x} {y} {z} on {self.name}")
-        return True
+        
+        try:
+            # Asegurar que las coordenadas sean numéricas y redondeadas para evitar errores de sintaxis
+            fx, fy, fz = float(x), float(y), float(z)
+            # Minecraft usa espacio como separador
+            await self.write(f"tp {username} {fx:.2f} {fy:.2f} {fz:.2f}")
+            print(f"INFO: Teleported {username} to {fx:.2f} {fy:.2f} {fz:.2f} on {self.name}")
+            return True
+        except Exception as e:
+            print(f"ERROR: Invalid TP coordinates for {username}: {x}, {y}, {z} - {e}")
+            return False
 
     async def tp_players_to_player(self, players: List[str], target_username: str):
-        if not self.is_running() or self._status != "ONLINE":
+        if not self.is_running() or self.status == "OFFLINE":
             return False
-        # If players is empty or contains '@a', we use '@a'
+        
+        # Si la lista está vacía o contiene '@a', usamos '@a' para eficiencia
         if not players or "@a" in players:
             await self.write(f"tp @a {target_username}")
             print(f"INFO: Teleported everyone to {target_username} on {self.name}")
         else:
             for player in players:
-                await self.write(f"tp {player} {target_username}")
+                # Evitar TP a sí mismo (para no saturar la consola)
+                if player.lower() != target_username.lower():
+                    await self.write(f"tp {player} {target_username}")
             print(f"INFO: Teleported {len(players)} players to {target_username} on {self.name}")
         return True
     
@@ -747,6 +789,11 @@ class MinecraftProcess:
                         continue
                         
                     cleaned_line = line.strip()
+                    
+                    # FAST-PATH: Ignorar warnings de carga y movimiento para no saturar el procesador
+                    if "Can't keep up!" in cleaned_line or "moved too quickly!" in cleaned_line or "Mismatch in destroy block pos" in cleaned_line:
+                        continue
+
                     print(f"[{self.name}] {cleaned_line}")
                     
                     if "Done (" in cleaned_line:
@@ -933,7 +980,7 @@ class MinecraftProcess:
                 player_count = players_from_log
                 self.current_players = players_from_log  # Update for next call
             
-            stats = {"status": self._status, "cpu": cpu, "ram": mem, "players": player_count, "recent_activity": getattr(self, 'recent_activity', [])}
+            stats = {"status": self.status, "cpu": cpu, "ram": mem, "players": player_count, "recent_activity": getattr(self, 'recent_activity', [])}
             
             # Merge MasterBridge data if available
             # (Removed)

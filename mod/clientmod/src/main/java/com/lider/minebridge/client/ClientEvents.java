@@ -13,6 +13,11 @@ import net.minecraft.registry.Registries;
 import net.minecraft.text.Text;
 import net.minecraft.util.ActionResult;
 import net.minecraft.util.DyeColor;
+import net.minecraft.client.option.KeyBinding;
+import net.minecraft.client.util.InputUtil;
+import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
+import org.lwjgl.glfw.GLFW;
+import com.lider.minebridge.networking.payload.MarketplaceRequestPayload;
 
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
@@ -44,7 +49,18 @@ public class ClientEvents {
     
     private static int tickCounter = 0;
     
+    public static KeyBinding marketplaceKey;
+    
     public static void init() {
+        com.lider.minebridge.config.ClientConfig.load();
+        com.lider.minebridge.events.ClientAchievementLogic.init();
+        
+        marketplaceKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+            "key.minebridge.marketplace",
+            InputUtil.Type.KEYSYM,
+            GLFW.GLFW_KEY_PERIOD,
+            "category.minebridge"
+        ));
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
             isActive = ClientPlayNetworking.canSend(AchievementUnlockPayload.ID);
             if (isActive) {
@@ -160,6 +176,21 @@ public class ClientEvents {
                 if (!unlockedAchievementsSession.contains("MEME_ANTOJEN") && client.player.getMainHandStack().getItem() == net.minecraft.item.Items.CAKE && client.world != null) {
                     long nearby = client.world.getPlayers().stream().filter(p -> p != client.player && p.squaredDistanceTo(client.player) < 64.0).count();
                     if (nearby >= 5) triggerAchievement("MEME_ANTOJEN", "¡Antojen!", "Sosteniendo pastel ante 5 personas.");
+                }
+            }
+
+            // --- Tecla Marketplace ---
+            while (marketplaceKey.wasPressed()) {
+                if (Screen.hasShiftDown()) {
+                    // Abrir pantalla de CREACIÓN
+                    MinecraftClient.getInstance().setScreen(new com.lider.minebridge.client.ui.MarketplaceCreationScreen());
+                } else {
+                    // Abrir pantalla de MERCADO GLOBAL (Fetch desde backend)
+                    com.lider.minebridge.networking.TradeClient.getOpenTrades().thenAccept(trades -> {
+                        if (ClientPlayNetworking.canSend(MarketplaceRequestPayload.ID)) {
+                            ClientPlayNetworking.send(new MarketplaceRequestPayload(trades.toString()));
+                        }
+                    });
                 }
             }
         });

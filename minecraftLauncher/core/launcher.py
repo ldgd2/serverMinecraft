@@ -116,15 +116,8 @@ def setup_profile(modloader, version):
         minecraft_directory = config.get("minecraft_dir")
         download_offline_skins_mod(minecraft_directory)
 
-    # 2. Autoinyectar el mod del cliente si es Fabric y está activa la opción
-    if modloader.lower() == "fabric" and config.get("auto_sync_mods"):
-        try:
-            from core.updater import inject_mod_to_profile
-            inject_mod_to_profile(profile_path)
-        except Exception as e:
-            print(f"[Launcher] Error inyectando mod automático: {e}")
-
     return profile_path
+
 
 def launch_minecraft_with_profile(modloader, version):
     """Launch Minecraft using the specified profile."""

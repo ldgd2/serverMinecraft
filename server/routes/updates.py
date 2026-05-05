@@ -137,109 +137,116 @@ def _rotate_versions(platform: str, new_version: str):
             except Exception as e:
                 print(f"[updates] No se pudo borrar {v_dir}: {e}")
 
+# Bloqueo para evitar múltiples actualizaciones simultáneas
+_update_lock = asyncio.Lock()
+
 async def _apply_server_mod_update(new_mod_path: str):
-    """
-    Background task:
-    1. Notifica a los jugadores.
-    2. Espera 5 min (aqui usamos 5 min para produccion o 1 minuto para test).
-    3. Detiene servers, copia el mod, y los reinicia.
-    """
-    import asyncio
-    import shutil
-    import traceback
-    from database.connection import SessionLocal
-    from database.models.server import Server
-    from app.controllers.server_controller import ServerController
-    
-    print("[updates] Iniciando Background Task: Actualizacion automatica del Server Mod")
-    sc = ServerController()
-    db = SessionLocal()
-    try:
-        servers = db.query(Server).all()
-        # Avisar a todos con títulos nativos inmersivos
-        for s in servers:
-            try:
-                # El comando minebridge_update activa el timer interno del mod del cliente (si existe)
-                await sc.send_command(s.name, 'minebridge_update 300')
-                
-                # Mensajes nativos inmersivos (Azul/Aqua para información "oficial")
-                await sc.send_command(s.name, 'title @a title {"text":"§9¡MANTENIMIENTO!§r"}')
-                await sc.send_command(s.name, 'title @a subtitle {"text":"§bActualización en curso. Reinicio en 5 minutos.§r"}')
-                await sc.send_command(s.name, 'tellraw @a {"text":"§7[§9INFO§7] §bSe ha subido una nueva versión de los mods. El servidor se reiniciará automáticamente en 5 minutos para aplicar los cambios.§r"}')
-                await sc.send_command(s.name, 'playsound minecraft:block.note_block.chime ambient @a ~ ~ ~ 1 1')
-            except Exception: pass
+    if _update_lock.locked():
+        print("[updates] Ya hay una actualización en curso. Ignorando petición duplicada.")
+        return
         
-        # Esperar 4 minutos
-        await asyncio.sleep(240)
+    async with _update_lock:
+        import shutil
+        import traceback
+        from database.connection import SessionLocal
+        from database.models.server import Server
+        from app.controllers.server_controller import ServerController
         
-        # Aviso de 1 minuto
-        for s in servers:
-            try:
-                await sc.send_command(s.name, 'title @a subtitle {"text":"§eQueda 1 minuto para el reinicio...§r"}')
-                await sc.send_command(s.name, 'tellraw @a {"text":"§7[§6WARN§7] §eQueda §l1 minuto§r§e. Por favor, busquen un lugar seguro y guarden sus cosas.§r"}')
-                await sc.send_command(s.name, 'playsound minecraft:block.note_block.bell ambient @a ~ ~ ~ 1 1')
-            except Exception: pass
-        
-        await asyncio.sleep(50)
-        
-        # Cuenta regresiva final 10s
-        for i in range(10, 0, -1):
+        print("[updates] Iniciando Background Task: Actualizacion automatica del Server Mod")
+        sc = ServerController()
+        db = SessionLocal()
+        try:
+            servers = db.query(Server).all()
+            # Avisar a todos con títulos nativos inmersivos
             for s in servers:
                 try:
-                    color = "§c" if i <= 3 else "§6"
-                    await sc.send_command(s.name, f'title @a actionbar {{"text":"{color}Reiniciando en {i} segundos...§r"}}')
-                except: pass
-            await asyncio.sleep(1)
+                    # El comando minebridge_update activa el timer interno del mod del cliente (si existe)
+                    await sc.send_command(s.name, 'minebridge_update 300')
+                    
+                    # Mensajes nativos inmersivos (Azul/Aqua para información "oficial")
+                    await sc.send_command(s.name, 'title @a title {"text":"§9¡MANTENIMIENTO!§r"}')
+                    await sc.send_command(s.name, 'title @a subtitle {"text":"§bActualización en curso. Reinicio en 5 minutos.§r"}')
+                    await sc.send_command(s.name, 'tellraw @a {"text":"§7[§9INFO§7] §bSe ha subido una nueva versión de los mods. El servidor se reiniciará automáticamente en 5 minutos para aplicar los cambios.§r"}')
+                    await sc.send_command(s.name, 'playsound minecraft:block.note_block.chime ambient @a ~ ~ ~ 1 1')
+                except Exception: pass
             
-        # ── Proceso de apagado y reemplazo ──
-        for s in servers:
-            try:
-                # No intentar apagar si el servidor ya está OFFLINE o crasheado
-                status = sc.get_status(s.name).get("status")
-                if status in ("OFFLINE", "ERROR"):
-                    continue
+            # Esperar 4 minutos
+            await asyncio.sleep(240)
+            
+            # Aviso de 1 minuto
+            for s in servers:
+                try:
+                    await sc.send_command(s.name, 'title @a subtitle {"text":"§eQueda 1 minuto para el reinicio...§r"}')
+                    await sc.send_command(s.name, 'tellraw @a {"text":"§7[§6WARN§7] §eQueda §l1 minuto§r§e. Por favor, busquen un lugar seguro y guarden sus cosas.§r"}')
+                    await sc.send_command(s.name, 'playsound minecraft:block.note_block.bell ambient @a ~ ~ ~ 1 1')
+                except Exception: pass
+            
+            await asyncio.sleep(50)
+            
+            # Cuenta regresiva final 10s
+            for i in range(10, 0, -1):
+                for s in servers:
+                    try:
+                        color = "§c" if i <= 3 else "§6"
+                        await sc.send_command(s.name, f'title @a actionbar {{"text":"{color}Reiniciando en {i} segundos...§r"}}')
+                    except: pass
+                await asyncio.sleep(1)
                 
-                # Kickear a los jugadores para evitar pérdida de datos
-                await sc.send_command(s.name, 'kick @a §cServidor en actualización automática. Aplicando cambios...')
-                await asyncio.sleep(2)
-                
-                # Detener
-                await sc.stop_server(s.name)
-                
-                # Esperar a que se detenga (máximo 20s)
-                for _ in range(10):
-                    status = sc.get_status(s.name).get("status")
-                    if status == "OFFLINE":
-                        break
+            # ── Proceso de apagado y reemplazo ──
+            for s in servers:
+                try:
+                    # No intentar apagar si el servidor ya está OFFLINE o crasheado
+                    stats = sc.get_server_stats(s.name)
+                    current_status = stats.get("status")
+                    if current_status in ("OFFLINE", "ERROR"):
+                        continue
+                    
+                    # 1. Guardar progreso (Importante para evitar rollback)
+                    print(f"[updates] Guardando progreso de {s.name}...")
+                    await sc.send_command(s.name, 'save-all')
+                    await asyncio.sleep(3)
+                    
+                    # 2. Kickear a los jugadores
+                    await sc.send_command(s.name, 'kick @a §cServidor en actualización automática. Aplicando cambios...')
                     await asyncio.sleep(2)
                     
-                # Reemplazar archivo en mods/
-                mod_dir = os.path.join("servers", s.name, "mods")
-                if os.path.exists(mod_dir):
-                    # Buscamos cualquier versión de minebridge o masterbridge
-                    for f in os.listdir(mod_dir):
-                        fl = f.lower()
-                        if ( "minebridge" in fl or "masterbridge" in fl ) and f.endswith(".jar"):
-                            try:
-                                print(f"[updates] Eliminando mod antiguo: {f} en {s.name}")
-                                os.remove(os.path.join(mod_dir, f))
-                            except: pass
+                    # 3. Detener
+                    await sc.stop_server(s.name)
                     
-                    # Copiar el nuevo
-                    dest_file = _PLATFORM_FILE["modserver"]
-                    shutil.copy2(new_mod_path, os.path.join(mod_dir, dest_file))
-                    print(f"[updates] Mod actualizado ({dest_file}) en {s.name}")
+                    # Esperar a que se detenga (máximo 30s)
+                    for _ in range(15):
+                        status_info = sc.get_server_stats(s.name)
+                        if status_info.get("status") == "OFFLINE":
+                            break
+                        await asyncio.sleep(2)
+                        
+                    # Reemplazar archivo en mods/
+                    mod_dir = os.path.join("servers", s.name, "mods")
+                    if os.path.exists(mod_dir):
+                        # Buscamos cualquier versión de minebridge o masterbridge
+                        for f in os.listdir(mod_dir):
+                            fl = f.lower()
+                            if ( "minebridge" in fl or "masterbridge" in fl ) and f.endswith(".jar"):
+                                try:
+                                    print(f"[updates] Eliminando mod antiguo: {f} en {s.name}")
+                                    os.remove(os.path.join(mod_dir, f))
+                                except: pass
+                        
+                        # Copiar el nuevo
+                        dest_file = _PLATFORM_FILE["modserver"]
+                        shutil.copy2(new_mod_path, os.path.join(mod_dir, dest_file))
+                        print(f"[updates] Mod actualizado ({dest_file}) en {s.name}")
+                        
+                    # Reiniciar
+                    await sc.start_server(s.name)
+                except Exception as e:
+                    print(f"[updates] Error actualizando {s.name}: {e}")
                     
-                # Reiniciar
-                await sc.start_server(s.name)
-            except Exception as e:
-                print(f"[updates] Error actualizando {s.name}: {e}")
-                
-    except Exception as e:
-        print(f"[updates] Error grave en update task: {e}")
-        traceback.print_exc()
-    finally:
-        db.close()
+        except Exception as e:
+            print(f"[updates] Error grave en update task: {e}")
+            traceback.print_exc()
+        finally:
+            db.close()
 
 # ── Endpoints públicos ────────────────────────────────────────────────────────
 

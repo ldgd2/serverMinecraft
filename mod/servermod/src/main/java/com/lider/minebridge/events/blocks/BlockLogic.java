@@ -93,17 +93,17 @@ public class BlockLogic {
     public static void onBlockPlaced(String blockId, String playerUuid) {
         int total = blockPlacedSession.merge(playerUuid, 1, Integer::sum);
         
-        // Thresholds Arquitectura (Architecture.py)
+        // Solo enviamos eventos en hitos importantes para no saturar el servidor
         if (total == 1000) AchievementClient.sendEvent(playerUuid, "ARCH_1", 1);
-        if (total == 10000) AchievementClient.sendEvent(playerUuid, "ARCH_2", 1);
-        if (total == 100000) AchievementClient.sendEvent(playerUuid, "ARCH_4", 1);
+        else if (total == 10000) AchievementClient.sendEvent(playerUuid, "ARCH_2", 1);
+        else if (total == 100000) AchievementClient.sendEvent(playerUuid, "ARCH_4", 1);
 
-        // Thresholds Redstone (Redstone.py)
+        // Optimización Redstone: Solo hitos, no cada bloque
         if (blockId.contains("redstone") || blockId.contains("repeater") || blockId.contains("comparator") || blockId.contains("observer")) {
             int redstoneTotal = redstonePlacedSession.merge(playerUuid, 1, Integer::sum);
             if (redstoneTotal == 500) AchievementClient.sendEvent(playerUuid, "TECH_1", 1);
-            if (redstoneTotal == 2500) AchievementClient.sendEvent(playerUuid, "TECH_2", 1);
-            AchievementClient.sendEvent(playerUuid, "redstone_placed", 1);
+            else if (redstoneTotal == 2500) AchievementClient.sendEvent(playerUuid, "TECH_2", 1);
+            // Ya no enviamos "redstone_placed" individualmente por bloque
         }
     }
 

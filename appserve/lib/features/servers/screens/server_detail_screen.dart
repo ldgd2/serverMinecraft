@@ -17,15 +17,13 @@ class ServerDetailScreen extends StatefulWidget {
   final ServerModel server;
   final int initialTab;
 
-  const ServerDetailScreen(
-      {super.key, required this.server, this.initialTab = 0});
+  const ServerDetailScreen({super.key, required this.server, this.initialTab = 0});
 
   @override
   State<ServerDetailScreen> createState() => _ServerDetailScreenState();
 }
 
-class _ServerDetailScreenState extends State<ServerDetailScreen>
-    with SingleTickerProviderStateMixin {
+class _ServerDetailScreenState extends State<ServerDetailScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
   late ServerModel _server;
 
@@ -33,10 +31,11 @@ class _ServerDetailScreenState extends State<ServerDetailScreen>
   void initState() {
     super.initState();
     _server = widget.server;
-    _tabController =
-        TabController(length: 6, vsync: this, initialIndex: widget.initialTab);
+    _tabController = TabController(length: 7, vsync: this, initialIndex: widget.initialTab);
+    
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final username = context.read<AuthProvider>().user?.username ?? 'Admin';
+      final auth = context.read<AuthProvider>();
+      final username = auth.user?.username ?? 'Admin';
       context.read<ServerProvider>().selectServer(_server.name, username);
     });
   }
@@ -60,8 +59,7 @@ class _ServerDetailScreenState extends State<ServerDetailScreen>
           Row(
             children: [
               Container(
-                width: 56,
-                height: 56,
+                width: 56, height: 56,
                 decoration: BoxDecoration(
                   gradient: _server.isOnline ? AppColors.grassGradient : null,
                   color: _server.isOnline ? null : AppColors.backgroundOverlay,
@@ -99,39 +97,37 @@ class _ServerDetailScreenState extends State<ServerDetailScreen>
           ),
         ],
       ),
-      tabBar: _buildTabBar(),
+      tabBar: Container(
+        color: AppColors.backgroundCard,
+        child: TabBar(
+          controller: _tabController,
+          isScrollable: true,
+          indicatorColor: AppColors.grassGreen,
+          indicatorWeight: 2,
+          labelColor: AppColors.grassGreenLight,
+          unselectedLabelColor: AppColors.textMuted,
+          labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+          tabs: const [
+            Tab(icon: Icon(Icons.info_outline, size: 18), text: 'Info'),
+            Tab(icon: Icon(Icons.bolt, size: 18), text: 'Cmds'),
+            Tab(icon: Icon(Icons.terminal, size: 18), text: 'Console'),
+            Tab(icon: Icon(Icons.chat_bubble_outline, size: 18), text: 'Chat'),
+            Tab(icon: Icon(Icons.people_outline, size: 18), text: 'Players'),
+            Tab(icon: Icon(Icons.extension_outlined, size: 18), text: 'Mods'),
+            Tab(icon: Icon(Icons.settings_outlined, size: 18), text: 'Settings'),
+          ],
+        ),
+      ),
       body: TabBarView(
         controller: _tabController,
         children: [
           _OverviewTab(server: _server),
+          _CommandsTab(server: _server),
           _ConsoleTab(server: _server),
           _ChatTab(server: _server),
           _PlayersTab(server: _server),
           _ModsTab(server: _server),
           _SettingsTab(server: _server),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTabBar() {
-    return Container(
-      color: AppColors.backgroundCard,
-      child: TabBar(
-        controller: _tabController,
-        isScrollable: true,
-        indicatorColor: AppColors.grassGreen,
-        indicatorWeight: 2,
-        labelColor: AppColors.grassGreenLight,
-        unselectedLabelColor: AppColors.textMuted,
-        labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-        tabs: const [
-          Tab(icon: Icon(Icons.info_outline, size: 18), text: 'Overview'),
-          Tab(icon: Icon(Icons.terminal, size: 18), text: 'Console'),
-          Tab(icon: Icon(Icons.chat_bubble_outline, size: 18), text: 'Chat'),
-          Tab(icon: Icon(Icons.people_outline, size: 18), text: 'Players'),
-          Tab(icon: Icon(Icons.extension_outlined, size: 18), text: 'Mods'),
-          Tab(icon: Icon(Icons.settings_outlined, size: 18), text: 'Settings'),
         ],
       ),
     );
@@ -149,7 +145,6 @@ class _OverviewTab extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        // Control buttons
         _buildControls(context),
         const SizedBox(height: 20),
         
@@ -159,32 +154,24 @@ class _OverviewTab extends StatelessWidget {
           McCard(
             child: Column(
               children: [
-                _DetailResourceRow(
+                _ResourceRow(
                   label: 'CPU Usage',
                   value: '${server.cpuUsage.toStringAsFixed(1)}%',
-                  total: '${server.cpuCores.toStringAsFixed(1)} Cores',
+                  total: '${server.cpuCores} Cores',
                   progress: server.cpuProgress,
                   color: AppColors.diamond,
                 ),
                 const Divider(color: AppColors.border, height: 24),
-                _DetailResourceRow(
+                _ResourceRow(
                   label: 'Memory (RAM)',
                   value: server.ramUsageFormatted,
                   total: server.ramFormatted,
                   progress: server.ramProgress,
                   color: AppColors.starting,
                 ),
-                const Divider(color: AppColors.border, height: 24),
-                _DetailResourceRow(
-                  label: 'Disk Space',
-                  value: server.diskUsageFormatted,
-                  total: server.diskFormatted,
-                  progress: server.diskProgress,
-                  color: AppColors.textMuted,
-                ),
               ],
             ),
-          ).animate().fadeIn(duration: 350.ms),
+          ).animate().fadeIn(),
           const SizedBox(height: 20),
         ],
 
@@ -193,48 +180,23 @@ class _OverviewTab extends StatelessWidget {
         McCard(
           child: Column(
             children: [
-              McInfoRow(
-                  icon: Icons.dns_rounded, label: 'Name', value: server.name),
+              McInfoRow(icon: Icons.dns_rounded, label: 'Name', value: server.name),
+              const Divider(color: AppColors.border, height: 16),
+              McInfoRow(icon: Icons.gamepad_outlined, label: 'Version', value: server.version),
+              const Divider(color: AppColors.border, height: 16),
+              McInfoRow(icon: Icons.wifi, label: 'Port', value: server.port.toString()),
+              const Divider(color: AppColors.border, height: 16),
+              McInfoRow(icon: Icons.memory, label: 'RAM', value: server.ramFormatted),
               const Divider(color: AppColors.border, height: 16),
               McInfoRow(
-                  icon: Icons.gamepad_outlined,
-                  label: 'Version',
-                  value: server.version),
-              const Divider(color: AppColors.border, height: 16),
-              McInfoRow(
-                  icon: Icons.wifi,
-                  label: 'Port',
-                  value: server.port.toString()),
-              const Divider(color: AppColors.border, height: 16),
-              McInfoRow(
-                  icon: Icons.memory, label: 'RAM', value: server.ramFormatted),
-              const Divider(color: AppColors.border, height: 16),
-              McInfoRow(
-                  icon: Icons.people_outline,
-                  label: 'Max Players',
-                  value: server.maxPlayers.toString()),
-              const Divider(color: AppColors.border, height: 16),
-              McInfoRow(
-                  icon: Icons.verified_user_outlined,
-                  label: 'Online Mode',
-                  value: server.onlineMode ? 'Enabled' : 'Disabled',
-                  valueColor:
-                      server.onlineMode ? AppColors.online : AppColors.offline),
+                icon: Icons.verified_user_outlined, 
+                label: 'Online Mode', 
+                value: server.onlineMode ? 'Enabled' : 'Disabled',
+                valueColor: server.onlineMode ? AppColors.online : AppColors.offline,
+              ),
             ],
           ),
-        ).animate().fadeIn(delay: 100.ms),
-        if (server.motd != null) ...[
-          const SizedBox(height: 16),
-          const SectionHeader(title: 'MOTD'),
-          const SizedBox(height: 10),
-          McCard(
-            child: Text(server.motd!,
-                style: const TextStyle(
-                    color: AppColors.grassGreenLight,
-                    fontFamily: 'monospace',
-                    fontSize: 14)),
-          ).animate().fadeIn(delay: 200.ms),
-        ],
+        ),
       ],
     );
   }
@@ -244,88 +206,27 @@ class _OverviewTab extends StatelessWidget {
       builder: (_, sp, __) => Row(
         children: [
           if (server.isOffline)
-            Expanded(
-                child: McButton(
-                    label: 'Start',
-                    icon: Icons.play_arrow,
-                    onPressed: () async {
-                      await sp.startServer(server.name);
-                    }))
+            Expanded(child: McButton(label: 'Start', icon: Icons.play_arrow, onPressed: () => sp.startServer(server.name)))
           else if (server.isOnline) ...[
-            Expanded(
-                child: McButton(
-                    label: 'Stop',
-                    icon: Icons.stop,
-                    isDanger: true,
-                    onPressed: () async {
-                      await sp.stopServer(server.name);
-                    })),
+            Expanded(child: McButton(label: 'Stop', icon: Icons.stop, isDanger: true, onPressed: () => sp.stopServer(server.name))),
             const SizedBox(width: 8),
-            Expanded(
-                child: McButton(
-                    label: 'Restart',
-                    icon: Icons.refresh,
-                    isSecondary: true,
-                    onPressed: () async {
-                      await sp.restartServer(server.name);
-                    })),
-          ] else if (server.isRestarting) ...[
-            const Expanded(
-                child: McButton(
-                    label: 'Restarting...', isLoading: true, onPressed: null)),
-          ] else if (server.isStopping) ...[
-            const Expanded(
-                child: McButton(
-                    label: 'Stopping...', isLoading: true, onPressed: null)),
-          ] else if (server.isStarting) ...[
-             Expanded(
-                child: McButton(
-                    label: 'Starting...', isLoading: true, onPressed: null)),
-             const SizedBox(width: 8),
-             IconButton(
-               onPressed: () async {
-                 final confirm = await showDialog<bool>(
-                   context: context,
-                   builder: (context) => AlertDialog(
-                     title: const Text('Force Stop?'),
-                     content: const Text('The server is stuck starting. Do you want to force kill it?'),
-                     actions: [
-                       TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-                       TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Force Kill')),
-                     ],
-                   ),
-                 );
-                 if (confirm == true) {
-                   await sp.stopServer(server.name);
-                 }
-               },
-               icon: Icon(Icons.cancel_outlined, color: Colors.redAccent),
-               tooltip: 'Force Stop',
-             ),
+            Expanded(child: McButton(label: 'Restart', icon: Icons.refresh, isSecondary: true, onPressed: () => sp.restartServer(server.name))),
           ] else
-            const Expanded(
-                child: McButton(
-                    label: 'Processing...', isLoading: true, onPressed: null)),
+            const Expanded(child: McButton(label: 'Processing...', isLoading: true, onPressed: null)),
         ],
       ),
     );
   }
 }
 
-class _DetailResourceRow extends StatelessWidget {
+class _ResourceRow extends StatelessWidget {
   final String label;
   final String value;
   final String total;
   final double progress;
   final Color color;
 
-  const _DetailResourceRow({
-    required this.label,
-    required this.value,
-    required this.total,
-    required this.progress,
-    required this.color,
-  });
+  const _ResourceRow({required this.label, required this.value, required this.total, required this.progress, required this.color});
 
   @override
   Widget build(BuildContext context) {
@@ -335,16 +236,8 @@ class _DetailResourceRow extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(label,
-                style: const TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 13,
-                    fontWeight: FontWeight.bold)),
-            Text('$value / $total',
-                style: const TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500)),
+            Text(label, style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.bold)),
+            Text('$value / $total', style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
           ],
         ),
         const SizedBox(height: 8),
@@ -356,6 +249,57 @@ class _DetailResourceRow extends StatelessWidget {
             backgroundColor: AppColors.backgroundOverlay,
             valueColor: AlwaysStoppedAnimation<Color>(color),
           ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─── Commands Tab ────────────────────────────────────────────────────────────
+
+class _CommandsTab extends StatelessWidget {
+  final ServerModel server;
+  const _CommandsTab({required this.server});
+
+  @override
+  Widget build(BuildContext context) {
+    if (!server.isOnline) {
+      return const Center(child: Text('Server must be online to use commands', style: TextStyle(color: AppColors.textMuted)));
+    }
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        const SectionHeader(title: 'COMMUNITY & EVENTS'),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(child: _CmdButton(label: 'Glow Aura', icon: Icons.auto_awesome, color: AppColors.diamond, type: 'global_glow')),
+            const SizedBox(width: 10),
+            Expanded(child: _CmdButton(label: 'Visual Ray', icon: Icons.bolt, color: AppColors.gold, type: 'visual_lightning')),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(child: _CmdButton(label: 'Announce', icon: Icons.campaign, color: AppColors.emerald, type: 'global_title', params: {'text': 'ANUNCIO IMPORTANTE'})),
+            const SizedBox(width: 10),
+            Expanded(child: _CmdButton(label: 'Clean Lag', icon: Icons.cleaning_services, isSecondary: true, type: 'purge_items')),
+          ],
+        ),
+        const SizedBox(height: 20),
+        const SectionHeader(title: 'SECURITY'),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(child: _CmdButton(label: 'Whitelist ON', icon: Icons.lock, color: AppColors.emerald, type: 'whitelist_on')),
+            const SizedBox(width: 10),
+            Expanded(child: _CmdButton(label: 'Whitelist OFF', icon: Icons.lock_open, color: AppColors.offline, type: 'whitelist_off')),
+          ],
+        ),
+        const SizedBox(height: 10),
+        McCard(
+          child: _CmdListTile(label: 'Check Server TPS (Lag)', icon: Icons.speed, type: 'check_tps'),
         ),
       ],
     );
@@ -375,176 +319,55 @@ class _ConsoleTab extends StatefulWidget {
 class _ConsoleTabState extends State<_ConsoleTab> {
   final _cmdCtrl = TextEditingController();
   final _scrollCtrl = ScrollController();
-  bool _isAtBottom = true;
-  bool _showScrollFab = false;
 
-  @override
-  void initState() {
-    super.initState();
-    _scrollCtrl.addListener(_scrollListener);
-  }
-
-  void _scrollListener() {
-    if (!_scrollCtrl.hasClients) return;
-    
-    // Check if we are near the bottom (within 50 pixels)
-    final atBottom = _scrollCtrl.position.pixels >= 
-                     (_scrollCtrl.position.maxScrollExtent - 50);
-    
-    if (atBottom != _isAtBottom) {
-      setState(() {
-        _isAtBottom = atBottom;
-        if (_isAtBottom) _showScrollFab = false;
-      });
+  void _scrollToBottom() {
+    if (_scrollCtrl.hasClients) {
+      _scrollCtrl.jumpTo(_scrollCtrl.position.maxScrollExtent);
     }
-
-    // Show FAB if we are not at bottom and there's space to scroll
-    final showFab = _scrollCtrl.position.pixels < 
-                   (_scrollCtrl.position.maxScrollExtent - 100);
-    if (showFab != _showScrollFab) {
-      setState(() => _showScrollFab = showFab);
-    }
-  }
-
-  @override
-  void dispose() {
-    _cmdCtrl.dispose();
-    _scrollCtrl.dispose();
-    super.dispose();
-  }
-
-  void _scrollToBottom({bool force = false}) {
-    if (_scrollCtrl.hasClients && (_isAtBottom || force)) {
-      _scrollCtrl.animateTo(_scrollCtrl.position.maxScrollExtent,
-          duration: 200.ms, curve: Curves.easeOut);
-    }
-  }
-
-  void _copyAllLogs(String logs) {
-    if (logs.isEmpty) return;
-    Clipboard.setData(ClipboardData(text: logs));
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Logs copied to clipboard'),
-        duration: Duration(seconds: 1),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        // Console output
         Expanded(
           child: Consumer<ServerProvider>(
             builder: (_, sp, __) {
-              // Only auto-scroll if user was already at the bottom
               WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
-              
-              return Stack(
-                children: [
-                  Container(
-                    margin: const EdgeInsets.all(12),
-                    padding: const EdgeInsets.all(12),
-                    width: double.infinity,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF0A0E14),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: AppColors.border),
-                    ),
-                    child: SingleChildScrollView(
-                      controller: _scrollCtrl,
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      child: SelectableText(
-                        sp.consoleLogs.isEmpty
-                            ? 'No logs available.'
-                            : sp.consoleLogs,
-                        style: const TextStyle(
-                          color: Color(0xFF4ADE80),
-                          fontFamily: 'monospace',
-                          fontSize: 11,
-                          height: 1.6,
-                        ),
-                      ),
-                    ),
+              return Container(
+                margin: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(12),
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0A0E14),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: SingleChildScrollView(
+                  controller: _scrollCtrl,
+                  child: SelectableText(
+                    sp.consoleLogs.isEmpty ? 'No logs available.' : sp.consoleLogs,
+                    style: const TextStyle(color: Color(0xFF4ADE80), fontFamily: 'monospace', fontSize: 11),
                   ),
-                  if (_showScrollFab)
-                    Positioned(
-                      right: 25,
-                      bottom: 25,
-                      child: FloatingActionButton.small(
-                        onPressed: () => _scrollToBottom(force: true),
-                        backgroundColor: AppColors.grassGreenLight.withOpacity(0.8),
-                        child: const Icon(Icons.arrow_downward, color: Colors.white),
-                      ).animate().fadeIn().scale(),
-                    ),
-                ],
+                ),
               );
             },
           ),
         ),
-
-        // Command input
         Container(
           padding: const EdgeInsets.fromLTRB(12, 8, 12, 16),
-          decoration: const BoxDecoration(
-            color: AppColors.backgroundCard,
-            border: Border(top: BorderSide(color: AppColors.border)),
-          ),
           child: Row(
             children: [
-              const Text('>',
-                  style: TextStyle(
-                      color: AppColors.grassGreenLight,
-                      fontSize: 16,
-                      fontFamily: 'monospace',
-                      fontWeight: FontWeight.bold)),
+              const Text('>', style: TextStyle(color: AppColors.grassGreenLight, fontWeight: FontWeight.bold)),
               const SizedBox(width: 8),
               Expanded(
                 child: TextField(
                   controller: _cmdCtrl,
-                  style: const TextStyle(
-                      color: AppColors.textPrimary,
-                      fontFamily: 'monospace',
-                      fontSize: 13),
-                  decoration: const InputDecoration(
-                    hintText: 'Enter command...',
-                    border: InputBorder.none,
-                    contentPadding: EdgeInsets.zero,
-                    isDense: true,
-                  ),
+                  decoration: const InputDecoration(hintText: 'Enter command...', border: InputBorder.none),
                   onSubmitted: (_) => _sendCommand(),
                 ),
               ),
-              Row(
-                children: [
-                  IconButton(
-                    onPressed: () => _copyAllLogs(context.read<ServerProvider>().consoleLogs),
-                    icon: const Icon(Icons.copy_all,
-                        size: 20, color: AppColors.textMuted),
-                    tooltip: 'Copy all logs',
-                  ),
-                  IconButton(
-                    onPressed: () => context
-                        .read<ServerProvider>()
-                        .loadLogs(widget.server.name),
-                    icon: const Icon(Icons.refresh,
-                        size: 20, color: AppColors.textMuted),
-                    tooltip: 'Refresh logs',
-                  ),
-                  IconButton(
-                    onPressed: () {
-                      HapticFeedback.mediumImpact();
-                      _sendCommand();
-                    },
-                    icon: const Icon(Icons.send,
-                        size: 20, color: AppColors.grassGreenLight),
-                    tooltip: 'Send command',
-                  ),
-                ],
-              ),
+              IconButton(onPressed: _sendCommand, icon: const Icon(Icons.send, color: AppColors.grassGreenLight)),
             ],
           ),
         ),
@@ -552,211 +375,11 @@ class _ConsoleTabState extends State<_ConsoleTab> {
     );
   }
 
-  void _sendCommand() async {
+  void _sendCommand() {
     final cmd = _cmdCtrl.text.trim();
     if (cmd.isEmpty) return;
-    
-    try {
-      await context.read<ServerProvider>().sendCommand(widget.server.name, cmd);
-      _cmdCtrl.clear();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to send command: $e'),
-            backgroundColor: AppColors.offline,
-          ),
-        );
-      }
-    }
-  }
-}
-
-// ─── Settings Tab ─────────────────────────────────────────────────────────────
-
-class _SettingsTab extends StatelessWidget {
-  final ServerModel server;
-  const _SettingsTab({required this.server});
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        const SectionHeader(title: 'SERVER CONFIGURATION'),
-        const SizedBox(height: 10),
-        McCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Resource Allocation',
-                  style: TextStyle(
-                      color: AppColors.textPrimary,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 15)),
-              const SizedBox(height: 12),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.memory, color: AppColors.emerald),
-                title: const Text('RAM (MB)', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
-                subtitle: Text('${server.ramMb} MB', style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
-                trailing: const Icon(Icons.edit, size: 18, color: AppColors.grassGreenLight),
-                onTap: () => _editResources(context),
-              ),
-              const Divider(color: AppColors.border),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.speed, color: AppColors.diamond),
-                title: const Text('CPU Cores', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
-                subtitle: Text('${server.cpuCores} Cores', style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
-                trailing: const Icon(Icons.edit, size: 18, color: AppColors.grassGreenLight),
-                onTap: () => _editResources(context),
-              ),
-              const SizedBox(height: 10),
-              const Text(
-                'Note: Changes to RAM and CPU affinity require a server restart to take effect.',
-                style: TextStyle(color: AppColors.textMuted, fontSize: 11, fontStyle: FontStyle.italic),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 24),
-        const SectionHeader(title: 'DANGER ZONE'),
-        const SizedBox(height: 10),
-        McCard(
-          borderColor: AppColors.offline.withOpacity(0.3),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Delete Server',
-                  style: TextStyle(
-                      color: AppColors.offline,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 15)),
-              const SizedBox(height: 6),
-              const Text(
-                'This action cannot be undone. All server data will be permanently deleted.',
-                style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
-              const SizedBox(height: 16),
-              McButton(
-                label: 'Delete Server',
-                icon: Icons.delete_forever,
-                isDanger: true,
-                width: double.infinity,
-                onPressed: () => _confirmDelete(context),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  void _editResources(BuildContext context) async {
-    final sp = context.read<ServerProvider>();
-    final vpsRam = (sp.systemStats['memory_total'] as num?)?.toInt();
-    final vpsCores = (sp.systemStats['cpu_count'] as num?)?.toDouble();
-
-    double ramGb = server.ramMb / 1024;
-    double cpuCores = server.cpuCores;
-
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
-          backgroundColor: AppColors.backgroundCard,
-          title: const Text('Edit Resource Allocation'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('RAM Allocation: ${ramGb.toStringAsFixed(1)} GB', 
-                style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 13)),
-              const SizedBox(height: 8),
-              SliderTheme(
-                data: SliderTheme.of(context).copyWith(
-                  activeTrackColor: AppColors.emerald,
-                  thumbColor: AppColors.emerald,
-                  overlayColor: AppColors.emerald.withOpacity(0.2),
-                  valueIndicatorColor: AppColors.emerald,
-                ),
-                child: Slider(
-                  value: ramGb.clamp(0.5, (vpsRam ?? 8192) / 1024),
-                  min: 0.5,
-                  max: (vpsRam ?? 8192) / 1024,
-                  divisions: (((vpsRam ?? 8192) / 1024) * 2).toInt() - 1,
-                  label: '${ramGb.toStringAsFixed(1)} GB',
-                  onChanged: (v) => setState(() => ramGb = v),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text('CPU Cores: ${cpuCores.toStringAsFixed(1)} Cores', 
-                style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 13)),
-              const SizedBox(height: 8),
-              SliderTheme(
-                data: SliderTheme.of(context).copyWith(
-                  activeTrackColor: AppColors.diamond,
-                  thumbColor: AppColors.diamond,
-                  overlayColor: AppColors.diamond.withOpacity(0.2),
-                  valueIndicatorColor: AppColors.diamond,
-                ),
-                child: Slider(
-                  value: cpuCores.clamp(0.1, vpsCores ?? 8.0),
-                  min: 0.1,
-                  max: vpsCores ?? 8.0,
-                  divisions: ((vpsCores ?? 8.0) * 10).toInt() - 1,
-                  label: '${cpuCores.toStringAsFixed(1)} Cores',
-                  onChanged: (v) => setState(() => cpuCores = v),
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-            TextButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Save', style: TextStyle(color: AppColors.grassGreenLight)),
-            ),
-          ],
-        ),
-      ),
-    );
-
-    if (confirmed == true) {
-      try {
-        await context.read<ServerProvider>().updateServerResources(
-          server.name, 
-          (ramGb * 1024).toInt(), 
-          double.parse(cpuCores.toStringAsFixed(1))
-        );
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Resources updated. Restart server to apply changes.')),
-          );
-        }
-      } catch (e) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
-        }
-      }
-    }
-  }
-
-  void _confirmDelete(BuildContext context) async {
-    final confirmed = await McDialogs.showConfirm(
-      context,
-      title: 'Delete Server',
-      message: 'Are you sure you want to delete "${server.name}"? This cannot be undone.',
-      confirmLabel: 'Delete',
-      isDanger: true,
-    );
-
-    if (confirmed) {
-      await context.read<ServerProvider>().deleteServer(server.name);
-      if (context.mounted) {
-        Navigator.pop(context);
-      }
-    }
+    context.read<ServerProvider>().sendCommand(widget.server.name, cmd);
+    _cmdCtrl.clear();
   }
 }
 
@@ -773,75 +396,11 @@ class _ChatTab extends StatefulWidget {
 class _ChatTabState extends State<_ChatTab> {
   final _msgCtrl = TextEditingController();
   final _scrollCtrl = ScrollController();
-  static final int _sessionSalt = DateTime.now().millisecondsSinceEpoch;
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<ServerProvider>().loadChatHistory(widget.server.name);
-    });
-  }
-
-  Color _getSenderColor(String? name, bool isAdmin) {
-    if (isAdmin) return AppColors.gold;
-    if (name == null || name.isEmpty) return AppColors.textMuted;
-    
-    final List<Color> colors = [
-      AppColors.diamond,
-      const Color(0xFFF472B6), // Pink
-      const Color(0xFFA78BFA), // Purple
-      const Color(0xFFFB923C), // Orange
-      const Color(0xFF2DD4BF), // Teal
-      const Color(0xFF60A5FA), // Blue
-      const Color(0xFFF87171), // Red
-      AppColors.emerald,
-    ];
-
-    int hash = _sessionSalt;
-    for (int i = 0; i < name.length; i++) {
-      hash = name.codeUnitAt(i) + ((hash << 5) - hash);
-    }
-    return colors[hash.abs() % colors.length];
-  }
-
-  @override
-  void dispose() {
-    _msgCtrl.dispose();
-    _scrollCtrl.dispose();
-    super.dispose();
-  }
 
   void _scrollToBottom() {
     if (_scrollCtrl.hasClients) {
-      _scrollCtrl.animateTo(_scrollCtrl.position.maxScrollExtent,
-          duration: 200.ms, curve: Curves.easeOut);
+      _scrollCtrl.animateTo(_scrollCtrl.position.maxScrollExtent, duration: 200.ms, curve: Curves.easeOut);
     }
-  }
-
-  void _sendMessage() {
-    final msg = _msgCtrl.text.trim();
-    if (msg.isEmpty) return;
-
-    final auth = context.read<AuthProvider>();
-    final username = auth.user?.username ?? 'Admin';
-
-    context.read<ServerProvider>().sendChatMessage(widget.server.name, msg, username);
-    _msgCtrl.clear();
-    HapticFeedback.lightImpact();
-  }
-
-  Widget _buildChatAvatar(String sender) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 6),
-      child: PlayerHead(
-        username: sender,
-        size: 28,
-        borderRadius: 6,
-        borderColor: AppColors.border.withOpacity(0.5),
-        borderWidth: 0.5,
-      ),
-    );
   }
 
   @override
@@ -852,161 +411,21 @@ class _ChatTabState extends State<_ChatTab> {
           child: Consumer<ServerProvider>(
             builder: (_, sp, __) {
               WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
-
-              if (sp.chatMessages.isEmpty) {
-                return const Center(child: Text('No messages yet', style: TextStyle(color: AppColors.textMuted)));
-              }
-
               return ListView.builder(
                 controller: _scrollCtrl,
                 padding: const EdgeInsets.all(12),
                 itemCount: sp.chatMessages.length,
                 itemBuilder: (context, index) {
                   final msg = sp.chatMessages[index];
-                  final chatType = msg['chat_type'] ?? (msg['is_system'] == true ? 'system' : 'received');
-                  final sender = msg['sender']?.toString() ?? (chatType == 'system' ? 'System' : 'Unknown');
-                  final text = msg['message']?.toString() ?? '';
+                  final sender = msg['sender'] ?? 'System';
+                  final text = msg['message'] ?? '';
+                  final isMe = sender == context.read<AuthProvider>().user?.username;
                   
-                  // System / Join / Leave messages (Centered)
-                  if (chatType == 'join' || chatType == 'leave' || chatType == 'system' || chatType == 'achievement') {
-                    IconData icon = Icons.info_outline;
-                    Color iconColor = AppColors.textMuted;
-                    
-                    if (chatType == 'join') {
-                      icon = Icons.login_rounded;
-                      iconColor = AppColors.online;
-                    } else if (chatType == 'leave') {
-                      icon = Icons.logout_rounded;
-                      iconColor = AppColors.offline;
-                    } else if (chatType == 'achievement') {
-                      icon = Icons.emoji_events_outlined;
-                      iconColor = AppColors.gold;
-                    }
-
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      child: Center(
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: AppColors.backgroundOverlay.withOpacity(0.3),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: AppColors.border.withOpacity(0.5)),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(icon, size: 12, color: iconColor),
-                              const SizedBox(width: 6),
-                              Text(
-                                text,
-                                style: TextStyle(
-                                  color: iconColor.withOpacity(0.8),
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    );
-                  }
-
-                  final currentUsername = context.read<AuthProvider>().user?.username;
-                  final isMe = chatType == 'sent' && 
-                               sender.toLowerCase() == currentUsername?.toLowerCase();
-                  final isOtherAdmin = chatType == 'sent' && !isMe;
-
-                  return Align(
-                    alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
-                        children: [
-                          if (!isMe) _buildChatAvatar(sender),
-                          Container(
-                            margin: EdgeInsets.fromLTRB(isMe ? 60 : 0, 0, isMe ? 0 : 60, 0),
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                            decoration: BoxDecoration(
-                              color: isMe ? AppColors.grassGreen.withOpacity(0.15) : AppColors.backgroundElevated,
-                              borderRadius: BorderRadius.only(
-                                topLeft: const Radius.circular(16),
-                                topRight: const Radius.circular(16),
-                                bottomLeft: Radius.circular(isMe ? 16 : 4),
-                                bottomRight: Radius.circular(isMe ? 4 : 16),
-                              ),
-                              border: Border.all(
-                                color: isMe ? AppColors.grassGreen.withOpacity(0.4) : AppColors.border,
-                                width: 1,
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.1),
-                                  blurRadius: 4,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                            child: Column(
-                              crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                if (!isMe)
-                                  Padding(
-                                    padding: const EdgeInsets.only(bottom: 4),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Text(
-                                          sender,
-                                          style: TextStyle(
-                                            color: _getSenderColor(sender, isOtherAdmin),
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 11,
-                                            letterSpacing: 0.5,
-                                          ),
-                                        ),
-                                        if (isOtherAdmin) ...[
-                                          const SizedBox(width: 4),
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                                            decoration: BoxDecoration(
-                                              color: AppColors.gold.withOpacity(0.2),
-                                              borderRadius: BorderRadius.circular(4),
-                                              border: Border.all(color: AppColors.gold.withOpacity(0.5), width: 0.5),
-                                            ),
-                                            child: const Text(
-                                              'ADMIN',
-                                              style: TextStyle(
-                                                color: AppColors.gold,
-                                                fontSize: 7,
-                                                fontWeight: FontWeight.w900,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ],
-                                    ),
-                                  ),
-                                Text(
-                                  text,
-                                  style: TextStyle(
-                                    color: isMe ? AppColors.grassGreenGlow : AppColors.textPrimary,
-                                    fontSize: 14,
-                                    height: 1.3,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          if (isMe) _buildChatAvatar(sender),
-                        ],
-                      ),
-                    ),
+                  return _ChatMessageWidget(
+                    sender: sender,
+                    content: text,
+                    isMe: isMe,
+                    isSystem: msg['is_system'] ?? false,
                   );
                 },
               );
@@ -1015,27 +434,89 @@ class _ChatTabState extends State<_ChatTab> {
         ),
         Container(
           padding: const EdgeInsets.fromLTRB(12, 8, 12, 16),
-          decoration: const BoxDecoration(
-            color: AppColors.backgroundCard,
-            border: Border(top: BorderSide(color: AppColors.border)),
-          ),
           child: Row(
             children: [
               Expanded(
                 child: TextField(
                   controller: _msgCtrl,
-                  style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
-                  decoration: const InputDecoration(
-                    hintText: 'Type a message...',
-                    border: InputBorder.none,
-                    isDense: true,
-                  ),
+                  decoration: const InputDecoration(hintText: 'Say something...', border: InputBorder.none),
                   onSubmitted: (_) => _sendMessage(),
                 ),
               ),
-              IconButton(
-                onPressed: _sendMessage,
-                icon: const Icon(Icons.send, color: AppColors.gold),
+              IconButton(onPressed: _sendMessage, icon: const Icon(Icons.send, color: AppColors.grassGreenLight)),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _sendMessage() {
+    final text = _msgCtrl.text.trim();
+    if (text.isEmpty) return;
+    final username = context.read<AuthProvider>().user?.username ?? 'Admin';
+    context.read<ServerProvider>().sendChatMessage(widget.server.name, text, username);
+    _msgCtrl.clear();
+  }
+}
+
+// ─── Players Tab ─────────────────────────────────────────────────────────────
+
+class _PlayersTab extends StatelessWidget {
+  final ServerModel server;
+  const _PlayersTab({required this.server});
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<ServerProvider>(
+      builder: (_, sp, __) {
+        final players = sp.onlinePlayers;
+        if (players.isEmpty) return const Center(child: Text('No players online', style: TextStyle(color: AppColors.textMuted)));
+        
+        return ListView.separated(
+          padding: const EdgeInsets.all(16),
+          itemCount: players.length,
+          separatorBuilder: (_, __) => const SizedBox(height: 8),
+          itemBuilder: (context, index) => _PlayerListItem(
+            player: players[index],
+            onTap: () {},
+            onKick: () => sp.sendCommand(server.name, 'kick ${players[index]['name']}'),
+            onBan: () => sp.sendCommand(server.name, 'ban ${players[index]['name']}'),
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ─── Settings Tab ─────────────────────────────────────────────────────────────
+
+class _SettingsTab extends StatelessWidget {
+  final ServerModel server;
+  const _SettingsTab({required this.server});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        const SectionHeader(title: 'DANGER ZONE'),
+        const SizedBox(height: 10),
+        McCard(
+          borderColor: AppColors.offline.withOpacity(0.3),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Delete Server', style: TextStyle(color: AppColors.offline, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 12),
+              McButton(
+                label: 'Delete Forever', 
+                icon: Icons.delete_forever, 
+                isDanger: true,
+                onPressed: () async {
+                  final confirm = await McDialogs.showConfirm(context, title: 'Delete Server', message: 'Are you sure?');
+                  if (confirm) context.read<ServerProvider>().deleteServer(server.name);
+                },
               ),
             ],
           ),
@@ -1045,481 +526,117 @@ class _ChatTabState extends State<_ChatTab> {
   }
 }
 
-// ─── Players Tab ─────────────────────────────────────────────────────────────
+// ─── Helper Widgets ──────────────────────────────────────────────────────────
 
-class _PlayersTab extends StatefulWidget {
-  final ServerModel server;
-  const _PlayersTab({required this.server});
+class _CmdButton extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final Color? color;
+  final bool isSecondary;
+  final String type;
+  final Map<String, dynamic> params;
 
-  @override
-  State<_PlayersTab> createState() => _PlayersTabState();
-}
-
-class _PlayersTabState extends State<_PlayersTab> {
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<ServerProvider>().loadPlayers(widget.server.name);
-    });
-  }
+  const _CmdButton({required this.label, required this.icon, this.color, this.isSecondary = false, required this.type, this.params = const {}});
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<ServerProvider>(
-      builder: (context, sp, child) {
-        return ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            SectionHeader(
-              title: 'ONLINE PLAYERS (${sp.onlinePlayers.length})',
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.sync_alt, color: AppColors.gold, size: 20),
-                    onPressed: sp.onlinePlayers.isEmpty ? null : () => _showTeleportDialog(context, sp),
-                    tooltip: 'Teleport Players',
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.refresh, size: 20, color: AppColors.textSecondary),
-                    onPressed: () => sp.loadPlayers(widget.server.name),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 8),
-            if (sp.onlinePlayers.isEmpty)
-              const McCard(child: Center(child: Padding(
-                padding: EdgeInsets.all(20.0),
-                child: Text('No players online', style: TextStyle(color: AppColors.textMuted)),
-              )))
-            else
-              ...sp.onlinePlayers.map((p) {
-                final playerData = p;
-                final username = playerData['username'] ?? p.toString();
-                return _PlayerListItem(
-                  player: playerData,
-                  isBanned: false,
-                  onTap: () => _showPlayerDetail(context, widget.server.name, playerData),
-                  onKick: () => _handleKick(context, sp, widget.server.name, username),
-                  onBan: () => _showBanDialog(context, sp, widget.server.name, username),
-                );
-              }),
-
-            const SizedBox(height: 24),
-            SectionHeader(title: 'BANNED PLAYERS (${sp.bannedUsers.length})'),
-            const SizedBox(height: 8),
-            if (sp.bannedUsers.isEmpty)
-              const McCard(child: Center(child: Padding(
-                padding: EdgeInsets.all(20.0),
-                child: Text('No banned players', style: TextStyle(color: AppColors.textMuted)),
-              )))
-            else
-              ...sp.bannedUsers.map((p) {
-                final playerData = p;
-                final username = playerData['username'] ?? playerData['name'] ?? p.toString();
-                return _PlayerListItem(
-                  player: playerData,
-                  isBanned: true,
-                  onUnban: () => sp.unbanPlayer(widget.server.name, username),
-                );
-              }),
-          ],
-        );
-      },
-    );
-  }
-
-  void _showTeleportDialog(BuildContext context, ServerProvider sp) {
-    List<String> selectedPlayers = [];
-    String? targetPlayer;
-    bool toCoords = false;
-    final xCtrl = TextEditingController();
-    final yCtrl = TextEditingController();
-    final zCtrl = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
-          backgroundColor: AppColors.backgroundCard,
-          title: const Row(
-            children: [
-              Icon(Icons.sync_alt, color: AppColors.gold),
-              SizedBox(width: 10),
-              Text('Teleport Players'),
-            ],
-          ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('1. Select players to teleport:', style: TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                Container(
-                  constraints: const BoxConstraints(maxHeight: 150),
-                  decoration: BoxDecoration(color: AppColors.backgroundDeep, borderRadius: BorderRadius.circular(8)),
-                  child: ListView(
-                    shrinkWrap: true,
-                    children: [
-                      CheckboxListTile(
-                        title: const Text('All Players (@a)', style: TextStyle(fontSize: 13)),
-                        value: selectedPlayers.contains('@a'),
-                        activeColor: AppColors.gold,
-                        onChanged: (v) => setState(() {
-                          if (v == true) {
-                            selectedPlayers = ['@a'];
-                          } else {
-                            selectedPlayers.remove('@a');
-                          }
-                        }),
-                      ),
-                      ...sp.onlinePlayers.map((p) {
-                        final name = p['username'] ?? 'Unknown';
-                        return CheckboxListTile(
-                          title: Text(name, style: const TextStyle(fontSize: 13)),
-                          value: selectedPlayers.contains(name),
-                          activeColor: AppColors.gold,
-                          onChanged: selectedPlayers.contains('@a') ? null : (v) => setState(() {
-                            if (v == true) {
-                              selectedPlayers.add(name);
-                            } else {
-                              selectedPlayers.remove(name);
-                            }
-                          }),
-                        );
-                      }),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('2. Destination:', style: TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.bold)),
-                    Row(
-                      children: [
-                        const Text('Coords', style: TextStyle(fontSize: 11)),
-                        Switch(
-                          value: !toCoords, 
-                          onChanged: (v) => setState(() => toCoords = !v),
-                          activeColor: AppColors.gold,
-                        ),
-                        const Text('Player', style: TextStyle(fontSize: 11)),
-                      ],
-                    ),
-                  ],
-                ),
-                if (toCoords) ...[
-                  Row(
-                    children: [
-                      Expanded(child: TextField(controller: xCtrl, decoration: const InputDecoration(labelText: 'X'), keyboardType: TextInputType.number)),
-                      const SizedBox(width: 8),
-                      Expanded(child: TextField(controller: yCtrl, decoration: const InputDecoration(labelText: 'Y'), keyboardType: TextInputType.number)),
-                      const SizedBox(width: 8),
-                      Expanded(child: TextField(controller: zCtrl, decoration: const InputDecoration(labelText: 'Z'), keyboardType: TextInputType.number)),
-                    ],
-                  ),
-                ] else ...[
-                  DropdownButtonFormField<String>(
-                    value: targetPlayer,
-                    items: sp.onlinePlayers.map<DropdownMenuItem<String>>((p) {
-                      final name = p['username']?.toString() ?? 'Unknown';
-                      return DropdownMenuItem<String>(value: name, child: Text(name));
-                    }).toList(),
-                    onChanged: (v) => setState(() => targetPlayer = v),
-                    decoration: const InputDecoration(hintText: 'Select target player'),
-                    dropdownColor: AppColors.backgroundCard,
-                  ),
-                ],
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-            McButton(
-              label: 'Teleport',
-              icon: Icons.send,
-              onPressed: (selectedPlayers.isEmpty || (!toCoords && targetPlayer == null)) 
-                ? null 
-                : () async {
-                    try {
-                      if (toCoords) {
-                        final x = double.tryParse(xCtrl.text) ?? 0.0;
-                        final y = double.tryParse(yCtrl.text) ?? 0.0;
-                        final z = double.tryParse(zCtrl.text) ?? 0.0;
-                        for (var p in selectedPlayers) {
-                          await sp.teleportPlayerToCoords(widget.server.name, p, x, y, z);
-                        }
-                      } else if (targetPlayer != null) {
-                        if (selectedPlayers.length == 1 && selectedPlayers.first != '@a') {
-                          await sp.teleportPlayerToPlayer(widget.server.name, selectedPlayers.first, targetPlayer!);
-                        } else {
-                          await sp.teleportPlayersToPlayer(widget.server.name, selectedPlayers, targetPlayer!);
-                        }
-                      }
-                      Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Teleport command sent!')));
-                    } catch (e) {
-                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
-                    }
-                  },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _handleKick(BuildContext context, ServerProvider sp, String serverName, String username) async {
-    final confirmed = await McDialogs.showConfirm(
-      context,
-      title: 'Kick Player',
-      message: 'Are you sure you want to kick $username?',
-      confirmLabel: 'Kick',
-      isDanger: true,
-    );
-    if (confirmed) {
-      await sp.kickPlayer(serverName, username, 'Kicked by admin');
-    }
-  }
-
-  void _showPlayerDetail(BuildContext context, String serverName, Map<dynamic, dynamic> player) {
-    final username = player['username'] ?? 'Unknown';
-    final uuid = player['uuid'] ?? 'Unknown';
-    final ip = player['ip'] ?? 'Unknown';
-    final joined = player['joined_at'] ?? 'Unknown';
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppColors.backgroundCard,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: AppColors.border)),
-        title: Row(
-          children: [
-            const Icon(Icons.person, color: AppColors.grassGreenLight),
-            const SizedBox(width: 10),
-            Text(username, style: const TextStyle(color: AppColors.textPrimary)),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _DetailRow(label: 'UUID', value: uuid),
-            _DetailRow(label: 'IP Address', value: ip),
-            _DetailRow(label: 'Joined At', value: joined),
-            const SizedBox(height: 16),
-            const Text('History', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 14)),
-            const SizedBox(height: 8),
-            Container(
-              height: 100,
-              width: double.maxFinite,
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(color: AppColors.backgroundDeep, borderRadius: BorderRadius.circular(8)),
-              child: const Center(child: Text('Audit history loading...', style: TextStyle(color: AppColors.textMuted, fontSize: 12))),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close', style: TextStyle(color: AppColors.textMuted))),
-        ],
-      ),
-    );
-  }
-
-  void _showBanDialog(BuildContext context, ServerProvider sp, String serverName, String username) {
-    String reason = 'Banned by admin';
-    bool isPermanent = true;
-    DateTime? selectedDate;
-    TimeOfDay? selectedTime;
-
-    showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
-          backgroundColor: AppColors.backgroundCard,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: AppColors.offline)),
-          title: Text('Ban $username', style: const TextStyle(color: AppColors.offline)),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  style: const TextStyle(color: AppColors.textPrimary),
-                  decoration: const InputDecoration(labelText: 'Reason', labelStyle: TextStyle(color: AppColors.textMuted)),
-                  onChanged: (v) => reason = v,
-                ),
-                const SizedBox(height: 16),
-                SwitchListTile(
-                  title: const Text('Permanent Ban', style: TextStyle(color: AppColors.textPrimary)),
-                  value: isPermanent,
-                  activeColor: AppColors.offline,
-                  onChanged: (v) => setState(() => isPermanent = v),
-                ),
-                if (!isPermanent) ...[
-                  const SizedBox(height: 8),
-                  ListTile(
-                    title: Text(selectedDate == null ? 'Select Expiry Date' : 'Expires: ${selectedDate!.toString().split(' ')[0]}'),
-                    trailing: const Icon(Icons.calendar_today, color: AppColors.gold),
-                    onTap: () async {
-                      final date = await showDatePicker(
-                        context: context,
-                        initialDate: DateTime.now().add(const Duration(days: 1)),
-                        firstDate: DateTime.now(),
-                        lastDate: DateTime.now().add(const Duration(days: 3650)),
-                      );
-                      if (date != null) setState(() => selectedDate = date);
-                    },
-                  ),
-                  ListTile(
-                    title: Text(selectedTime == null ? 'Select Expiry Time' : 'Time: ${selectedTime!.format(context)}'),
-                    trailing: const Icon(Icons.access_time, color: AppColors.gold),
-                    onTap: () async {
-                      final time = await showTimePicker(context: context, initialTime: const TimeOfDay(hour: 0, minute: 0));
-                      if (time != null) setState(() => selectedTime = time);
-                    },
-                  ),
-                ],
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-            McButton(
-              label: 'Confirm Ban',
-              isDanger: true,
-              onPressed: () {
-                String? expires;
-                if (!isPermanent && selectedDate != null) {
-                  final hr = selectedTime?.hour ?? 0;
-                  final mn = selectedTime?.minute ?? 0;
-                  final dt = DateTime(selectedDate!.year, selectedDate!.month, selectedDate!.day, hr, mn);
-                  // Format: 2026-05-01 16:30:00 +0000
-                  expires = "${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')} "
-                            "${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}:00 +0000";
-                }
-                sp.banPlayer(serverName, username, reason, expires: expires);
-                Navigator.pop(context);
-              },
-            ),
-          ],
-        ),
-      ),
+    return McButton(
+      label: label, icon: icon, color: color, isSecondary: isSecondary,
+      onPressed: () => context.read<ServerProvider>().executeQuickCommand(context.read<ServerProvider>().selectedServer!.name, type, params),
     );
   }
 }
 
-class _DetailRow extends StatelessWidget {
-  final String label, value;
-  const _DetailRow({required this.label, required this.value});
+class _CmdListTile extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final String type;
+
+  const _CmdListTile({required this.label, required this.icon, required this.type});
+
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(label, style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
-        Text(value, style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontFamily: 'monospace')),
-      ]),
+    return ListTile(
+      leading: Icon(icon, color: AppColors.textMuted, size: 20),
+      title: Text(label, style: const TextStyle(color: AppColors.textPrimary, fontSize: 14)),
+      trailing: const Icon(Icons.chevron_right, size: 16, color: AppColors.border),
+      onTap: () => context.read<ServerProvider>().executeQuickCommand(context.read<ServerProvider>().selectedServer!.name, type, {}),
     );
   }
 }
 
 class _PlayerListItem extends StatelessWidget {
-  final Map<dynamic, dynamic> player;
-  final bool isBanned;
-  final VoidCallback? onTap;
-  final VoidCallback? onKick;
-  final VoidCallback? onBan;
-  final VoidCallback? onUnban;
+  final Map<String, dynamic> player;
+  final VoidCallback onTap;
+  final VoidCallback onKick;
+  final VoidCallback onBan;
 
-  const _PlayerListItem({
-    required this.player,
-    this.isBanned = false,
-    this.onTap,
-    this.onKick,
-    this.onBan,
-    this.onUnban,
-  });
+  const _PlayerListItem({required this.player, required this.onTap, required this.onKick, required this.onBan});
 
   @override
   Widget build(BuildContext context) {
-    final name = player['username']?.toString() ?? player['name']?.toString() ?? 'Unknown';
-    final isPremium = player['is_premium'] == true;
+    final name = player['name'] ?? 'Unknown';
+    return McCard(
+      onTap: onTap,
+      child: Row(
+        children: [
+          PlayerHead(username: name, size: 40),
+          const SizedBox(width: 12),
+          Expanded(child: Text(name, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary))),
+          IconButton(icon: const Icon(Icons.logout, size: 18, color: AppColors.starting), onPressed: onKick),
+          IconButton(icon: const Icon(Icons.block, size: 18, color: AppColors.offline), onPressed: onBan),
+        ],
+      ),
+    );
+  }
+}
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: McCard(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Row(
-            children: [
-              PlayerHead(
-                username: name,
-                size: 40,
-                borderRadius: 8,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Text(name, style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
-                        const SizedBox(width: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                          decoration: BoxDecoration(
-                            color: isPremium ? AppColors.diamond.withOpacity(0.1) : AppColors.gold.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(4),
-                            border: Border.all(
-                              color: isPremium ? AppColors.diamond.withOpacity(0.3) : AppColors.gold.withOpacity(0.3),
-                              width: 0.5,
-                            ),
-                          ),
-                          child: Text(
-                            isPremium ? 'MOJANG' : 'LAUNCHER',
-                            style: TextStyle(
-                              color: isPremium ? AppColors.diamond : AppColors.gold,
-                              fontSize: 7,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (!isBanned && player['ip'] != null)
-                      Text(player['ip'].toString(), style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
-                  ],
-                ),
-              ),
-              if (isBanned)
-                McButton(
-                  label: 'Unban',
-                  icon: Icons.undo,
-                  isSecondary: true,
-                  onPressed: onUnban,
-                )
-              else ...[
-                IconButton(
-                  icon: const Icon(Icons.logout, color: AppColors.gold, size: 20),
-                  onPressed: onKick,
-                  tooltip: 'Kick',
-                ),
-                IconButton(
-                  icon: const Icon(Icons.gavel, color: AppColors.offline, size: 20),
-                  onPressed: onBan,
-                  tooltip: 'Ban',
-                ),
-              ]
-            ],
-          ),
+class _ChatMessageWidget extends StatelessWidget {
+  final String sender;
+  final String content;
+  final bool isMe;
+  final bool isSystem;
+
+  const _ChatMessageWidget({required this.sender, required this.content, required this.isMe, required this.isSystem});
+
+  @override
+  Widget build(BuildContext context) {
+    if (isSystem) {
+      return Center(
+        child: Container(
+          margin: const EdgeInsets.symmetric(vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          decoration: BoxDecoration(color: AppColors.backgroundOverlay, borderRadius: BorderRadius.circular(12)),
+          child: Text(content, style: const TextStyle(color: AppColors.textMuted, fontSize: 11, fontStyle: FontStyle.italic)),
         ),
+      );
+    }
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+        children: [
+          if (!isMe) PlayerHead(username: sender, size: 24),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: isMe ? AppColors.grassGreen.withOpacity(0.2) : AppColors.backgroundOverlay,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: isMe ? AppColors.grassGreen.withOpacity(0.4) : AppColors.border),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (!isMe) Text(sender, style: const TextStyle(color: AppColors.gold, fontSize: 10, fontWeight: FontWeight.bold)),
+                  Text(content, style: const TextStyle(color: AppColors.textPrimary, fontSize: 13)),
+                ],
+              ),
+            ),
+          ),
+          if (isMe) ...[const SizedBox(width: 8), PlayerHead(username: sender, size: 24)],
+        ],
       ),
     );
   }
@@ -1544,237 +661,109 @@ class _ModsTabState extends State<_ModsTab> {
     });
   }
 
+  Future<void> _pickAndUploadMod() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['jar', 'zip'],
+    );
+
+    if (result != null && result.files.single.path != null) {
+      final sp = context.read<ServerProvider>();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Uploading mod...'), duration: Duration(seconds: 2)),
+      );
+      try {
+        await sp.uploadMod(widget.server.name, result.files.single.path!);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Mod uploaded successfully!'), backgroundColor: AppColors.online),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Upload failed: \$e'), backgroundColor: AppColors.offline),
+          );
+        }
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Consumer<ServerProvider>(
-      builder: (context, sp, child) {
-        if (sp.isLoadingMods && sp.installedMods.isEmpty) {
-          return const Center(child: CircularProgressIndicator(color: AppColors.grassGreen));
-        }
+      builder: (_, sp, __) {
+        final mods = sp.installedMods;
+        
+        return Scaffold(
+          backgroundColor: Colors.transparent,
+          body: mods.isEmpty && !sp.isLoadingMods
+              ? const Center(child: Text('No mods installed', style: TextStyle(color: AppColors.textMuted)))
+              : ListView.separated(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: mods.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 8),
+                  itemBuilder: (context, index) {
+                    final mod = mods[index];
+                    final name = mod['name'] ?? 'Unknown Mod';
+                    final size = mod['size_formatted'] ?? '';
+                    final isZip = name.endsWith('.zip');
 
-        return RefreshIndicator(
-          onRefresh: () => sp.loadMods(widget.server.name),
-          color: AppColors.grassGreen,
-          backgroundColor: AppColors.backgroundCard,
-          child: ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              SectionHeader(
-                title: 'INSTALLED MODS (${sp.installedMods.length})',
-                trailing: IconButton(
-                  icon: const Icon(Icons.upload_file, color: AppColors.gold),
-                  onPressed: () => _pickAndUploadMod(context, sp),
-                  tooltip: 'Upload Mod',
-                ),
-              ),
-              const SizedBox(height: 12),
-              if (sp.installedMods.isEmpty && !sp.isLoadingMods)
-                const McCard(
-                  child: Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(40.0),
-                      child: Column(
+                    return McCard(
+                      child: Row(
                         children: [
-                          Icon(Icons.extension_off_outlined, size: 48, color: AppColors.textMuted),
-                          SizedBox(height: 16),
-                          Text('No mods found in the mods folder', style: TextStyle(color: AppColors.textMuted)),
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: (isZip ? AppColors.gold : AppColors.diamond).withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Icon(
+                              isZip ? Icons.folder_zip_outlined : Icons.extension_outlined,
+                              color: isZip ? AppColors.gold : AppColors.diamond,
+                              size: 20,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(name, 
+                                  style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary, fontSize: 13),
+                                  maxLines: 1, overflow: TextOverflow.ellipsis,
+                                ),
+                                if (size.isNotEmpty)
+                                  Text(size, style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.delete_outline, size: 20, color: AppColors.offline),
+                            onPressed: () async {
+                              final confirm = await McDialogs.showConfirm(
+                                context, 
+                                title: 'Delete Mod', 
+                                message: 'Are you sure you want to delete "\$name"?',
+                                isDanger: true,
+                              );
+                              if (confirm) {
+                                await sp.deleteMod(widget.server.name, name);
+                              }
+                            },
+                          ),
                         ],
                       ),
-                    ),
-                  ),
-                )
-              else
-                ...sp.installedMods.map((mod) => _ModListItem(
-                      mod: mod,
-                      onDelete: () => _confirmDelete(context, sp, mod['filename']),
-                      onRename: () => _showRenameDialog(context, sp, mod['filename']),
-                    )),
-              const SizedBox(height: 80), // Space for fab-like interaction
-            ],
+                    );
+                  },
+                ),
+          floatingActionButton: FloatingActionButton(
+            onPressed: _pickAndUploadMod,
+            backgroundColor: AppColors.grassGreen,
+            child: const Icon(Icons.add, color: Colors.white),
           ),
         );
       },
-    );
-  }
-
-  void _pickAndUploadMod(BuildContext context, ServerProvider sp) async {
-    try {
-      // 1. Just call the picker directly. 
-      // Modern Android (11, 12, 13, 14) doesn't need storage permissions for the SYSTEM PICKER.
-      FilePickerResult? result = await FilePicker.platform.pickFiles(
-        type: FileType.any,
-        allowMultiple: false,
-      );
-
-      if (result != null && result.files.single.path != null) {
-        final filePath = result.files.single.path!;
-        final fileName = result.files.single.name;
-        
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Uploading $fileName...'),
-              backgroundColor: AppColors.gold,
-              duration: const Duration(seconds: 2),
-            ),
-          );
-        }
-
-        // 2. Perform upload
-        await sp.uploadMod(widget.server.name, filePath);
-
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('✓ $fileName uploaded successfully!'),
-              backgroundColor: AppColors.grassGreen,
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      if (context.mounted) {
-        // If it really was a permission issue, the catch will show it here
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: $e'),
-            backgroundColor: AppColors.offline,
-          ),
-        );
-      }
-    }
-  }
-
-  void _confirmDelete(BuildContext context, ServerProvider sp, String filename) async {
-    final confirmed = await McDialogs.showConfirm(
-      context,
-      title: 'Delete Mod',
-      message: 'Are you sure you want to permanently delete "$filename"?',
-      confirmLabel: 'Delete',
-      isDanger: true,
-    );
-    if (confirmed) {
-      await sp.deleteMod(widget.server.name, filename);
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Mod deleted successfully')));
-      }
-    }
-  }
-
-  void _showRenameDialog(BuildContext context, ServerProvider sp, String filename) {
-    final ctrl = TextEditingController(text: filename);
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppColors.backgroundCard,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: AppColors.border)),
-        title: const Text('Rename/Disable Mod', style: TextStyle(color: AppColors.textPrimary, fontSize: 18)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('Renaming to .disabled will deactivate the mod.', style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
-            const SizedBox(height: 16),
-            TextField(
-              controller: ctrl,
-              style: const TextStyle(color: AppColors.textPrimary),
-              decoration: InputDecoration(
-                labelText: 'Filename',
-                labelStyle: const TextStyle(color: AppColors.textMuted),
-                filled: true,
-                fillColor: AppColors.backgroundDeep,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel', style: TextStyle(color: AppColors.textMuted))),
-          TextButton(
-            onPressed: () {
-              sp.renameMod(widget.server.name, filename, ctrl.text);
-              Navigator.pop(context);
-            },
-            child: const Text('Apply', style: TextStyle(color: AppColors.gold, fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ModListItem extends StatelessWidget {
-  final dynamic mod;
-  final VoidCallback onDelete;
-  final VoidCallback onRename;
-
-  const _ModListItem({required this.mod, required this.onDelete, required this.onRename});
-
-  @override
-  Widget build(BuildContext context) {
-    final filename = mod['filename'].toString();
-    final isFolder = mod['is_directory'] == true;
-    final isDisabled = filename.endsWith('.disabled') || filename.endsWith('.bak') || filename.endsWith('.off');
-    
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8.0),
-      child: McCard(
-        child: ListTile(
-          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-          leading: Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: isFolder ? AppColors.gold.withOpacity(0.1) : (isDisabled ? AppColors.textMuted.withOpacity(0.05) : AppColors.diamond.withOpacity(0.1)),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(
-              isFolder ? Icons.folder_rounded : Icons.extension_rounded,
-              color: isFolder ? AppColors.gold : (isDisabled ? AppColors.textMuted : AppColors.diamond),
-              size: 20,
-            ),
-          ),
-          title: Text(
-            mod['name']?.toString() ?? mod['filename']?.toString() ?? 'Unknown',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: isDisabled ? AppColors.textMuted : AppColors.textPrimary,
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              decoration: isDisabled ? TextDecoration.lineThrough : null,
-            ),
-          ),
-          subtitle: Row(
-            children: [
-              Text(
-                isFolder ? 'Folder' : '${(mod['size'] / 1024 / 1024).toStringAsFixed(2)} MB',
-                style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
-              ),
-              if (isDisabled) ...[
-                const SizedBox(width: 8),
-                const Text('• DISABLED', style: TextStyle(color: AppColors.offline, fontSize: 10, fontWeight: FontWeight.bold)),
-              ]
-            ],
-          ),
-          trailing: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              IconButton(
-                icon: const Icon(Icons.drive_file_rename_outline_rounded, size: 20, color: AppColors.textMuted),
-                onPressed: onRename,
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-              ),
-              const SizedBox(width: 12),
-              IconButton(
-                icon: const Icon(Icons.delete_sweep_rounded, size: 20, color: AppColors.offline),
-                onPressed: onDelete,
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }

@@ -73,7 +73,46 @@ public class ModCommands {
                     .executes(context -> triggerUpdate(context.getSource(), com.mojang.brigadier.arguments.IntegerArgumentType.getInteger(context, "seconds")))
                 )
             );
+
+            // Marketplace: /vender <count> <item>
+            dispatcher.register(CommandManager.literal("vender")
+                .then(CommandManager.argument("cantidad", com.mojang.brigadier.arguments.IntegerArgumentType.integer(1))
+                    .then(CommandManager.argument("item", net.minecraft.command.argument.ItemStackArgumentType.itemStack(registryAccess))
+                        .executes(context -> publishItem(context.getSource(), 
+                            com.mojang.brigadier.arguments.IntegerArgumentType.getInteger(context, "cantidad"),
+                            net.minecraft.command.argument.ItemStackArgumentType.getItemStackArgument(context, "item")))
+                    )
+                )
+            );
         });
+    }
+
+    private static int publishItem(net.minecraft.server.command.ServerCommandSource source, int count, net.minecraft.command.argument.ItemStackArgument itemReq) {
+        try {
+            ServerPlayerEntity player = source.getPlayerOrThrow();
+            net.minecraft.item.ItemStack hand = player.getMainHandStack();
+            
+            if (hand.isEmpty()) {
+                source.sendError(Text.of("§cDebes tener un item en la mano para venderlo."));
+                return 0;
+            }
+
+            com.google.gson.JsonObject selling = new com.google.gson.JsonObject();
+            selling.addProperty("id", net.minecraft.registry.Registries.ITEM.getId(hand.getItem()).toString());
+            selling.addProperty("count", hand.getCount());
+
+            com.google.gson.JsonObject asking = new com.google.gson.JsonObject();
+            asking.addProperty("id", net.minecraft.registry.Registries.ITEM.getId(itemReq.getItem()).toString());
+            asking.addProperty("count", count);
+
+            com.lider.minebridge.networking.TradeClient.publishTrade(player.getName().getString(), selling, asking);
+            source.sendFeedback(() -> Text.of("§a¡Oferta publicada en el Marketplace!"), true);
+            
+            return 1;
+        } catch (Exception e) {
+            source.sendError(Text.of("§cError al publicar la oferta."));
+            return 0;
+        }
     }
 
     private static int triggerUpdate(net.minecraft.server.command.ServerCommandSource source, int seconds) {

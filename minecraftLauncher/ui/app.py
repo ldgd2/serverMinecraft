@@ -164,6 +164,23 @@ class LauncherApp(tk.Tk):
         
         self.show_toast(msg, sub, action_text="Actualizar", on_action=do_update)
 
+    def on_mod_update_detected(self, latest, url):
+        """Llamado desde el updater en background cuando hay nuevos mods."""
+        from ui.widgets import MinecraftToast
+        import threading
+        
+        def do_update():
+            self._hide_toast()
+            self.show_updates_view()
+            # Mostramos el progreso en la vista de updates
+            if hasattr(self.updates_view, "trigger_mod_update"):
+                self.updates_view.trigger_mod_update(latest, url)
+
+        msg = "¡Nuevos Mods Disponibles!"
+        sub = f"Versión {latest} lista para descargar."
+        
+        self.show_toast(msg, sub, action_text="Sincronizar", on_action=do_update)
+
     def show_toast(self, text, subtext="", action_text="OK", on_action=None):
         from ui.widgets import MinecraftToast
         self._hide_toast()
@@ -174,8 +191,9 @@ class LauncherApp(tk.Tk):
             on_close=self._hide_toast
         )
         # Position at the top, sliding down
-        self._current_toast.place(relx=0.5, y=-100, anchor="n", relwidth=0.8)
-        self._animate_toast(target_y=20)
+        self._current_toast.place(relx=0.5, y=-120, anchor="n", relwidth=0.9)
+        self._current_toast.lift() 
+        self._animate_toast(target_y=15)
 
     def _hide_toast(self):
         if hasattr(self, "_current_toast") and self._current_toast:
@@ -186,10 +204,12 @@ class LauncherApp(tk.Tk):
         if not self._current_toast or not self._current_toast.winfo_exists():
             return
         if current_y >= target_y:
-            self._current_toast.place(relx=0.5, y=target_y, anchor="n", relwidth=0.8)
+            self._current_toast.place(relx=0.5, y=target_y, anchor="n", relwidth=0.9)
+            self._current_toast.lift()
             return
-        new_y = current_y + 5
-        self._current_toast.place(relx=0.5, y=new_y, anchor="n", relwidth=0.8)
+        new_y = current_y + 8
+        self._current_toast.place(relx=0.5, y=new_y, anchor="n", relwidth=0.9)
+        self._current_toast.lift()
         self.after(10, lambda: self._animate_toast(target_y, new_y))
 
     # ── Auth callbacks ────────────────────────────────────────────────────────
