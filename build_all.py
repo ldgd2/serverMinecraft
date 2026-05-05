@@ -61,7 +61,13 @@ def _get_api_config() -> dict:
 
     if not cfg.get('password'):
         import getpass
-        cfg['password'] = getpass.getpass("  │ Contraseña: ")
+        print("\n  ┌─ Credenciales de Administrador ────────────────")
+        pwd = ''
+        while not pwd:
+            pwd = getpass.getpass(f"  │ Contraseña para '{cfg.get('username', 'admin')}': ")
+            if not pwd:
+                print("  │ [!] La contraseña no puede estar vacía.")
+        cfg['password'] = pwd
         changed = True
 
     if changed:
@@ -74,6 +80,7 @@ def _get_api_config() -> dict:
 
 def _get_token(cfg: dict) -> str:
     url = f"{cfg['api_url']}/api/v1/auth/login"
+    print(f"  POST {url}")
     payload = json.dumps({"username": cfg['username'], "password": cfg['password']}).encode('utf-8')
     req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"})
     try:
@@ -84,7 +91,12 @@ def _get_token(cfg: dict) -> str:
                 raise RuntimeError(f"No se encontró token en la respuesta: {resp}")
             return token
     except urllib.error.HTTPError as e:
-        raise RuntimeError(f"Login falló ({e.code}): {e.read().decode('utf-8')}")
+        body_err = e.read().decode('utf-8')
+        # Clear saved password so user is prompted again next run
+        if e.code == 401 and os.path.exists(_API_CFG_FILE):
+            os.remove(_API_CFG_FILE)
+            print("  [!] Credenciales borradas del caché (.packager_config)")
+        raise RuntimeError(f"Login falló ({e.code}): {body_err}")
 
 def _upload_binary(cfg: dict, token: str, platform: str, version: str, filepath: str):
     url = f"{cfg['api_url']}/api/v1/updates/upload/{platform}/{version}"

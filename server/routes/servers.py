@@ -8,7 +8,7 @@ from database.connection import get_db
 from app.controllers.server_controller import ServerController
 from app.controllers.file_controller import FileController
 from app.services.audit_service import AuditService
-from database.schemas import ServerCreate, ServerUpdate, ServerResponse, ServerStats, ModSearchConnect, ServerCommandRequest, BanRequest, UpdateBanRequest, ChatRequest, EventRequest, CinematicRequest, ParanoiaRequest, SpecialEventRequest
+from database.schemas import ServerCreate, ServerUpdate, ServerResponse, ServerStats, ModSearchConnect, ServerCommandRequest, BanRequest, UpdateBanRequest, ChatRequest, EventRequest, CinematicRequest, ParanoiaRequest, SpecialEventRequest, TeleportRequest
 from database.models.user import User
 from database.models.server import Server
 from database.models.server_chat import ServerChat
@@ -678,6 +678,42 @@ async def deop_player(name: str, username: str, request: Request, db: Session = 
             raise HTTPException(status_code=400, detail="Failed to deop player")
         AuditService.log_action(db, current_user, "DEOP_PLAYER", request.client.host, f"De-opped {username} on {name}")
         return APIResponse(status="success", message=f"Player {username} de-opped", data=None)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/{name}/teleport")
+async def teleport_players(
+    name: str,
+    data: TeleportRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Handle different teleportation requests"""
+    try:
+        success = False
+        if data.mode == "player_to_player":
+            if not data.username or not data.target_username:
+                raise HTTPException(status_code=400, detail="Missing username or target_username")
+            success = await server_controller.tp_player_to_player(name, data.username, data.target_username)
+        elif data.mode == "player_to_coords":
+            if not data.username or data.x is None or data.y is None or data.z is None:
+                raise HTTPException(status_code=400, detail="Missing username or coordinates")
+            success = await server_controller.tp_player_to_coords(name, data.username, data.x, data.y, data.z)
+        elif data.mode == "players_to_player":
+            if not data.target_username:
+                raise HTTPException(status_code=400, detail="Missing target_username")
+            success = await server_controller.tp_players_to_player(name, data.players, data.target_username)
+        else:
+            raise HTTPException(status_code=400, detail="Invalid teleport mode")
+            
+        if not success:
+            raise HTTPException(status_code=400, detail="Teleport failed (server might be offline)")
+            
+        AuditService.log_action(db, current_user, "TELEPORT", request.client.host, f"Teleported players on {name}: {data.mode}")
+        return APIResponse(status="success", message="Teleport successful", data=None)
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

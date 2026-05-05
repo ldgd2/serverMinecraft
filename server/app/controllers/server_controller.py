@@ -88,6 +88,13 @@ class ServerController:
         db.commit()
         db.refresh(server)
         
+        # Update running process configuration if it exists
+        server_service.update_process_config(
+            name, 
+            ram_mb=data.get('ram_mb'), 
+            cpu_cores=data.get('cpu_cores')
+        )
+        
         # MasterBridge reload removed
         
         BitacoraService.add_log(db, "ADMIN", "SERVER_UPDATE", f"Updated server {name} with {list(data.keys())}")
@@ -266,6 +273,24 @@ class ServerController:
             # Fallback to standard Server Command
             await process.write(f"say {text}")
             return True
+            
+    async def tp_player_to_player(self, name: str, username: str, target_username: str):
+        process = server_service.get_process(name)
+        if process:
+            return await process.tp_player_to_player(username, target_username)
+        return False
+
+    async def tp_player_to_coords(self, name: str, username: str, x: float, y: float, z: float):
+        process = server_service.get_process(name)
+        if process:
+            return await process.tp_player_to_coords(username, x, y, z)
+        return False
+
+    async def tp_players_to_player(self, name: str, players: List[str], target_username: str):
+        process = server_service.get_process(name)
+        if process:
+            return await process.tp_players_to_player(players, target_username)
+        return False
         
     # --- MasterBridge Data Retrieval Methods Removed ---
     pass

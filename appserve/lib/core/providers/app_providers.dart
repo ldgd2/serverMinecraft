@@ -440,6 +440,48 @@ class ServerProvider extends ChangeNotifier {
     notifyListeners(); 
   }
 
+  Future<void> updateServerResources(String name, int ram, double cpu) async {
+    final updated = await _serverService.updateServer(name, {
+      'ram_mb': ram,
+      'cpu_cores': cpu,
+    });
+    
+    final idx = _servers.indexWhere((s) => s.name == name);
+    if (idx != -1) {
+      _servers[idx] = updated;
+    }
+    if (_selectedServer?.name == name) {
+      _selectedServer = updated;
+    }
+    notifyListeners();
+  }
+
+  Future<void> teleportPlayerToPlayer(String name, String player, String target) async {
+    await _serverService.teleport(name, {
+      'player': player,
+      'target': target,
+      'mode': 'player_to_player'
+    });
+  }
+
+  Future<void> teleportPlayerToCoords(String name, String player, double x, double y, double z) async {
+    await _serverService.teleport(name, {
+      'player': player,
+      'x': x,
+      'y': y,
+      'z': z,
+      'mode': 'player_to_coords'
+    });
+  }
+
+  Future<void> teleportPlayersToPlayer(String name, List<String> players, String target) async {
+    await _serverService.teleport(name, {
+      'players': players,
+      'target': target,
+      'mode': 'players_to_player'
+    });
+  }
+
   @override
   void dispose() { _closeWebSockets(); _globalStatusChannel?.sink.close(); super.dispose(); }
 }

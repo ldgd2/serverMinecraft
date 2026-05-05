@@ -84,23 +84,45 @@ class ProfileView(tk.Frame):
         self._load_async()
 
     def _load_async(self):
+        print("[ProfileView] Iniciando carga asíncrona...")
         self._status_lbl.pack(expand=True)
         self._left_content.pack_forget()
         self._right_content.pack_forget()
 
         def do():
             player_token = config.get("player_token") or ""
+            print(f"[ProfileView] Token disponible: {bool(player_token)}")
             profile = {}
             lb = []
             if player_token:
                 profile = self._auth.get_player_profile(player_token)
+            else:
+                print("[ProfileView] ADVERTENCIA: No hay player_token, saltando fetch de perfil.")
+            
+            print(f"[ProfileView] Cargando leaderboard...")
             lb = self._auth.get_leaderboard()
+            print(f"[ProfileView] Carga completa, enviando a render.")
             self.after(0, lambda: self._render(profile, lb))
 
         threading.Thread(target=do, daemon=True).start()
 
     def _render(self, profile: dict, leaderboard: list):
         self._status_lbl.pack_forget()
+        
+        # Si hay token pero el perfil está vacío o tiene error de auth
+        if config.get("player_token") and (not profile or profile.get("_error") == "auth_failed"):
+            self._left_content.pack(fill="both", expand=True, pady=40)
+            for w in self._left_content.winfo_children(): w.destroy()
+            
+            tk.Label(self._left_content, text="⚠️ SESIÓN EXPIRADA", fg=Colors.NOPREMIUM_RED, bg=Colors.PANEL_DARK, font=mc_font(14, bold=True)).pack(pady=10)
+            tk.Label(self._left_content, text="Tu sesión ha caducado o es inválida.\nPor seguridad, debes volver a iniciar sesión.", 
+                     fg=Colors.WHITE, bg=Colors.PANEL_DARK, font=mc_font(10), justify="center").pack(pady=10)
+            
+            from ui.widgets import MinecraftButton
+            MinecraftButton(self._left_content, text="Cerrar y Volver al Login", width=240, height=40, 
+                             command=self.app.logout if self.app else None).pack(pady=20)
+            return
+
         self._left_content.pack(fill="both", expand=True)
         self._right_content.pack(fill="both", expand=True)
 

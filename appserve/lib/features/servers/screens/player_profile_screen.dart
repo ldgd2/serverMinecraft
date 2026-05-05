@@ -7,6 +7,7 @@ import 'package:appserve/core/theme/app_colors.dart';
 import 'package:appserve/shared/widgets/mc_button.dart';
 import 'package:appserve/shared/widgets/mc_card.dart';
 import 'package:appserve/shared/widgets/mc_widgets.dart';
+import 'package:appserve/shared/widgets/player_head.dart';
 
 class PlayerProfileScreen extends StatefulWidget {
   const PlayerProfileScreen({super.key});
@@ -81,29 +82,12 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen>
                         Row(
                           children: [
                             // Avatar
-                            Container(
-                              width: 64,
-                              height: 64,
-                              decoration: BoxDecoration(
-                                color: AppColors.backgroundOverlay,
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(
-                                  color: isPremium ? AppColors.grassGreen : AppColors.gold,
-                                  width: 2,
-                                ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: (isPremium ? AppColors.grassGreen : AppColors.gold)
-                                        .withOpacity(0.3),
-                                    blurRadius: 12,
-                                  ),
-                                ],
-                              ),
-                              child: Icon(
-                                Icons.person_rounded,
-                                size: 36,
-                                color: isPremium ? AppColors.grassGreen : AppColors.gold,
-                              ),
+                            PlayerHead(
+                              username: pp.username,
+                              size: 64,
+                              borderRadius: 16,
+                              borderColor: isPremium ? AppColors.grassGreen : AppColors.gold,
+                              borderWidth: 2,
                             ),
                             const SizedBox(width: 16),
                             Expanded(
@@ -702,6 +686,11 @@ class _LeaderboardRow extends StatelessWidget {
             child: Text(rankEmoji,
                 style: TextStyle(color: rankColor, fontWeight: FontWeight.bold, fontSize: 15),
                 textAlign: TextAlign.center),
+          ),
+          PlayerHead(
+            username: username,
+            size: 32,
+            borderRadius: 8,
           ),
           const SizedBox(width: 10),
           Expanded(

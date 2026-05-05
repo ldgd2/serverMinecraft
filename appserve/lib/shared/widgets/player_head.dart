@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import '../services/player_head_service.dart';
+import 'package:appserve/core/services/player_head_service.dart';
 
 /// Widget que muestra la cabeza pixelada de un jugador Minecraft.
 /// 

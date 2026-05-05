@@ -32,7 +32,8 @@ class ServerService:
                 jar_path=jar_path,
                 working_dir=working_dir,
                 server_id=record.id,
-                masterbridge_config=masterbridge_config
+                masterbridge_config=masterbridge_config,
+                cpu_cores=record.cpu_cores
             )
             
             # --- Attempt Recovery ---
@@ -195,7 +196,14 @@ class ServerService:
         db.commit()
         db.refresh(server)
 
-        # 8. Create Process
+        # 8. Inject Bridge Mod if needed
+        if mod_loader != "VANILLA":
+            try:
+                self.sync_bridge_mod(name)
+            except Exception as e:
+                print(f"WARNING: Could not sync bridge mod for {name}: {e}")
+
+        # 9. Create Process
         instance = self._create_process(server)
         self.servers[name] = instance
         
@@ -216,12 +224,22 @@ class ServerService:
             jar_path=os.path.join(self.base_dir, server_db.name, "server.jar"),
             working_dir=os.path.join(self.base_dir, server_db.name),
             server_id=server_db.id,
-            masterbridge_config=masterbridge_config
+            masterbridge_config=masterbridge_config,
+            cpu_cores=server_db.cpu_cores
         )
         
-        # print(f"DEBUG: MinecraftProcess created.")
-        
         return process
+
+    def update_process_config(self, name: str, ram_mb: Optional[int] = None, cpu_cores: Optional[float] = None):
+        """Update the configuration of an existing process instance"""
+        instance = self.servers.get(name)
+        if instance:
+            if ram_mb is not None:
+                instance.ram_mb = ram_mb
+            if cpu_cores is not None:
+                instance.cpu_cores = cpu_cores
+            return True
+        return False
 
     def delete_server(self, db: Session, name: str):
         instance = self.servers.get(name)
@@ -257,6 +275,52 @@ class ServerService:
                 except Exception as e:
                     # print(f"ERROR: Unexpected error deleting directory {server_dir}: {e}")
                     raise
+
+    def sync_bridge_mod(self, server_name: str):
+        """Copies the latest modserver binary to the server's mods folder."""
+        import json
+        
+        # 1. Get latest version from versions.json
+        v_file = os.path.abspath("static/versions.json")
+        if not os.path.exists(v_file):
+            return
+            
+        try:
+            with open(v_file, "r") as f:
+                data = json.load(f)
+            version = data.get("modserver")
+            if not version: return
+            
+            # 2. Source path
+            filename = "minebridge-server.jar" # Matching updates.py _PLATFORM_FILE
+            src = os.path.abspath(f"static/versions/modserver/{version}/{filename}")
+            
+            if not os.path.exists(src):
+                # Try fallback names if user renamed it
+                folder = os.path.dirname(src)
+                if os.path.exists(folder):
+                    jars = [f for f in os.listdir(folder) if f.endswith(".jar")]
+                    if jars: src = os.path.join(folder, jars[0])
+                    else: return
+                else: return
+                
+            # 3. Destination path
+            mod_dir = os.path.join(self.base_dir, server_name, "mods")
+            os.makedirs(mod_dir, exist_ok=True)
+            
+            # Remove old versions (masterbridge or minebridge)
+            for f in os.listdir(mod_dir):
+                fl = f.lower()
+                if ("minebridge" in fl or "masterbridge" in fl) and f.endswith(".jar"):
+                    try: os.remove(os.path.join(mod_dir, f))
+                    except: pass
+            
+            shutil.copy2(src, os.path.join(mod_dir, filename))
+            # print(f"INFO: Synced bridge mod to {server_name}")
+            
+        except Exception as e:
+            # print(f"ERROR: Failed to sync bridge mod: {e}")
+            raise
 
     def is_port_free(self, port: int) -> bool:
         import socket

@@ -22,7 +22,7 @@ class ServerService {
   }
 
   Future<ServerModel> updateServer(String name, Map<String, dynamic> data) async {
-    final res = await _client.put('/servers/$name', data: data);
+    final res = await _client.patch('/servers/$name', data: data);
     return ServerModel.fromJson(res.data['data']);
   }
 
@@ -77,6 +77,10 @@ class ServerService {
 
   Future<void> unbanPlayer(String serverName, String username) async {
     await _client.post('/servers/$serverName/players/$username/unban');
+  }
+
+  Future<void> teleport(String name, Map<String, dynamic> data) async {
+    await _client.post('/servers/$name/teleport', data: data);
   }
 
   Future<Map<String, dynamic>> getSystemStats() async {

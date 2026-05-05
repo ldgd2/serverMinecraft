@@ -13,10 +13,11 @@ from database.connection import SessionLocal
 from core.broadcaster import broadcaster
 
 class MinecraftProcess:
-    def __init__(self, name: str, ram_mb: int, jar_path: str, working_dir: str, server_id: int = None, masterbridge_config: Dict = None):
+    def __init__(self, name: str, ram_mb: int, jar_path: str, working_dir: str, server_id: int = None, masterbridge_config: Dict = None, cpu_cores: float = 1.0):
         self.name = name
         self.server_id = server_id
         self.ram_mb = ram_mb
+        self.cpu_cores = cpu_cores
         self.jar_path = jar_path
         self.working_dir = working_dir
         self.process: Optional[async_subprocess.Process] = None
@@ -195,6 +196,19 @@ class MinecraftProcess:
                 stderr=subprocess.STDOUT
             )
             print(f"DEBUG: Process started with PID {self.process.pid}")
+            
+            # --- Set CPU Affinity ---
+            try:
+                p = psutil.Process(self.process.pid)
+                # On Windows/Linux we can try to set affinity. 
+                # cpu_cores is a float, so we take ceil or just a range.
+                # If cpu_cores >= total, we use all.
+                total_cpus = psutil.cpu_count()
+                cores_to_use = min(total_cpus, max(1, int(self.cpu_cores)))
+                p.cpu_affinity(list(range(cores_to_use)))
+                print(f"INFO: Set CPU affinity for {self.name} to {cores_to_use} cores")
+            except Exception as e:
+                print(f"WARN: Failed to set CPU affinity: {e}")
             
             # --- Persist PID ---
             pid_file = os.path.join(self.working_dir, "server.pid")
@@ -561,6 +575,34 @@ class MinecraftProcess:
             return False
         await self.write(f"deop {username}")
         print(f"INFO: De-opped player {username} on {self.name}")
+        return True
+    
+    # --- Teleportation Methods ---
+    async def tp_player_to_player(self, username: str, target_username: str):
+        if not self.is_running() or self._status != "ONLINE":
+            return False
+        await self.write(f"tp {username} {target_username}")
+        print(f"INFO: Teleported {username} to {target_username} on {self.name}")
+        return True
+
+    async def tp_player_to_coords(self, username: str, x: float, y: float, z: float):
+        if not self.is_running() or self._status != "ONLINE":
+            return False
+        await self.write(f"tp {username} {x} {y} {z}")
+        print(f"INFO: Teleported {username} to {x} {y} {z} on {self.name}")
+        return True
+
+    async def tp_players_to_player(self, players: List[str], target_username: str):
+        if not self.is_running() or self._status != "ONLINE":
+            return False
+        # If players is empty or contains '@a', we use '@a'
+        if not players or "@a" in players:
+            await self.write(f"tp @a {target_username}")
+            print(f"INFO: Teleported everyone to {target_username} on {self.name}")
+        else:
+            for player in players:
+                await self.write(f"tp {player} {target_username}")
+            print(f"INFO: Teleported {len(players)} players to {target_username} on {self.name}")
         return True
     
     # --- MasterBridge Event Triggers Removed ---

@@ -87,6 +87,14 @@ def setup_profile(modloader, version):
     for subdir in ["mods", "libraries", "configs"]:
         os.makedirs(os.path.join(profile_path, subdir), exist_ok=True)
 
+    # Autoinyectar el mod del cliente si es Fabric
+    if modloader.lower() == "fabric":
+        try:
+            from core.updater import inject_mod_to_profile
+            inject_mod_to_profile(profile_path)
+        except Exception as e:
+            print(f"[Launcher] Error inyectando mod automático: {e}")
+
     return profile_path
 
 def launch_minecraft_with_profile(modloader, version):
@@ -386,6 +394,9 @@ def launch_minecraft(version_id, callback_dict=None):
                 
                 # Update basic playtime
                 server_name = config.get("server_ip") or "Local / Singleplayer"
+                # Note: Detailed gameplay stats (kills, blocks, etc.) are tracked in real-time by the 
+                # Minecraft bridge mod. The launcher here primarily synchronizes total playtime
+                # for the global profile. Sending 0s here will not overwrite the server-side totals.
                 success = auth.update_player_stats(
                     player_token, 
                     server_name=server_name,

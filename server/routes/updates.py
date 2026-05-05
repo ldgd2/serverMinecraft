@@ -107,19 +107,40 @@ async def _apply_server_mod_update(new_mod_path: str):
     db = SessionLocal()
     try:
         servers = db.query(Server).all()
-        # Avisar a todos
+        # Avisar a todos con títulos nativos inmersivos
         for s in servers:
             try:
+                # El comando minebridge_update activa el timer interno del mod del cliente (si existe)
                 await sc.send_command(s.name, 'minebridge_update 300')
+                
+                # Mensajes nativos inmersivos (Azul/Aqua para información "oficial")
+                await sc.send_command(s.name, 'title @a title {"text":"§9¡MANTENIMIENTO!§r"}')
+                await sc.send_command(s.name, 'title @a subtitle {"text":"§bActualización en curso. Reinicio en 5 minutos.§r"}')
+                await sc.send_command(s.name, 'tellraw @a {"text":"§7[§9INFO§7] §bSe ha subido una nueva versión de los mods. El servidor se reiniciará automáticamente en 5 minutos para aplicar los cambios.§r"}')
+                await sc.send_command(s.name, 'playsound minecraft:block.note_block.chime ambient @a ~ ~ ~ 1 1')
             except Exception: pass
         
-        # Esperar 5 minutos
-        await asyncio.sleep(300)
+        # Esperar 4 minutos
+        await asyncio.sleep(240)
         
-        # Último aviso 1 minuto antes (si quisieramos)
-        
-        # Apagar y actualizar
+        # Aviso de 1 minuto
         for s in servers:
+            try:
+                await sc.send_command(s.name, 'title @a subtitle {"text":"§eQueda 1 minuto para el reinicio...§r"}')
+                await sc.send_command(s.name, 'tellraw @a {"text":"§7[§6WARN§7] §eQueda §l1 minuto§r§e. Por favor, busquen un lugar seguro y guarden sus cosas.§r"}')
+                await sc.send_command(s.name, 'playsound minecraft:block.note_block.bell ambient @a ~ ~ ~ 1 1')
+            except Exception: pass
+        
+        await asyncio.sleep(50)
+        
+        # Cuenta regresiva final 10s
+        for i in range(10, 0, -1):
+            for s in servers:
+                try:
+                    color = "§c" if i <= 3 else "§6"
+                    await sc.send_command(s.name, f'title @a actionbar {{"text":"{color}Reiniciando en {i} segundos...§r"}}')
+                except: pass
+            await asyncio.sleep(1)
             try:
                 # Kickear a los jugadores
                 await sc.send_command(s.name, 'kick @a §cServidor en actualización automática. Vuelve en un minuto.')
@@ -134,14 +155,19 @@ async def _apply_server_mod_update(new_mod_path: str):
                 # Reemplazar archivo en mods/
                 mod_dir = os.path.join("servers", s.name, "mods")
                 if os.path.exists(mod_dir):
+                    # Buscamos cualquier versión de minebridge o masterbridge
                     for f in os.listdir(mod_dir):
-                        if "minebridge" in f.lower() and f.endswith(".jar"):
+                        fl = f.lower()
+                        if ( "minebridge" in fl or "masterbridge" in fl ) and f.endswith(".jar"):
                             try:
+                                print(f"[updates] Eliminando mod antiguo: {f} en {s.name}")
                                 os.remove(os.path.join(mod_dir, f))
                             except: pass
+                    
                     # Copiar el nuevo
-                    shutil.copy2(new_mod_path, os.path.join(mod_dir, _PLATFORM_FILE["modserver"]))
-                    print(f"[updates] Mod reemplazado en {s.name}")
+                    dest_file = _PLATFORM_FILE["modserver"]
+                    shutil.copy2(new_mod_path, os.path.join(mod_dir, dest_file))
+                    print(f"[updates] Mod actualizado ({dest_file}) en {s.name}")
                     
                 # Reiniciar
                 await sc.start_server(s.name)
@@ -306,5 +332,30 @@ def list_versions(platform: str, user=Depends(get_current_user)):
                 }
                 for v in versions
             ],
+        }
+    }
+@router.post("/sync-mods", summary="Forzar actualización de mods en todos los servers (admin)")
+async def sync_mods_now(background_tasks: BackgroundTasks, user=Depends(get_current_user)):
+    """
+    Busca la versión actual de 'modserver' en el sistema de updates
+    y dispara la tarea de fondo para actualizar todos los servidores activos.
+    Útil si se cambió el mod manualmente en static/ o si hay servidores con versiones antiguas.
+    """
+    platform = "modserver"
+    latest = _latest_version(platform)
+    filename = _PLATFORM_FILE[platform]
+    path = os.path.join(_BASE_DIR, platform, latest, filename)
+    
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail=f"No se encontró el binario del mod en {path}")
+    
+    background_tasks.add_task(_apply_server_mod_update, path)
+    
+    return {
+        "status": "ok",
+        "message": "Tarea de actualización de mods iniciada en segundo plano.",
+        "data": {
+            "version": latest,
+            "path": path
         }
     }

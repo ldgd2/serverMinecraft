@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:provider/provider.dart';
-import 'package:appserve/core/constants/app_constants.dart';
 import 'package:appserve/core/models/server_model.dart';
 import 'package:appserve/core/providers/app_providers.dart';
 import 'package:appserve/core/theme/app_colors.dart';
@@ -12,6 +11,7 @@ import 'package:appserve/shared/widgets/mc_card.dart';
 import 'package:appserve/shared/widgets/mc_widgets.dart';
 import 'package:appserve/shared/layouts/mc_screen_layout.dart';
 import 'package:appserve/shared/utils/mc_dialogs.dart';
+import 'package:appserve/shared/widgets/player_head.dart';
 
 class ServerDetailScreen extends StatefulWidget {
   final ServerModel server;
@@ -583,6 +583,44 @@ class _SettingsTab extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        const SectionHeader(title: 'SERVER CONFIGURATION'),
+        const SizedBox(height: 10),
+        McCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Resource Allocation',
+                  style: TextStyle(
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15)),
+              const SizedBox(height: 12),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.memory, color: AppColors.emerald),
+                title: const Text('RAM (MB)', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+                subtitle: Text('${server.ramMb} MB', style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
+                trailing: const Icon(Icons.edit, size: 18, color: AppColors.grassGreenLight),
+                onTap: () => _editResources(context),
+              ),
+              const Divider(color: AppColors.border),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.speed, color: AppColors.diamond),
+                title: const Text('CPU Cores', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+                subtitle: Text('${server.cpuCores} Cores', style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
+                trailing: const Icon(Icons.edit, size: 18, color: AppColors.grassGreenLight),
+                onTap: () => _editResources(context),
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                'Note: Changes to RAM and CPU affinity require a server restart to take effect.',
+                style: TextStyle(color: AppColors.textMuted, fontSize: 11, fontStyle: FontStyle.italic),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 24),
         const SectionHeader(title: 'DANGER ZONE'),
         const SizedBox(height: 10),
         McCard(
@@ -597,8 +635,8 @@ class _SettingsTab extends StatelessWidget {
                       fontSize: 15)),
               const SizedBox(height: 6),
               const Text(
-                  'This action cannot be undone. All server data will be permanently deleted.',
-                  style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
+                'This action cannot be undone. All server data will be permanently deleted.',
+                style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
               const SizedBox(height: 16),
               McButton(
                 label: 'Delete Server',
@@ -612,6 +650,96 @@ class _SettingsTab extends StatelessWidget {
         ),
       ],
     );
+  }
+
+  void _editResources(BuildContext context) async {
+    final sp = context.read<ServerProvider>();
+    final vpsRam = (sp.systemStats['memory_total'] as num?)?.toInt();
+    final vpsCores = (sp.systemStats['cpu_count'] as num?)?.toDouble();
+
+    double ramGb = server.ramMb / 1024;
+    double cpuCores = server.cpuCores;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          backgroundColor: AppColors.backgroundCard,
+          title: const Text('Edit Resource Allocation'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('RAM Allocation: ${ramGb.toStringAsFixed(1)} GB', 
+                style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 13)),
+              const SizedBox(height: 8),
+              SliderTheme(
+                data: SliderTheme.of(context).copyWith(
+                  activeTrackColor: AppColors.emerald,
+                  thumbColor: AppColors.emerald,
+                  overlayColor: AppColors.emerald.withOpacity(0.2),
+                  valueIndicatorColor: AppColors.emerald,
+                ),
+                child: Slider(
+                  value: ramGb.clamp(0.5, (vpsRam ?? 8192) / 1024),
+                  min: 0.5,
+                  max: (vpsRam ?? 8192) / 1024,
+                  divisions: (((vpsRam ?? 8192) / 1024) * 2).toInt() - 1,
+                  label: '${ramGb.toStringAsFixed(1)} GB',
+                  onChanged: (v) => setState(() => ramGb = v),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text('CPU Cores: ${cpuCores.toStringAsFixed(1)} Cores', 
+                style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 13)),
+              const SizedBox(height: 8),
+              SliderTheme(
+                data: SliderTheme.of(context).copyWith(
+                  activeTrackColor: AppColors.diamond,
+                  thumbColor: AppColors.diamond,
+                  overlayColor: AppColors.diamond.withOpacity(0.2),
+                  valueIndicatorColor: AppColors.diamond,
+                ),
+                child: Slider(
+                  value: cpuCores.clamp(0.1, vpsCores ?? 8.0),
+                  min: 0.1,
+                  max: vpsCores ?? 8.0,
+                  divisions: ((vpsCores ?? 8.0) * 10).toInt() - 1,
+                  label: '${cpuCores.toStringAsFixed(1)} Cores',
+                  onChanged: (v) => setState(() => cpuCores = v),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Save', style: TextStyle(color: AppColors.grassGreenLight)),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        await context.read<ServerProvider>().updateServerResources(
+          server.name, 
+          (ramGb * 1024).toInt(), 
+          double.parse(cpuCores.toStringAsFixed(1))
+        );
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Resources updated. Restart server to apply changes.')),
+          );
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+        }
+      }
+    }
   }
 
   void _confirmDelete(BuildContext context) async {
@@ -703,31 +831,15 @@ class _ChatTabState extends State<_ChatTab> {
     HapticFeedback.lightImpact();
   }
 
-  Widget _buildChatAvatar(String? headUrl) {
-    String? fullHeadUrl;
-    if (headUrl != null) {
-      final base = AppConstants.baseUrl.replaceAll('/api/v1', '');
-      fullHeadUrl = '$base$headUrl';
-    }
-
-    return Container(
-      width: 28,
-      height: 28,
-      margin: const EdgeInsets.symmetric(horizontal: 6),
-      decoration: BoxDecoration(
-        color: AppColors.backgroundOverlay,
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: AppColors.border, width: 0.5),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(6),
-        child: fullHeadUrl != null
-            ? Image.network(
-                fullHeadUrl,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => const Icon(Icons.person, size: 14, color: AppColors.textMuted),
-              )
-            : const Icon(Icons.person, size: 14, color: AppColors.textMuted),
+  Widget _buildChatAvatar(String sender) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 6),
+      child: PlayerHead(
+        username: sender,
+        size: 28,
+        borderRadius: 6,
+        borderColor: AppColors.border.withOpacity(0.5),
+        borderWidth: 0.5,
       ),
     );
   }
@@ -805,7 +917,6 @@ class _ChatTabState extends State<_ChatTab> {
                   final isMe = chatType == 'sent' && 
                                sender.toLowerCase() == currentUsername?.toLowerCase();
                   final isOtherAdmin = chatType == 'sent' && !isMe;
-                  final headUrl = msg['head_url']?.toString();
 
                   return Align(
                     alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
@@ -816,7 +927,7 @@ class _ChatTabState extends State<_ChatTab> {
                         crossAxisAlignment: CrossAxisAlignment.end,
                         mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
                         children: [
-                          if (!isMe) _buildChatAvatar(headUrl),
+                          if (!isMe) _buildChatAvatar(sender),
                           Container(
                             margin: EdgeInsets.fromLTRB(isMe ? 60 : 0, 0, isMe ? 0 : 60, 0),
                             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -892,7 +1003,7 @@ class _ChatTabState extends State<_ChatTab> {
                               ],
                             ),
                           ),
-                          if (isMe) _buildChatAvatar(headUrl),
+                          if (isMe) _buildChatAvatar(sender),
                         ],
                       ),
                     ),
@@ -962,9 +1073,19 @@ class _PlayersTabState extends State<_PlayersTab> {
           children: [
             SectionHeader(
               title: 'ONLINE PLAYERS (${sp.onlinePlayers.length})',
-              trailing: IconButton(
-                icon: const Icon(Icons.refresh, size: 20, color: AppColors.textSecondary),
-                onPressed: () => sp.loadPlayers(widget.server.name),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.sync_alt, color: AppColors.gold, size: 20),
+                    onPressed: sp.onlinePlayers.isEmpty ? null : () => _showTeleportDialog(context, sp),
+                    tooltip: 'Teleport Players',
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.refresh, size: 20, color: AppColors.textSecondary),
+                    onPressed: () => sp.loadPlayers(widget.server.name),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 8),
@@ -1007,6 +1128,148 @@ class _PlayersTabState extends State<_PlayersTab> {
           ],
         );
       },
+    );
+  }
+
+  void _showTeleportDialog(BuildContext context, ServerProvider sp) {
+    List<String> selectedPlayers = [];
+    String? targetPlayer;
+    bool toCoords = false;
+    final xCtrl = TextEditingController();
+    final yCtrl = TextEditingController();
+    final zCtrl = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          backgroundColor: AppColors.backgroundCard,
+          title: const Row(
+            children: [
+              Icon(Icons.sync_alt, color: AppColors.gold),
+              SizedBox(width: 10),
+              Text('Teleport Players'),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('1. Select players to teleport:', style: TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                Container(
+                  constraints: const BoxConstraints(maxHeight: 150),
+                  decoration: BoxDecoration(color: AppColors.backgroundDeep, borderRadius: BorderRadius.circular(8)),
+                  child: ListView(
+                    shrinkWrap: true,
+                    children: [
+                      CheckboxListTile(
+                        title: const Text('All Players (@a)', style: TextStyle(fontSize: 13)),
+                        value: selectedPlayers.contains('@a'),
+                        activeColor: AppColors.gold,
+                        onChanged: (v) => setState(() {
+                          if (v == true) {
+                            selectedPlayers = ['@a'];
+                          } else {
+                            selectedPlayers.remove('@a');
+                          }
+                        }),
+                      ),
+                      ...sp.onlinePlayers.map((p) {
+                        final name = p['username'] ?? 'Unknown';
+                        return CheckboxListTile(
+                          title: Text(name, style: const TextStyle(fontSize: 13)),
+                          value: selectedPlayers.contains(name),
+                          activeColor: AppColors.gold,
+                          onChanged: selectedPlayers.contains('@a') ? null : (v) => setState(() {
+                            if (v == true) {
+                              selectedPlayers.add(name);
+                            } else {
+                              selectedPlayers.remove(name);
+                            }
+                          }),
+                        );
+                      }),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('2. Destination:', style: TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.bold)),
+                    Row(
+                      children: [
+                        const Text('Coords', style: TextStyle(fontSize: 11)),
+                        Switch(
+                          value: !toCoords, 
+                          onChanged: (v) => setState(() => toCoords = !v),
+                          activeColor: AppColors.gold,
+                        ),
+                        const Text('Player', style: TextStyle(fontSize: 11)),
+                      ],
+                    ),
+                  ],
+                ),
+                if (toCoords) ...[
+                  Row(
+                    children: [
+                      Expanded(child: TextField(controller: xCtrl, decoration: const InputDecoration(labelText: 'X'), keyboardType: TextInputType.number)),
+                      const SizedBox(width: 8),
+                      Expanded(child: TextField(controller: yCtrl, decoration: const InputDecoration(labelText: 'Y'), keyboardType: TextInputType.number)),
+                      const SizedBox(width: 8),
+                      Expanded(child: TextField(controller: zCtrl, decoration: const InputDecoration(labelText: 'Z'), keyboardType: TextInputType.number)),
+                    ],
+                  ),
+                ] else ...[
+                  DropdownButtonFormField<String>(
+                    value: targetPlayer,
+                    items: sp.onlinePlayers.map<DropdownMenuItem<String>>((p) {
+                      final name = p['username']?.toString() ?? 'Unknown';
+                      return DropdownMenuItem<String>(value: name, child: Text(name));
+                    }).toList(),
+                    onChanged: (v) => setState(() => targetPlayer = v),
+                    decoration: const InputDecoration(hintText: 'Select target player'),
+                    dropdownColor: AppColors.backgroundCard,
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+            McButton(
+              label: 'Teleport',
+              icon: Icons.send,
+              onPressed: (selectedPlayers.isEmpty || (!toCoords && targetPlayer == null)) 
+                ? null 
+                : () async {
+                    try {
+                      if (toCoords) {
+                        final x = double.tryParse(xCtrl.text) ?? 0.0;
+                        final y = double.tryParse(yCtrl.text) ?? 0.0;
+                        final z = double.tryParse(zCtrl.text) ?? 0.0;
+                        for (var p in selectedPlayers) {
+                          await sp.teleportPlayerToCoords(widget.server.name, p, x, y, z);
+                        }
+                      } else if (targetPlayer != null) {
+                        if (selectedPlayers.length == 1 && selectedPlayers.first != '@a') {
+                          await sp.teleportPlayerToPlayer(widget.server.name, selectedPlayers.first, targetPlayer!);
+                        } else {
+                          await sp.teleportPlayersToPlayer(widget.server.name, selectedPlayers, targetPlayer!);
+                        }
+                      }
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Teleport command sent!')));
+                    } catch (e) {
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+                    }
+                  },
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -1184,15 +1447,6 @@ class _PlayerListItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final name = player['username']?.toString() ?? player['name']?.toString() ?? 'Unknown';
-    final headUrl = player['head_url']?.toString();
-    
-    // Construct full image URL
-    String? fullHeadUrl;
-    if (headUrl != null) {
-      final base = AppConstants.baseUrl.replaceAll('/api/v1', '');
-      fullHeadUrl = '$base$headUrl';
-    }
-
     final isPremium = player['is_premium'] == true;
 
     return Container(
@@ -1204,34 +1458,10 @@ class _PlayerListItem extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: Row(
             children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: AppColors.backgroundOverlay,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: fullHeadUrl != null 
-                    ? Image.network(
-                        fullHeadUrl,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => const Icon(Icons.person, color: AppColors.textSecondary),
-                        loadingBuilder: (context, child, loadingProgress) {
-                          if (loadingProgress == null) return child;
-                          return Center(
-                            child: CircularProgressIndicator(
-                              value: loadingProgress.expectedTotalBytes != null
-                                ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
-                                : null,
-                              strokeWidth: 2,
-                            ),
-                          );
-                        },
-                      )
-                    : const Icon(Icons.person, color: AppColors.textSecondary),
-                ),
+              PlayerHead(
+                username: name,
+                size: 40,
+                borderRadius: 8,
               ),
               const SizedBox(width: 12),
               Expanded(

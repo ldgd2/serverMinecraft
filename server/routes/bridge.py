@@ -127,37 +127,44 @@ async def receive_event(event: dict, request: Request, user: User = Depends(veri
                 if os_info: player_obj.detail.os = os_info
                 
                 if skin_b64:
-                    # Guardamos el PNG crudo para uso interno (cabezas, etc)
-                    player_obj.detail.skin_base64 = skin_b64
-                    player_obj.detail.skin_last_update = datetime.datetime.utcnow()
-                    
-                    # 1. Identificar si es PNG crudo o Textura firmada
-                    # El PNG crudo empieza con 'iVBOR' (base64 de \x89PNG)
-                    is_raw_png = skin_b64.startswith("iVBOR")
-                    
-                    final_value = skin_b64
-                    final_signature = ""
-                    
-                    if is_raw_png:
-                        # Necesitamos firmarla para que Minecraft la acepte
-                        from core.skin_utils import upload_to_mineskin
-                        signed_data = upload_to_mineskin(skin_b64)
-                        if signed_data:
-                            final_value = signed_data['value']
-                            final_signature = signed_data['signature']
-                        else:
-                            logger.warning(f"[Bridge] No se pudo firmar la skin de {player_name} via MineSkin")
+                    # Solo procesar si la skin es nueva o ha cambiado
+                    old_skin = player_obj.detail.skin_base64
+                    if skin_b64 != old_skin:
+                        logger.info(f"[Bridge] Nueva skin detectada para {player_name}. Sincronizando...")
+                        
+                        player_obj.detail.skin_base64 = skin_b64
+                        player_obj.detail.skin_last_update = datetime.datetime.utcnow()
+                        
+                        # 1. Identificar si es PNG crudo o Textura firmada
+                        # El PNG crudo empieza con 'iVBOR' (base64 de \x89PNG)
+                        is_raw_png = skin_b64.startswith("iVBOR")
+                        
+                        final_value = skin_b64
+                        final_signature = ""
+                        
+                        if is_raw_png:
+                            # Necesitamos firmarla para que Minecraft la acepte
+                            from core.skin_utils import upload_to_mineskin
+                            signed_data = upload_to_mineskin(skin_b64)
+                            if signed_data:
+                                final_value = signed_data['value']
+                                final_signature = signed_data['signature']
+                            else:
+                                logger.warning(f"[Bridge] No se pudo firmar la skin de {player_name} via MineSkin")
 
-                    # 2. Guardar los valores firmados
-                    player_obj.detail.skin_value = final_value
-                    player_obj.detail.skin_signature = final_signature
-                    
-                    # 3. Sincronizar con SkinRestorer
-                    from core.skinrestorer_bridge import set_skin_in_skinrestorer
-                    set_skin_in_skinrestorer(db, player_obj.name, final_value, final_signature)
-                    
-                    # 4. Notificar al Mod por WebSocket para refresco en tiempo real
-                    asyncio.create_task(manager.send_sync_skin(user.username, player_obj.name))
+                        # 2. Guardar los valores firmados
+                        player_obj.detail.skin_value = final_value
+                        player_obj.detail.skin_signature = final_signature
+                        
+                        # 3. Sincronizar con SkinRestorer
+                        from core.skinrestorer_bridge import set_skin_in_skinrestorer
+                        set_skin_in_skinrestorer(db, player_obj.name, final_value, final_signature)
+                        
+                        # 4. Notificar al Mod por WebSocket para refresco en tiempo real
+                        asyncio.create_task(manager.send_sync_skin(user.username, player_obj.name))
+                    else:
+                        # Si es la misma, solo actualizamos el timestamp de "visto"
+                        player_obj.detail.skin_last_update = datetime.datetime.utcnow()
                 
                 db.commit()
     return {"status": "ok"}

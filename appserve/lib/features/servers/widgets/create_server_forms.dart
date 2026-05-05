@@ -145,42 +145,107 @@ class ConnectivityForm extends StatelessWidget {
   }
 }
 
-class ResourcesForm extends StatelessWidget {
+class ResourcesForm extends StatefulWidget {
   final TextEditingController ramCtrl;
   final TextEditingController maxPlayersCtrl;
   final TextEditingController diskCtrl;
+  final TextEditingController cpuCoresCtrl;
+  final int? vpsRamMb;
+  final double? vpsCores;
 
   const ResourcesForm({
     super.key,
     required this.ramCtrl,
     required this.maxPlayersCtrl,
     required this.diskCtrl,
+    required this.cpuCoresCtrl,
+    this.vpsRamMb,
+    this.vpsCores,
   });
 
   @override
+  State<ResourcesForm> createState() => _ResourcesFormState();
+}
+
+class _ResourcesFormState extends State<ResourcesForm> {
+  late double _ramGb;
+  late double _cpuCores;
+
+  @override
+  void initState() {
+    super.initState();
+    // Initialize from controller values or defaults
+    _ramGb = (double.tryParse(widget.ramCtrl.text) ?? 2048) / 1024;
+    _cpuCores = double.tryParse(widget.cpuCoresCtrl.text) ?? 1.0;
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final maxRamGb = (widget.vpsRamMb ?? 8192) / 1024;
+    final maxCores = widget.vpsCores ?? 8.0;
+
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // RAM Selection
+        Text('RAM Allocation: ${_ramGb.toStringAsFixed(1)} GB', 
+          style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 13)),
+        const SizedBox(height: 4),
+        SliderTheme(
+          data: SliderTheme.of(context).copyWith(
+            activeTrackColor: AppColors.emerald,
+            thumbColor: AppColors.emerald,
+            overlayColor: AppColors.emerald.withOpacity(0.2),
+            valueIndicatorColor: AppColors.emerald,
+          ),
+          child: Slider(
+            value: _ramGb.clamp(0.5, maxRamGb),
+            min: 0.5,
+            max: maxRamGb,
+            divisions: (maxRamGb * 2).toInt() - 1,
+            label: '${_ramGb.toStringAsFixed(1)} GB',
+            onChanged: (v) {
+              setState(() {
+                _ramGb = v;
+                widget.ramCtrl.text = (v * 1024).toInt().toString();
+              });
+            },
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // CPU Cores Selection
+        Text('CPU Cores: ${_cpuCores.toStringAsFixed(1)} Cores', 
+          style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 13)),
+        const SizedBox(height: 4),
+        SliderTheme(
+          data: SliderTheme.of(context).copyWith(
+            activeTrackColor: AppColors.diamond,
+            thumbColor: AppColors.diamond,
+            overlayColor: AppColors.diamond.withOpacity(0.2),
+            valueIndicatorColor: AppColors.diamond,
+          ),
+          child: Slider(
+            value: _cpuCores.clamp(0.1, maxCores),
+            min: 0.1,
+            max: maxCores,
+            divisions: (maxCores * 10).toInt() - 1,
+            label: '${_cpuCores.toStringAsFixed(1)} Cores',
+            onChanged: (v) {
+              setState(() {
+                _cpuCores = v;
+                widget.cpuCoresCtrl.text = v.toStringAsFixed(1);
+              });
+            },
+          ),
+        ),
+        const SizedBox(height: 24),
+
         Row(
           children: [
             Expanded(
               child: McTextField(
-                controller: ramCtrl,
-                label: 'RAM (MB)',
-                prefixIcon: Icons.memory,
-                keyboardType: TextInputType.number,
-                validator: (v) {
-                  if (v == null || v.isEmpty) return 'Required';
-                  final ram = int.tryParse(v);
-                  if (ram == null || ram < 512) return 'Min 512MB';
-                  return null;
-                },
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: McTextField(
-                controller: maxPlayersCtrl,
+                controller: widget.maxPlayersCtrl,
                 label: 'Max Players',
                 prefixIcon: Icons.people,
                 keyboardType: TextInputType.number,
@@ -191,20 +256,21 @@ class ResourcesForm extends StatelessWidget {
                 },
               ),
             ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: McTextField(
+                controller: widget.diskCtrl,
+                label: 'Disk (MB)',
+                prefixIcon: Icons.storage,
+                keyboardType: TextInputType.number,
+                validator: (v) {
+                  if (v == null || v.isEmpty) return 'Required';
+                  if (int.tryParse(v) == null) return 'Must be a number';
+                  return null;
+                },
+              ),
+            ),
           ],
-        ),
-        const SizedBox(height: 16),
-        McTextField(
-          controller: diskCtrl,
-          label: 'Disk Limit (MB)',
-          prefixIcon: Icons.storage,
-          keyboardType: TextInputType.number,
-          hint: '10000',
-          validator: (v) {
-            if (v == null || v.isEmpty) return 'Required';
-            if (int.tryParse(v) == null) return 'Must be a number';
-            return null;
-          },
         ),
       ],
     );
@@ -218,6 +284,7 @@ class ReviewSummary extends StatelessWidget {
   final String port;
   final bool onlineMode;
   final String ram;
+  final String cpuCores;
   final String maxPlayers;
   final ValueChanged<int> onEditStep;
 
@@ -229,6 +296,7 @@ class ReviewSummary extends StatelessWidget {
     required this.port,
     required this.onlineMode,
     required this.ram,
+    required this.cpuCores,
     required this.maxPlayers,
     required this.onEditStep,
   });
@@ -255,7 +323,7 @@ class ReviewSummary extends StatelessWidget {
           _ReviewRow('Mode', onlineMode ? 'Premium' : 'Cracked',
               onEdit: () => onEditStep(2)),
           const Divider(color: AppColors.border, height: 24),
-          _ReviewRow('Resources', '${ram}MB RAM • $maxPlayers Slots',
+          _ReviewRow('Resources', '${(int.tryParse(ram) ?? 2048) / 1024}GB RAM • ${cpuCores} Cores • $maxPlayers Slots',
               onEdit: () => onEditStep(3)),
         ],
       ),

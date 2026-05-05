@@ -100,6 +100,10 @@ class ApiClient {
   Future<Response> put(String path, {dynamic data}) =>
       _dio.put(path, data: data);
 
+  // Generic PATCH
+  Future<Response> patch(String path, {dynamic data}) =>
+      _dio.patch(path, data: data);
+
   // Generic DELETE
   Future<Response> delete(String path) => _dio.delete(path);
 

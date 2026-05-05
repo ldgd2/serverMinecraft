@@ -157,3 +157,12 @@ class SpecialEventRequest(BaseModel):
     type: str
     target: Optional[str] = None
 
+class TeleportRequest(BaseModel):
+    mode: str # "player_to_player", "player_to_coords", "players_to_player"
+    username: Optional[str] = None # For player_to_player or player_to_coords
+    target_username: Optional[str] = None # For player_to_player or players_to_player
+    x: Optional[float] = None
+    y: Optional[float] = None
+    z: Optional[float] = None
+    players: Optional[List[str]] = None # For players_to_player (can be ["@a"])
+

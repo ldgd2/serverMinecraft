@@ -211,6 +211,11 @@ class SettingsView(tk.Frame):
         self.inputs["minecraft_dir"].pack(fill="x", pady=10)
         
         self._create_toggle(frame, "fullscreen", "Forzar Pantalla Completa", "Inicia el juego abarcando completamente tu monitor sin bordes de ventana.")
+        
+        # ── Test Verification Text ──
+        tk.Label(frame, text="PRUEBA COMPLETA: SISTEMA ACTUALIZADO", 
+                 font=mc_font(10, bold=True), fg=Colors.PREMIUM_GREEN, 
+                 bg=Colors.PANEL_DARK, pady=20).pack(anchor="w")
 
     def _build_java_tab(self):
         frame = tk.Frame(self.details_area, bg=Colors.PANEL_DARK)

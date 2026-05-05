@@ -292,11 +292,21 @@ class AuthController:
         """Obtiene el perfil completo del jugador autenticado."""
         url = f"{self.api_url}/player-auth/profile"
         try:
+            print(f"[Auth] Solicitando perfil a: {url}")
             res = requests.get(url, headers={"Authorization": f"Bearer {player_token}"}, timeout=10)
+            print(f"[Auth] Perfil response: {res.status_code}")
+            
             if res.status_code == 200:
-                return res.json().get("data", {})
-        except:
-            pass
+                data = res.json().get("data", {})
+                print(f"[Auth] Perfil cargado: {len(data.get('achievements', []))} logros.")
+                return data
+            elif res.status_code == 401:
+                print(f"[Auth] ERROR: Sesión inválida o expirada (401).")
+                return {"_error": "auth_failed"}
+            else:
+                print(f"[Auth] Error al obtener perfil: {res.status_code} - {res.text}")
+        except Exception as e:
+            print(f"[Auth] Excepción al obtener perfil: {str(e)}")
         return {}
 
     def update_player_stats(self, player_token: str, server_name: str, **kwargs) -> bool:

@@ -11,6 +11,8 @@ import 'package:appserve/features/settings/screens/settings_screen.dart';
 import 'package:appserve/features/system/screens/version_manager_screen.dart';
 import 'package:appserve/shared/utils/mc_dialogs.dart';
 import 'package:appserve/shared/widgets/mc_cards.dart';
+import 'package:appserve/shared/widgets/player_head.dart';
+import 'package:appserve/core/providers/player_provider.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -35,6 +37,7 @@ class _HomeScreenState extends State<HomeScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<ServerProvider>().loadServers();
       context.read<ServerProvider>().loadSystemStats();
+      context.read<PlayerProvider>().loadLeaderboard();
     });
   }
 
@@ -129,6 +132,8 @@ class _DashboardTab extends StatelessWidget {
                 sliver: SliverList(
                   delegate: SliverChildListDelegate([
                     _buildWelcomeBanner(context),
+                    const SizedBox(height: 20),
+                    _buildTopPlayersRow(context),
                     const SizedBox(height: 20),
                     _buildStatCards(context),
                     const SizedBox(height: 20),
@@ -320,6 +325,56 @@ class _DashboardTab extends StatelessWidget {
               ),
             ),
           )).toList(),
+        );
+      },
+    );
+  }
+
+  Widget _buildTopPlayersRow(BuildContext context) {
+    return Consumer<PlayerProvider>(
+      builder: (_, pp, __) {
+        if (pp.leaderboard.isEmpty) return const SizedBox.shrink();
+        
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SectionHeader(title: 'TOP NETWORK PLAYERS'),
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 70,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: pp.leaderboard.length > 10 ? 10 : pp.leaderboard.length,
+                itemBuilder: (context, i) {
+                  final entry = pp.leaderboard[i];
+                  final username = entry['username'] ?? '—';
+                  
+                  return Container(
+                    width: 60,
+                    margin: const EdgeInsets.only(right: 12),
+                    child: Column(
+                      children: [
+                        PlayerHead(
+                          username: username,
+                          size: 44,
+                          borderRadius: 12,
+                          borderColor: i == 0 ? AppColors.gold : (i == 1 ? AppColors.diamond : (i == 2 ? const Color(0xFFCD7F32) : null)),
+                          borderWidth: i < 3 ? 1.5 : 0,
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          username,
+                          style: const TextStyle(color: AppColors.textMuted, fontSize: 10, fontWeight: FontWeight.bold),
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  ).animate().fadeIn(delay: (i * 50).ms).scale(begin: const Offset(0.8, 0.8));
+                },
+              ),
+            ),
+          ],
         );
       },
     );

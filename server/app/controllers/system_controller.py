@@ -96,6 +96,7 @@ class SystemController:
             
             return {
                 "cpu": round(cpu_percent, 1),
+                "cpu_count": psutil.cpu_count(),
                 "memory_used": memory_used_mb,
                 "memory_total": memory_total_mb,
                 "disk": round(disk_percent, 1),

@@ -27,6 +27,7 @@ class _CreateServerScreenState extends State<CreateServerScreen> {
   bool _onlineMode = false;
 
   final _ramCtrl = TextEditingController(text: '2048');
+  final _cpuCoresCtrl = TextEditingController(text: '1.0');
   final _maxPlayersCtrl = TextEditingController(text: '20');
   final _diskCtrl = TextEditingController(text: '10000');
 
@@ -35,6 +36,7 @@ class _CreateServerScreenState extends State<CreateServerScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<VersionProvider>().loadInstalledVersions();
+      context.read<ServerProvider>().loadSystemStats();
     });
   }
 
@@ -44,6 +46,7 @@ class _CreateServerScreenState extends State<CreateServerScreen> {
     _portCtrl.dispose();
     _motdCtrl.dispose();
     _ramCtrl.dispose();
+    _cpuCoresCtrl.dispose();
     _maxPlayersCtrl.dispose();
     _diskCtrl.dispose();
     super.dispose();
@@ -75,6 +78,7 @@ class _CreateServerScreenState extends State<CreateServerScreen> {
       'version': _selectedVersion,
       'mod_loader': _selectedLoader,
       'ram_mb': int.tryParse(_ramCtrl.text) ?? 2048,
+      'cpu_cores': double.tryParse(_cpuCoresCtrl.text) ?? 1.0,
       'port': int.tryParse(_portCtrl.text) ?? 25565,
       'online_mode': _onlineMode,
       'motd': _motdCtrl.text,
@@ -235,12 +239,17 @@ class _CreateServerScreenState extends State<CreateServerScreen> {
       isActive: _currentStep >= 3,
       title: const Text('Resources',
           style: TextStyle(fontWeight: FontWeight.bold)),
-      content: Form(
-        key: _formKeys[3],
-        child: ResourcesForm(
-          ramCtrl: _ramCtrl,
-          maxPlayersCtrl: _maxPlayersCtrl,
-          diskCtrl: _diskCtrl,
+      content: Consumer<ServerProvider>(
+        builder: (context, sp, _) => Form(
+          key: _formKeys[3],
+          child: ResourcesForm(
+            ramCtrl: _ramCtrl,
+            cpuCoresCtrl: _cpuCoresCtrl,
+            maxPlayersCtrl: _maxPlayersCtrl,
+            diskCtrl: _diskCtrl,
+            vpsRamMb: (sp.systemStats['memory_total'] as num?)?.toInt(),
+            vpsCores: (sp.systemStats['cpu_count'] as num?)?.toDouble(),
+          ),
         ),
       ),
     );
@@ -259,6 +268,7 @@ class _CreateServerScreenState extends State<CreateServerScreen> {
         port: _portCtrl.text,
         onlineMode: _onlineMode,
         ram: _ramCtrl.text,
+        cpuCores: _cpuCoresCtrl.text,
         maxPlayers: _maxPlayersCtrl.text,
         onEditStep: (step) => setState(() => _currentStep = step),
       ),
