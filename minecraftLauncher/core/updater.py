@@ -54,16 +54,24 @@ def check_for_update(silent: bool = True) -> dict | None:
     base = _get_api_base()
     if not base:
         return None
-    url = f"{base}/updates/check/{PLATFORM}?current_version={LAUNCHER_VERSION}"
+    
+    # IMPORTANTE: Usamos la versión de info.py para comparar
+    from .info import VERSION as CURRENT
+    url = f"{base}/updates/check/{PLATFORM}?current_version={CURRENT}"
+    
     try:
         resp = requests.get(url, timeout=5)
         if resp.status_code == 200:
             data = resp.json().get("data", {})
+            # Debug log si no es silencioso
+            if not silent:
+                print(f"[Updater] Server: {data.get('latest_version')} | Local: {CURRENT} | Update: {data.get('has_update')}")
+            
             if data.get("has_update") and data.get("download_url"):
                 return data
     except Exception as e:
         if not silent:
-            print(f"[Updater] {e}")
+            print(f"[Updater] Error check: {e}")
     return None
 
 
@@ -127,56 +135,87 @@ def apply_launcher_update(tmp_path: str):
     """Crea el script .bat para reemplazar el ejecutable actual y relanzar."""
     import sys
     import subprocess
+    import time
     
-    current_exe = sys.executable
+    current_exe = os.path.abspath(sys.executable)
     exe_dir = os.path.dirname(current_exe)
     pid = os.getpid()
     
-    # El BAT ahora es más agresivo para asegurar que el proceso muera y el archivo se libere
+    # Usamos la carpeta del exe para el BAT en lugar de TEMP para evitar bloqueos de políticas
+    bat_path = os.path.join(exe_dir, "launcher_update_task.bat")
+    
+    # El BAT ahora es más agresivo y profesional
     bat_content = f"""@echo off
-title Actualizador Minecraft
+setlocal enabledelayedexpansion
+title Actualizador Minecraft Launcher
+color 0b
+
 echo.
-echo  [>] Esperando a que el Launcher (PID: {pid}) se cierre...
+echo  ==============================================
+echo     ACTUALIZADOR DE MINECRAFT LAUNCHER
+echo  ==============================================
+echo.
+echo  [>] Esperando a que el proceso {pid} termine...
 taskkill /F /PID {pid} >nul 2>&1
 timeout /t 2 /nobreak >nul
 
-set RETRY_COUNT=0
-:try_move
-echo  [>] Reemplazando: "{current_exe}"
-echo  [>] Intento %RETRY_COUNT% de 10...
-move /Y "{tmp_path}" "{current_exe}"
-if %ERRORLEVEL% NEQ 0 (
-    set /a RETRY_COUNT+=1
-    if %RETRY_COUNT% GEQ 10 (
-        echo.
-        echo  [X] ERROR: No se pudo reemplazar el archivo (acceso denegado).
-        echo  [!] Esto suele pasar si un antivirus o Windows lo bloquea.
-        echo  [!] Por favor, mueve este archivo manualmente para actualizar:
-        echo      DE:   "{tmp_path}"
-        echo      A:    "{current_exe}"
-        echo.
-        pause
-        exit
-    )
+set RETRY=0
+:try_replace
+set /a RETRY+=1
+echo  [>] Intento de reemplazo !RETRY! de 15...
+
+:: Intentar mover el archivo (reemplazar)
+move /Y "{tmp_path}" "{current_exe}" >nul 2>&1
+
+if !ERRORLEVEL! EQU 0 (
+    echo  [OK] Archivo reemplazado con exito.
+    goto success
+) else (
+    echo  [!] Archivo bloqueado o acceso denegado. Reintentando...
     timeout /t 2 /nobreak >nul
-    goto try_move
+    if !RETRY! GEQ 15 goto error
+    goto try_replace
 )
 
+:success
 echo.
-echo  [✓] ¡Actualización exitosa!
+echo  [OK] Actualizacion completada correctamente.
 echo  [>] Reiniciando Launcher...
 timeout /t 1 /nobreak >nul
 start "" "{current_exe}"
 del "%~f0"
+exit
+
+:error
+echo.
+echo  [X] ERROR FATAL: No se pudo completar la actualizacion.
+echo  [!] El archivo "{current_exe}" sigue bloqueado.
+echo  [!] Intenta cerrar el Launcher manualmente y ejecuta:
+echo      move /Y "{tmp_path}" "{current_exe}"
+echo.
+pause
+exit
 """
-    bat_path = os.path.join(tempfile.gettempdir(), f"mc_update_{int(time.time())}.bat")
-    with open(bat_path, "w", encoding="cp1252") as f:
-        f.write(bat_content)
+    try:
+        # Escribir con codificación ANSI (cp1252) para que CMD no tenga problemas con tildes/espacios
+        with open(bat_path, "w", encoding="cp1252") as f:
+            f.write(bat_content)
+            
+        print(f"[Updater] Ejecutando script de actualizacion: {bat_path}")
         
-    # Ejecutar .bat y salir inmediatamente
-    subprocess.Popen(["cmd.exe", "/c", bat_path], 
-                     creationflags=subprocess.CREATE_NEW_CONSOLE if os.name == 'nt' else 0)
-    os._exit(0)
+        # Ejecutar .bat y salir inmediatamente
+        # Usamos shell=False y una lista para evitar problemas de inyección/espacios
+        subprocess.Popen(["cmd.exe", "/c", bat_path], 
+                         cwd=exe_dir,
+                         creationflags=subprocess.CREATE_NEW_CONSOLE if os.name == 'nt' else 0)
+        
+        # Salida limpia para permitir que el BAT haga su trabajo
+        time.sleep(0.5)
+        os._exit(0)
+    except Exception as e:
+        print(f"[Updater] Error al lanzar el script de actualizacion: {e}")
+        # Intentar al menos cerrar para no dejar al usuario colgado
+        os._exit(1)
 
 
 # ── Ventana de descarga animada (Para uso automático al inicio) ───────────────

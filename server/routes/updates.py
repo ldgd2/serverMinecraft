@@ -190,15 +190,27 @@ async def _apply_server_mod_update(new_mod_path: str):
                     await sc.send_command(s.name, f'title @a actionbar {{"text":"{color}Reiniciando en {i} segundos...§r"}}')
                 except: pass
             await asyncio.sleep(1)
+            
+        # ── Proceso de apagado y reemplazo ──
+        for s in servers:
             try:
-                # Kickear a los jugadores
-                await sc.send_command(s.name, 'kick @a §cServidor en actualización automática. Vuelve en un minuto.')
+                # No intentar apagar si el servidor ya está OFFLINE o crasheado
+                status = sc.get_status(s.name).get("status")
+                if status in ("OFFLINE", "ERROR"):
+                    continue
+                
+                # Kickear a los jugadores para evitar pérdida de datos
+                await sc.send_command(s.name, 'kick @a §cServidor en actualización automática. Aplicando cambios...')
                 await asyncio.sleep(2)
                 
                 # Detener
                 await sc.stop_server(s.name)
-                # Esperar hasta 20s para que se detenga
+                
+                # Esperar a que se detenga (máximo 20s)
                 for _ in range(10):
+                    status = sc.get_status(s.name).get("status")
+                    if status == "OFFLINE":
+                        break
                     await asyncio.sleep(2)
                     
                 # Reemplazar archivo en mods/

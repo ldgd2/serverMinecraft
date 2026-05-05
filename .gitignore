@@ -34,6 +34,9 @@ Thumbs.db
 # Los archivos se suben al VPS vía API (empaquetar.py → POST /upload)
 # Nada de esto debe ir a GitHub
 server/static/
+server/static/versions.json
+server/static/versions/
+server/database/mine_db.sqlite
 
 # ── Packager credentials ──────────────────────────────────────────────────────
 minecraftLauncher/.packager_config

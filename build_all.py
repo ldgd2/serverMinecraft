@@ -660,8 +660,8 @@ def main():
     if choice not in ('1', '2', '3', '4'):
         print("  [X] Opción inválida"); sys.exit(1)
 
-    print(f"\n  ── Conectando a {remote_url} ──")
-    if not cfg: cfg = _get_api_config()
+    if not cfg: cfg = _load_api_config()
+    print(f"\n  ── Conectando a {cfg['api_url']} ──")
     try:
         token = _get_token(cfg)
         print("  [✓] Autenticado correctamente")
