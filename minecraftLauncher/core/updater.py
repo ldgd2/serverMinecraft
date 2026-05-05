@@ -307,13 +307,16 @@ def install_mod_update(download_url: str, latest_version: str, progress_callback
         total = int(resp.headers.get("content-length", 0))
         done = 0
         
-        # Detectar si es zip por la URL o por el contenido
-        is_zip = download_url.lower().endswith(".zip")
-        
-        fd, tmp_path = tempfile.mkstemp(suffix=".zip" if is_zip else ".jar")
+        # Escribir a un archivo temporal y detectar si es ZIP por los primeros bytes
+        fd, tmp_path = tempfile.mkstemp(suffix=".tmp")
+        is_zip = False
         with os.fdopen(fd, 'wb') as f:
+            first_chunk = True
             for chunk in resp.iter_content(chunk_size=65536):
                 if chunk:
+                    if first_chunk:
+                        is_zip = chunk.startswith(b'PK\x03\x04')
+                        first_chunk = False
                     f.write(chunk)
                     done += len(chunk)
                     if total and progress_callback:
@@ -322,6 +325,11 @@ def install_mod_update(download_url: str, latest_version: str, progress_callback
         if status_callback: status_callback("Instalando mods...")
         base_dir = config.get("minecraft_dir") or minecraft_launcher_lib.utils.get_minecraft_directory()
         master_mod_dir = os.path.join(base_dir, "launcher_data", "mods")
+        
+        # Renombrar con la extensión correcta para mayor claridad (opcional)
+        new_tmp = tmp_path + (".zip" if is_zip else ".jar")
+        os.rename(tmp_path, new_tmp)
+        tmp_path = new_tmp
         
         # Limpiar almacén maestro antes de la nueva versión
         if os.path.exists(master_mod_dir):
@@ -373,17 +381,23 @@ def inject_mod_to_profile(profile_path: str):
         except: pass
     os.makedirs(mods_dir, exist_ok=True)
             
-    # 2. Copiar todo el contenido del almacén maestro
-    for item in os.listdir(master_mod_dir):
-        src = os.path.join(master_mod_dir, item)
-        dst = os.path.join(mods_dir, item)
-        try:
-            if os.path.isdir(src):
-                shutil.copytree(src, dst)
-            else:
-                shutil.copy2(src, dst)
-        except Exception as e:
-            print(f"[Updater] Error sincronizando {item}: {e}")
+    target_mods_dir = os.path.join(profile_path, "mods")
+    
+    try:
+        # Realizar sincronización completa: Borrar y copiar todo
+        if os.path.exists(target_mods_dir):
+            shutil.rmtree(target_mods_dir)
+        
+        if os.path.exists(master_mod_dir) and os.listdir(master_mod_dir):
+            shutil.copytree(master_mod_dir, target_mods_dir)
+            files = os.listdir(target_mods_dir)
+            print(f"[Launcher] Sincronizados {len(files)} mods al perfil: {', '.join(files[:5])}{'...' if len(files)>5 else ''}")
+        else:
+            os.makedirs(target_mods_dir, exist_ok=True)
+            print(f"[Launcher] Perfil inicializado con carpeta mods vacía (no hay mods en master).")
+            
+    except Exception as e:
+        print(f"[Launcher] Error sincronizando mods al perfil: {e}")
 
 
 def check_and_prompt(root_window=None, log_cb=None):
