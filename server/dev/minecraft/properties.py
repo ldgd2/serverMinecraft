@@ -236,17 +236,33 @@ def setup_skinrestorer_auto(server_name: str):
     
     # 1. Get Base URL from .env
     from dev.system.env import get_env_variable
-    app_url = get_env_variable("APP_URL")
+    api_host = get_env_variable("API_HOST")
+    api_port = get_env_variable("API_PORT") or "8000"
     
-    if not app_url:
-        # Fallback to auto-detection if not in .env
-        try:
-            public_ip = urllib.request.urlopen('https://api.ipify.org').read().decode('utf8')
-            app_url = f"http://{public_ip}:8000"
-            console.print(f"[yellow]! APP_URL not found in .env. Using detected IP: {public_ip}[/yellow]")
-        except:
-            app_url = "http://127.0.0.1:8000"
-            console.print("[red]! Could not detect IP. Falling back to localhost.[/red]")
+    if api_host:
+        if api_host == "0.0.0.0":
+            # Fallback to auto-detection if it's just binding all
+            try:
+                public_ip = urllib.request.urlopen('https://api.ipify.org').read().decode('utf8')
+                app_url = f"http://{public_ip}:{api_port}"
+                console.print(f"[yellow]! API_HOST is 0.0.0.0. Using detected public IP: {public_ip}[/yellow]")
+            except:
+                app_url = f"http://127.0.0.1:{api_port}"
+                console.print("[red]! Could not detect IP. Falling back to localhost.[/red]")
+        else:
+            app_url = f"http://{api_host}:{api_port}"
+    else:
+        # Compatibility check for legacy APP_URL if still present
+        app_url = get_env_variable("APP_URL")
+        if not app_url:
+            # Full fallback
+            try:
+                public_ip = urllib.request.urlopen('https://api.ipify.org').read().decode('utf8')
+                app_url = f"http://{public_ip}:{api_port}"
+                console.print(f"[yellow]! API_HOST not found. Using detected IP: {public_ip}[/yellow]")
+            except:
+                app_url = f"http://127.0.0.1:{api_port}"
+                console.print("[red]! Could not detect IP. Falling back to localhost.[/red]")
 
     # 2. Path to config.json
     base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -322,7 +338,15 @@ def setup_skinrestorer_auto(server_name: str):
         console.print(f"[dim]Provider: MineManager -> {app_url}[/dim]")
         
         # 4. Also setup MineBridge Mod Config
-        setup_minebridge_mod_auto(server_name, app_url)
+        # If LOCAL_MOD_COMM is true, the mod (running on this VPS) should talk to localhost
+        is_local = get_env_variable("LOCAL_MOD_COMM")
+        if is_local and is_local.lower() == "true":
+            mod_app_url = f"http://127.0.0.1:{api_port}"
+            console.print(f"[yellow]! LOCAL_MOD_COMM is enabled. Mod will use: {mod_app_url}[/yellow]")
+        else:
+            mod_app_url = app_url
+            
+        setup_minebridge_mod_auto(server_name, mod_app_url)
         
     except Exception as e:
         console.print(f"[bold red]Error updating JSON: {e}[/bold red]")

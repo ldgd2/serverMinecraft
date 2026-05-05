@@ -79,6 +79,29 @@ def get_profile_path(modloader, version):
     profile_dir = f"{modloader.lower()}-{version}"
     return os.path.join(profiles_dir, profile_dir)
 
+def download_offline_skins_mod(minecraft_directory):
+    """Descarga el mod OfflineSkins de GitHub para que las skins se vean en modo No-Premium."""
+    import requests
+    master_mod_dir = os.path.join(minecraft_directory, "launcher_data", "mods")
+    os.makedirs(master_mod_dir, exist_ok=True)
+    
+    # Versión específica para 1.21.1 Fabric
+    target_path = os.path.join(master_mod_dir, "OfflineSkins-Fabric-1.21.1.jar")
+    
+    if not os.path.exists(target_path):
+        url = "https://github.com/ArthurPoundragon/OfflineSkins/releases/download/v2.8.2/OfflineSkins-Fabric-1.21.1-2.8.2.jar"
+        try:
+            print(f"[Launcher] Descargando mod de skins locales desde GitHub...")
+            response = requests.get(url, timeout=15)
+            response.raise_for_status()
+            with open(target_path, 'wb') as f:
+                f.write(response.content)
+            print("[Launcher] Mod OfflineSkins listo en el almacén maestro.")
+        except Exception as e:
+            print(f"[-] No se pudo descargar OfflineSkins: {e}")
+            return None
+    return target_path
+
 def setup_profile(modloader, version):
     """Ensure the profile directory exists and is properly initialized."""
     profile_path = get_profile_path(modloader, version)
@@ -88,8 +111,13 @@ def setup_profile(modloader, version):
     for subdir in ["mods", "libraries", "configs"]:
         os.makedirs(os.path.join(profile_path, subdir), exist_ok=True)
 
-    # Autoinyectar el mod del cliente si es Fabric
-    if modloader.lower() == "fabric":
+    # 1. Descargar mods extra si es No-Premium y Fabric
+    if modloader.lower() == "fabric" and config.get("auth_type") != "premium":
+        minecraft_directory = config.get("minecraft_dir")
+        download_offline_skins_mod(minecraft_directory)
+
+    # 2. Autoinyectar el mod del cliente si es Fabric y está activa la opción
+    if modloader.lower() == "fabric" and config.get("auto_sync_mods"):
         try:
             from core.updater import inject_mod_to_profile
             inject_mod_to_profile(profile_path)

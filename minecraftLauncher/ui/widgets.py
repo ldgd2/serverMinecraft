@@ -294,6 +294,9 @@ class MinecraftButton(tk.Canvas):
         self.text = text
         self._draw()
 
+    def set_command(self, command):
+        self.command = command
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  MinecraftLabel (with pixel drop shadow)
@@ -814,5 +817,49 @@ class MinecraftDatePicker(tk.Frame):
         if month == 2: return 29 # Allow 29th for birthdays
         return 31
 
-    def get(self):
-        return f"{self.month.get():02d}-{self.day.get():02d}"
+# ─────────────────────────────────────────────────────────────────────────────
+#  MinecraftToast
+# ─────────────────────────────────────────────────────────────────────────────
+
+class MinecraftToast(tk.Frame):
+    """
+    A floating notification bar with Minecraft aesthetics.
+    """
+    def __init__(self, master, text="", subtext="", action_text="Actualizar", 
+                 on_action=None, on_close=None, **kwargs):
+        super().__init__(master, bg="#1a1a1a", highlightthickness=2, 
+                         highlightbackground=Colors.PANEL_BORDER, **kwargs)
+        
+        self._on_action = on_action
+        self._on_close = on_close
+
+        # Content Container
+        inner = tk.Frame(self, bg="#1a1a1a", padx=15, pady=10)
+        inner.pack(fill="both", expand=True)
+
+        # Icon (Warning icon)
+        from PIL import Image, ImageTk
+        ico_path = Assets.ICON_WARN
+        if os.path.exists(ico_path):
+            img = Image.open(ico_path).convert("RGBA").resize((32, 32), Image.NEAREST)
+            self._tk_ico = ImageTk.PhotoImage(img)
+            tk.Label(inner, image=self._tk_ico, bg="#1a1a1a").pack(side="left", padx=(0, 15))
+
+        # Text Block
+        txt_frame = tk.Frame(inner, bg="#1a1a1a")
+        txt_frame.pack(side="left", fill="both", expand=True)
+
+        tk.Label(txt_frame, text=text, fg=Colors.YELLOW, bg="#1a1a1a", 
+                 font=mc_font(11, bold=True), anchor="w").pack(fill="x")
+        if subtext:
+            tk.Label(txt_frame, text=subtext, fg=Colors.GRAY_TEXT, bg="#1a1a1a", 
+                     font=mc_font(9), anchor="w").pack(fill="x")
+
+        # Buttons
+        if on_action:
+            MinecraftButton(inner, text=action_text, width=120, height=30, 
+                             font_size=10, command=on_action).pack(side="left", padx=10)
+
+        # Close Button (X)
+        MinecraftButton(inner, text="X", width=30, height=30, 
+                         font_size=10, command=on_close).pack(side="left")

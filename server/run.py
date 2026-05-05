@@ -31,8 +31,8 @@ if __name__ == "__main__":
     load_dotenv()
     
     # Define host and port for Uvicorn
-    host = os.getenv("HOST", "0.0.0.0")
-    port = int(os.getenv("PORT", "8000"))
+    host = os.getenv("API_HOST", "0.0.0.0")
+    port = int(os.getenv("API_PORT", "8000"))
     
     # Address printing moved to main.py startup_event
     

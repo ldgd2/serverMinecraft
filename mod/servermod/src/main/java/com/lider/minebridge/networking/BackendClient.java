@@ -13,6 +13,8 @@ import java.util.concurrent.CompletionStage;
 
 public class BackendClient {
     private String baseUrl;
+    private String localUrl;
+    private String activeUrl;
     private String apiKey;
     private final HttpClient httpClient;
     private final Gson gson;
@@ -22,10 +24,12 @@ public class BackendClient {
     private final java.util.concurrent.CopyOnWriteArrayList<JsonObject> batchChats = new java.util.concurrent.CopyOnWriteArrayList<>();
     private java.util.concurrent.ScheduledExecutorService scheduler;
 
-    public BackendClient(String baseUrl, String apiKey) {
+    public BackendClient(String baseUrl, String localUrl, String apiKey) {
         this.baseUrl = (baseUrl == null || baseUrl.isEmpty() || baseUrl.equals("PENDING")) ? null : (baseUrl.endsWith("/") ? baseUrl : baseUrl + "/");
+        this.localUrl = (localUrl == null || localUrl.isEmpty() || localUrl.equals("PENDING")) ? null : (localUrl.endsWith("/") ? localUrl : localUrl + "/");
         this.apiKey = (apiKey == null || apiKey.isEmpty() || apiKey.equals("PENDING")) ? null : apiKey;
-        
+        this.activeUrl = this.localUrl != null ? this.localUrl : this.baseUrl;
+
         // Force HTTP/1.1 to avoid "Unsupported upgrade request" issues with some proxies/backends
         this.httpClient = HttpClient.newBuilder()
             .version(HttpClient.Version.HTTP_1_1)
@@ -33,8 +37,8 @@ public class BackendClient {
             
         this.gson = new Gson();
         
-        if (this.baseUrl != null && this.apiKey != null) {
-            connectWebSocket();
+        if (this.activeUrl != null && this.apiKey != null) {
+            detectBestUrlAndConnect();
         } else {
             MineBridge.LOGGER.warn("Backend configuration is PENDING. Use /minebridge set-url and set-key to initialize.");
         }
@@ -44,9 +48,43 @@ public class BackendClient {
         scheduler.scheduleAtFixedRate(this::flushBatch, 10, 30, java.util.concurrent.TimeUnit.SECONDS);
     }
 
+    private void detectBestUrlAndConnect() {
+        if (localUrl == null) {
+            this.activeUrl = baseUrl;
+            connectWebSocket();
+            return;
+        }
+
+        // Probar si localhost responde
+        HttpRequest request = HttpRequest.newBuilder()
+            .uri(URI.create(localUrl + "api/v1/bridge/test"))
+            .header("X-API-Key", apiKey)
+            .GET()
+            .timeout(java.time.Duration.ofSeconds(2))
+            .build();
+
+        httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
+            .thenAccept(res -> {
+                if (res.statusCode() == 200) {
+                    this.activeUrl = localUrl;
+                    MineBridge.LOGGER.info("Local backend detected. Using: " + activeUrl);
+                } else {
+                    this.activeUrl = baseUrl;
+                    MineBridge.LOGGER.info("Local backend failed (HTTP " + res.statusCode() + "). Falling back to: " + activeUrl);
+                }
+                connectWebSocket();
+            })
+            .exceptionally(t -> {
+                this.activeUrl = baseUrl;
+                MineBridge.LOGGER.info("Local backend unreachable. Falling back to: " + activeUrl);
+                connectWebSocket();
+                return null;
+            });
+    }
+
     private void connectWebSocket() {
-        if (baseUrl == null || apiKey == null) return;
-        String wsUrl = baseUrl.replace("http", "ws") + "api/v1/ws/bridge";
+        if (activeUrl == null || apiKey == null) return;
+        String wsUrl = activeUrl.replace("http", "ws") + "api/v1/ws/bridge";
         httpClient.newWebSocketBuilder()
             .header("X-API-Key", apiKey)
             .buildAsync(URI.create(wsUrl), new WebSocketListener())
@@ -112,7 +150,7 @@ public class BackendClient {
         }
 
         HttpRequest request = HttpRequest.newBuilder()
-            .uri(URI.create(baseUrl + "api/v1/bridge/test"))
+            .uri(URI.create(activeUrl + "api/v1/bridge/test"))
             .header("X-API-Key", apiKey)
             .GET()
             .build();
@@ -134,7 +172,7 @@ public class BackendClient {
             // MineBridge.LOGGER.info("DEBUG: Sending POST to " + endpoint + ": " + jsonBody);
             
             HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(baseUrl + endpoint))
+                .uri(URI.create(activeUrl + endpoint))
                 .version(HttpClient.Version.HTTP_1_1) // Double check version here
                 .header("Content-Type", "application/json")
                 .header("X-API-Key", apiKey)

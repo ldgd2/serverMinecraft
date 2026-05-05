@@ -38,7 +38,7 @@ public class MineBridge implements ModInitializer {
         ModConfig.load();
         detectPublicIp();
 
-        backendClient = new BackendClient(ModConfig.getBackendUrl(), ModConfig.getApiKey());
+        backendClient = new BackendClient(ModConfig.getBackendUrl(), ModConfig.getLocalUrl(), ModConfig.getApiKey());
 
         ServerEvents.init();
         ModCommands.init();

@@ -16,9 +16,6 @@
   "environment": "*",
   "entrypoints": {
     "main": [
-      "com.lider.minebridge.MineBridge"
-    ],
-    "client": [
       "com.lider.minebridge.MineBridgeClient"
     ]
   },

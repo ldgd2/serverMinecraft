@@ -107,6 +107,11 @@ async def verify_bridge_auth(
 
 # --- Handlers ---
 
+@router.get("/test")
+async def test_connection(user: User = Depends(verify_bridge_auth)):
+    """Simple endpoint to verify API Key and connectivity."""
+    return {"status": "ok", "message": "Connection successful", "user": user.username}
+
 @router.post("/events")
 async def receive_event(event: dict, request: Request, user: User = Depends(verify_bridge_auth)):
     player_name = event.get("player", "Unknown")
@@ -211,11 +216,16 @@ async def receive_event(event: dict, request: Request, user: User = Depends(veri
 
 
 @router.post("/status/player")
-async def receive_player_status(event: dict, request: Request, user: User = Depends(verify_bridge_auth)):
+async def receive_player_status(request: Request, user: User = Depends(verify_bridge_auth)):
     """
     Endpoint usado por el Launcher para reportar que el jugador está activo,
     su IP actual y su Skin.
     """
+    try:
+        event = await request.json()
+    except:
+        raise HTTPException(status_code=400, detail="Invalid JSON body")
+    
     # Reutilizamos la lógica de receive_event
     return await receive_event(event, request, user)
 

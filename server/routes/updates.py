@@ -103,6 +103,40 @@ def _validate_version(version: str):
     if not re.match(r"^\d+\.\d+\.\d+$", version):
         raise HTTPException(status_code=422, detail="version must be X.Y.Z format")
 
+def _rotate_versions(platform: str, new_version: str):
+    """
+    Mantiene solo la versión recién subida y la versión inmediatamente anterior (puntero actual).
+    Borra todas las demás carpetas de versiones antiguas para ahorrar espacio.
+    """
+    import shutil
+    folder = os.path.join(_BASE_DIR, platform)
+    if not os.path.isdir(folder): return
+    
+    # Obtener todas las carpetas de versiones existentes
+    versions = [d for d in os.listdir(folder) if os.path.isdir(os.path.join(folder, d))]
+    # Ordenar por tupla semántica
+    versions.sort(key=_version_tuple)
+    
+    # Identificar la versión que era la "actual" antes de subir la nueva
+    data = _load()
+    current_pointer = data.get(platform)
+    
+    # Conjunto de versiones que queremos PRESERVAR
+    to_keep = {new_version}
+    if current_pointer:
+        to_keep.add(current_pointer)
+        
+    print(f"[updates] Rotando versiones para {platform}. Preservando: {to_keep}")
+    
+    for v in versions:
+        if v not in to_keep:
+            v_dir = os.path.join(folder, v)
+            try:
+                print(f"[updates] Eliminando versión antigua obsoleta: {platform}/v{v}")
+                shutil.rmtree(v_dir)
+            except Exception as e:
+                print(f"[updates] No se pudo borrar {v_dir}: {e}")
+
 async def _apply_server_mod_update(new_mod_path: str):
     """
     Background task:
@@ -289,6 +323,9 @@ async def upload_version(
 
     size_mb = os.path.getsize(dest_path) / 1_048_576
     print(f"[upload] Guardado OK: {filename} ({size_mb:.1f} MB)")
+
+    # ── Rotación de versiones ──
+    _rotate_versions(platform, version)
 
     # Actualizar puntero
     data = _load()

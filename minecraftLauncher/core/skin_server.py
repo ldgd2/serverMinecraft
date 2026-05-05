@@ -27,11 +27,19 @@ class SkinHTTPHandler(http.server.BaseHTTPRequestHandler):
         # Silence standard HTTP logging to keep console clean
         pass
 
+    def do_POST(self):
+        """Handle POST requests from authlib-injector (login, join, etc)."""
+        # For a local skin server, we just return success (204 No Content) 
+        # to prevent the game from hanging during session join/validation.
+        self.send_response(204)
+        self.send_header('Content-length', '0')
+        self.end_headers()
+
     def do_GET(self):
         # Remove query parameters for routing
         path = self.path.split('?')[0]
         
-        if path == "/":
+        if path == "/" or path == "/yggdrasil":
             self.handle_metadata()
         elif path.startswith("/sessionserver/session/minecraft/profile/"):
             # Extract UUID from path
@@ -43,9 +51,15 @@ class SkinHTTPHandler(http.server.BaseHTTPRequestHandler):
         elif path.startswith("/skin/"):
             self.handle_skin_file()
         else:
-            self.send_error(404, "Not Found")
+            # Fallback for any other Mojang-like path to avoid 404 hangs
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            self.wfile.write(b"{}")
 
     def handle_metadata(self):
+        host = self.headers.get('Host', '127.0.0.1')
+        base = f"http://{host}"
         metadata = {
             "meta": {
                 "serverName": "Local Skin Server",
@@ -53,7 +67,10 @@ class SkinHTTPHandler(http.server.BaseHTTPRequestHandler):
                 "implementationVersion": "1.0"
             },
             "skinDomains": ["localhost", "127.0.0.1"],
-            "signaturePublickey": PEM_PUBLIC_KEY
+            "signaturePublickey": PEM_PUBLIC_KEY,
+            "authenticationHost": base,
+            "sessionHost": base,
+            "servicesHost": base
         }
         self.send_json_response(metadata)
 

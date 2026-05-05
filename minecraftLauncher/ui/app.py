@@ -148,6 +148,50 @@ class LauncherApp(tk.Tk):
         self.show_view(self.updates_view, "updates")
         self.after(300, lambda: self.updates_view.on_show() if hasattr(self.updates_view, 'on_show') else None)
 
+    def on_launcher_update_detected(self, latest, url):
+        """Llamado desde el updater en background cuando hay una nueva versión."""
+        from core.info import VERSION as CURRENT
+        from ui.widgets import MinecraftToast
+        
+        def do_update():
+            self._hide_toast()
+            self.show_updates_view()
+            if hasattr(self.updates_view, "trigger_auto_update"):
+                self.updates_view.trigger_auto_update(latest, url)
+
+        msg = "¡Actualización Disponible!"
+        sub = f"v{CURRENT} → v{latest}. ¡Nuevas mejoras listas!"
+        
+        self.show_toast(msg, sub, action_text="Actualizar", on_action=do_update)
+
+    def show_toast(self, text, subtext="", action_text="OK", on_action=None):
+        from ui.widgets import MinecraftToast
+        self._hide_toast()
+        
+        self._current_toast = MinecraftToast(
+            self, text=text, subtext=subtext,
+            action_text=action_text, on_action=on_action,
+            on_close=self._hide_toast
+        )
+        # Position at the top, sliding down
+        self._current_toast.place(relx=0.5, y=-100, anchor="n", relwidth=0.8)
+        self._animate_toast(target_y=20)
+
+    def _hide_toast(self):
+        if hasattr(self, "_current_toast") and self._current_toast:
+            self._current_toast.destroy()
+            self._current_toast = None
+
+    def _animate_toast(self, target_y, current_y=-100):
+        if not self._current_toast or not self._current_toast.winfo_exists():
+            return
+        if current_y >= target_y:
+            self._current_toast.place(relx=0.5, y=target_y, anchor="n", relwidth=0.8)
+            return
+        new_y = current_y + 5
+        self._current_toast.place(relx=0.5, y=new_y, anchor="n", relwidth=0.8)
+        self.after(10, lambda: self._animate_toast(target_y, new_y))
+
     # ── Auth callbacks ────────────────────────────────────────────────────────
 
     def on_login_success(self):

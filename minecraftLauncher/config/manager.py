@@ -46,6 +46,7 @@ DEFAULT_CONFIG = {
     # ── No-Premium server ─────────────────────────────────────────────────────
     "server_ip":        "",
     "server_port":      25565,
+    "server_name":      "Lider Server",
     "api_url":          "",
     "api_key":          "",             # For bridge endpoints
     "auth_api_url":     "",
@@ -73,6 +74,7 @@ DEFAULT_CONFIG = {
     "language":         "es_ES",
     "discord_rpc":      True,
     "check_updates":    True,
+    "auto_sync_mods":   True,
     "log_level":        "INFO",     # "DEBUG" | "INFO" | "WARNING"
     "jvm_mode":         "manual",   # "auto" | "manual"
 }

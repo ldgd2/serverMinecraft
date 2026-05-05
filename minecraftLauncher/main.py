@@ -16,10 +16,10 @@ def main():
     # Initialize main application first (needed for tkinter root before dialog)
     app = LauncherApp()
 
-    # Check for updates in background (shows dialog if update available)
+    # Check for updates in background (shows toast if update available)
     try:
         from core.updater import check_and_prompt
-        check_and_prompt(root_window=app)
+        check_and_prompt(app)
     except Exception:
         pass  # Never block startup due to updater errors
 

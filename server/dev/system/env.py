@@ -94,9 +94,8 @@ def run_universal_wizard():
         {"key": "DB_USER", "desc": "PostgreSQL Username", "default": "postgres"},
         {"key": "DB_PASSWORD", "desc": "PostgreSQL Password", "default": "postgres"},
         {"key": "API_PORT", "desc": "Port for the FastAPI backend", "default": "8000"},
-        {"key": "API_HOST", "desc": "Host for the FastAPI backend", "default": "0.0.0.0"},
-        {"key": "PUBLIC_IP", "desc": "Public IP of the VPS", "default": detected_ip},
-        {"key": "APP_URL", "desc": "Base URL (auto-generated from IP/Port)", "default": f"http://{detected_ip}:8000"},
+        {"key": "API_HOST", "desc": "API Host (Real IP/Domain or 0.0.0.0)", "default": detected_ip},
+        {"key": "LOCAL_MOD_COMM", "desc": "Use localhost for Mod<->API communication (true/false)", "default": "false"},
         {"key": "DEFAULT_MINECRAFT_RAM", "desc": "Default RAM allocation for servers", "default": "4096M"},
         {"key": "DEFAULT_MINECRAFT_CORES", "desc": "Default CPU Cores for servers", "default": "6"},
     ]
@@ -160,12 +159,13 @@ def sync_public_ip():
         import urllib.request
         public_ip = urllib.request.urlopen('https://api.ipify.org').read().decode('utf8')
         api_port = get_env_variable("API_PORT") or "8000"
-        new_url = f"http://{public_ip}:{api_port}"
         
         console.print(f"[green]✓ Detected IP: {public_ip}[/green]")
-        update_env_variable("PUBLIC_IP", public_ip)
-        update_env_variable("APP_URL", new_url)
-        console.print(f"[bold green]✓ .env updated: PUBLIC_IP={public_ip}, APP_URL={new_url}[/bold green]")
+        update_env_variable("API_HOST", public_ip)
+        
+        # Build URLs
+        app_url = f"http://{public_ip}:{api_port}"
+        console.print(f"[bold green]✓ .env updated: API_HOST={public_ip}[/bold green]")
         
         # 3. Also update App (Flutter) .env if it exists
         # Relative path from server/ to appserve/
@@ -176,7 +176,7 @@ def sync_public_ip():
                     app_content = f.read()
                 
                 # Update API_URL in Flutter env
-                new_api_url = f"{new_url}/api/v1"
+                new_api_url = f"{app_url}/api/v1"
                 if "API_URL=" in app_content:
                     app_content = re.sub(r"^API_URL=.*$", f"API_URL={new_api_url}", app_content, flags=re.MULTILINE)
                 else:

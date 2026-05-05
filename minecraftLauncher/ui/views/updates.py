@@ -70,8 +70,8 @@ class UpdatesView(tk.Frame):
         self.prog_bg.pack_propagate(False)
 
         # La barra verde
-        self.prog_bar = tk.Frame(self.prog_bg, bg=Colors.PREMIUM_GREEN, width=0)
-        self.prog_bar.pack(side="left", fill="y")
+        self.prog_bar = tk.Frame(self.prog_bg, bg=Colors.PREMIUM_GREEN)
+        self.prog_bar.place(relx=0, rely=0, relwidth=0, relheight=1)
         
         # Alias para compatibilidad
         self.progress = self.prog_container
@@ -127,13 +127,9 @@ class UpdatesView(tk.Frame):
         self._progress_bar_internal.config(width=0)
 
     def _set_progress(self, value: int):
-        # El ancho total del contenedor es aprox panel_width * 0.7 - 100
-        # Pero podemos usar winfo_width() del contenedor para ser precisos
-        w_total = self.prog_bg.winfo_width()
-        if w_total <= 1: w_total = 400 # Fallback
-        
-        w_now = int(w_total * (value / 100))
-        self._progress_bar_internal.config(width=w_now)
+        # Usamos relwidth para que sea independiente del ancho en píxeles
+        pct = value / 100.0
+        self._progress_bar_internal.place(relx=0, rely=0, relwidth=pct, relheight=1)
         self.update_idletasks()
 
     # ── Check for updates ─────────────────────────────────────────────────────
@@ -199,7 +195,7 @@ class UpdatesView(tk.Frame):
         """Muestra el botón de descarga para lo que esté pendiente."""
         txt = "⬇  Descargar todo" if len(download_data) > 1 else f"⬇  Descargar {'Launcher' if 'launcher' in download_data else 'Mods'}"
         self.check_btn.set_text(txt)
-        self.check_btn.config(command=lambda: self._do_download_all(download_data))
+        self.check_btn.set_command(lambda: self._do_download_all(download_data))
 
     def _do_download_all(self, download_data: dict):
         self.check_btn.set_text("Descargando...")
@@ -214,35 +210,57 @@ class UpdatesView(tk.Frame):
             from core.updater import download_and_install_launcher, install_mod_update
             
             def _update_prog(pct):
-                self._set_progress(pct)
+                self.after(0, lambda: self._set_progress(pct))
                 
             def _update_status(txt):
-                self._set_status(txt, Colors.YELLOW)
+                self.after(0, lambda: self._set_status(txt, Colors.YELLOW))
 
             # 1. Download Mods if available
             if "mods" in download_data:
                 m_info = download_data["mods"]
                 url = m_info.get("download_url")
                 version = m_info.get("latest_version")
-                install_mod_update(
+                if not url:
+                    raise Exception("URL de descarga de mods no disponible.")
+                
+                _update_status(f"⬇ Descargando Mods v{version}...")
+                success = install_mod_update(
                     url, version,
-                    progress_callback=lambda p: self.after(0, lambda: _update_prog(p)),
-                    status_callback=lambda t: self.after(0, lambda: _update_status(t))
+                    progress_callback=_update_prog,
+                    status_callback=_update_status
                 )
+                if not success:
+                    raise Exception("Error durante la instalación de los mods.")
 
             # 2. Download Launcher if available
             if "launcher" in download_data:
-                url = download_data["launcher"].get("download_url")
+                l_info = download_data["launcher"]
+                url = l_info.get("download_url")
+                version = l_info.get("latest_version")
+                if not url:
+                    raise Exception("URL de descarga del Launcher no disponible.")
+                
+                _update_status(f"⬇ Descargando Launcher v{version}...")
+                
                 success = download_and_install_launcher(
                     url,
-                    progress_callback=lambda p: self.after(0, lambda: _update_prog(p)),
-                    status_callback=lambda t: self.after(0, lambda: _update_status(t))
+                    progress_callback=_update_prog,
+                    status_callback=_update_status
                 )
+                # Nota: Si tiene éxito, download_and_install_launcher termina en os._exit(0)
                 if not success:
-                    self.after(0, self._on_download_failed)
-                    return
+                    raise Exception("Error durante la actualización del Launcher.")
+                return
                 
             self.after(0, lambda: self._set_status("✓ ¡Actualización completada!", Colors.PREMIUM_GREEN))
+            self.after(0, lambda: self.check_btn.set_text("✓ Completado"))
+
+        except Exception as e:
+            err_msg = f"Error: {str(e)}"
+            self.after(0, lambda: self._set_status(err_msg, Colors.RED))
+            self.after(0, lambda: self.check_btn.set_text("Reintentar"))
+            self.after(0, lambda: self.check_btn.configure_state(False))
+            print(f"[Updates] Worker error: {e}")
             self.after(0, lambda: self.check_btn.set_text("Cerrar"))
             self.after(0, lambda: self.check_btn.configure_state(False))
             self.after(0, self._hide_progress)
@@ -263,6 +281,18 @@ class UpdatesView(tk.Frame):
     def _go_back(self):
         if self.app:
             self.app.show_home_view()
+
+    def trigger_auto_update(self, latest, url):
+        """Inicia la descarga automáticamente al detectar un update crítico."""
+        data = {
+            "launcher": {
+                "latest_version": latest,
+                "download_url": url
+            }
+        }
+        self._set_status(f"Nueva versión v{latest} detectada.", Colors.YELLOW)
+        # Usamos _do_download_all para que se ejecute en un thread y no bloquee
+        self.after(1000, lambda: self._do_download_all(data))
 
     def on_show(self):
         pass

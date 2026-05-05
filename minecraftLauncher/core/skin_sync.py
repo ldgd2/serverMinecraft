@@ -37,6 +37,7 @@ def notify_backend(ip_objetivo, username, uuid, url_api):
             "player": username,
             "uuid": uuid if uuid else "",
             "server_id": config.get("server_id") or 1,
+            "server_name": config.get("server_name") or "Minecraft Server",
             "ip": player_ip,
             "country": player_country if player_country else "??",
             "os": platform.system(),

@@ -16,6 +16,7 @@ public class ModConfig {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     
     private static String backendUrl = "PENDING";
+    private static String localUrl = "PENDING";
     private static String apiKey = "PENDING";
     private static String serverIp = "0.0.0.0";
     private static String serverName = "MinecraftTest";
@@ -35,6 +36,7 @@ public class ModConfig {
         try (FileReader reader = new FileReader(file)) {
             JsonObject json = GSON.fromJson(reader, JsonObject.class);
             if (json.has("backend_url")) backendUrl = json.get("backend_url").getAsString();
+            if (json.has("local_url")) localUrl = json.get("local_url").getAsString();
             if (json.has("api_key")) apiKey = json.get("api_key").getAsString();
             if (json.has("server_ip")) serverIp = json.get("server_ip").getAsString();
             if (json.has("server_name")) serverName = json.get("server_name").getAsString();
@@ -47,6 +49,7 @@ public class ModConfig {
         try (FileWriter writer = new FileWriter(CONFIG_PATH.toFile())) {
             JsonObject json = new JsonObject();
             json.addProperty("backend_url", backendUrl);
+            json.addProperty("local_url", localUrl);
             json.addProperty("api_key", apiKey);
             json.addProperty("server_ip", serverIp);
             json.addProperty("server_name", serverName);
@@ -56,7 +59,12 @@ public class ModConfig {
         }
     }
 
-    public static String getBackendUrl() { return backendUrl; }
+    public static String getBackendUrl() { 
+        // Si hay una URL local configurada y no es PENDING, podrías priorizarla o usarla como fallback
+        // El usuario dice: si no recibe configuración local, usa la pública.
+        return backendUrl; 
+    }
+    public static String getLocalUrl() { return localUrl; }
     public static String getApiKey() { return apiKey; }
     public static String getServerIp() { return serverIp; }
     public static String getServerName() { return serverName; }

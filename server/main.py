@@ -160,8 +160,8 @@ async def startup_event():
     
     # Print server addresses (Forced Flush for Windows support)
     import os
-    host = os.getenv("HOST", "0.0.0.0")
-    port = os.getenv("PORT", "8000")
+    host = os.getenv("API_HOST", "0.0.0.0")
+    port = os.getenv("API_PORT", "8000")
     print_host = os.getenv("WS_HOST") or host
     print_port = os.getenv("WS_PORT") or port
     print(f"Starting Minecraft Server Manager on http://{host}:{port}", flush=True)
@@ -198,8 +198,8 @@ if __name__ == "__main__":
     from dotenv import load_dotenv
     load_dotenv()
     
-    host = os.getenv("HOST", "0.0.0.0")
-    port = int(os.getenv("PORT", "8000"))
+    host = os.getenv("API_HOST", "0.0.0.0")
+    port = int(os.getenv("API_PORT", "8000"))
 
     # Start .env file watcher for dynamic SECRET_KEY reloading
     event_handler = EnvFileHandler()

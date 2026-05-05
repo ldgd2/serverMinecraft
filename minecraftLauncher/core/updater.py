@@ -124,59 +124,59 @@ def download_and_install_launcher(url: str, progress_callback=None, status_callb
 
 
 def apply_launcher_update(tmp_path: str):
-    """Crea el script .bat para reemplazar el ejecutable y relanzar."""
-    import shutil
-    
-    # Ruta destino: C:/Games/minecraftLauncher/launcher.exe
-    system_drive = os.environ.get("SystemDrive", "C:")
-    # Asegurar que termina en backslash para que join funcione como ruta absoluta
-    if not system_drive.endswith("\\"): system_drive += "\\"
-    
-    target_dir = os.path.join(system_drive, "Games", "minecraftLauncher")
-    target_exe = os.path.join(target_dir, "launcher.exe")
+    """Crea el script .bat para reemplazar el ejecutable actual y relanzar."""
+    import sys
+    import subprocess
     
     current_exe = sys.executable
+    exe_dir = os.path.dirname(current_exe)
     pid = os.getpid()
     
-    try:
-        os.makedirs(target_dir, exist_ok=True)
-    except:
-        pass
-
+    # El BAT ahora es más agresivo para asegurar que el proceso muera y el archivo se libere
     bat_content = f"""@echo off
 title Actualizador Minecraft
-echo Finalizando actualizacion...
-:wait_process
-tasklist /FI "PID eq {pid}" 2>NUL | find /I /N "{pid}">NUL
-if "%ERRORLEVEL%"=="0" (
-    timeout /t 1 /nobreak >nul
-    goto wait_process
-)
-timeout /t 1 /nobreak >nul
+echo.
+echo  [>] Esperando a que el Launcher (PID: {pid}) se cierre...
+taskkill /F /PID {pid} >nul 2>&1
+timeout /t 2 /nobreak >nul
 
-:: Intentar mover al destino final
-move /Y "{tmp_path}" "{target_exe}"
+set RETRY_COUNT=0
+:try_move
+echo  [>] Reemplazando: "{current_exe}"
+echo  [>] Intento %RETRY_COUNT% de 10...
+move /Y "{tmp_path}" "{current_exe}"
 if %ERRORLEVEL% NEQ 0 (
-    echo [!] No se pudo mover a {target_exe}. Intentando en la ruta original...
-    move /Y "{tmp_path}" "{current_exe}"
-    set "FINAL_EXE={current_exe}"
-) else (
-    set "FINAL_EXE={target_exe}"
+    set /a RETRY_COUNT+=1
+    if %RETRY_COUNT% GEQ 10 (
+        echo.
+        echo  [X] ERROR: No se pudo reemplazar el archivo (acceso denegado).
+        echo  [!] Esto suele pasar si un antivirus o Windows lo bloquea.
+        echo  [!] Por favor, mueve este archivo manualmente para actualizar:
+        echo      DE:   "{tmp_path}"
+        echo      A:    "{current_exe}"
+        echo.
+        pause
+        exit
+    )
+    timeout /t 2 /nobreak >nul
+    goto try_move
 )
 
-:: Relanzar
-echo [✓] Relanzando...
-start "" "%FINAL_EXE%"
+echo.
+echo  [✓] ¡Actualización exitosa!
+echo  [>] Reiniciando Launcher...
+timeout /t 1 /nobreak >nul
+start "" "{current_exe}"
 del "%~f0"
 """
-    bat_path = os.path.join(tempfile.gettempdir(), "_mc_updater.bat")
-    with open(bat_path, "w") as f:
+    bat_path = os.path.join(tempfile.gettempdir(), f"mc_update_{int(time.time())}.bat")
+    with open(bat_path, "w", encoding="cp1252") as f:
         f.write(bat_content)
         
-    # Ejecutar .bat y salir
+    # Ejecutar .bat y salir inmediatamente
     subprocess.Popen(["cmd.exe", "/c", bat_path], 
                      creationflags=subprocess.CREATE_NEW_CONSOLE if os.name == 'nt' else 0)
-    sys.exit(0)
+    os._exit(0)
 
 
 # ── Ventana de descarga animada (Para uso automático al inicio) ───────────────
@@ -338,6 +338,12 @@ def install_mod_update(download_url: str, latest_version: str, progress_callback
         
         if is_zip:
             if status_callback: status_callback("Extrayendo pack de mods...")
+            # ── Limpiar almacén maestro antes de extraer ──
+            if os.path.exists(master_mod_dir):
+                import shutil
+                shutil.rmtree(master_mod_dir)
+            os.makedirs(master_mod_dir, exist_ok=True)
+            
             with zipfile.ZipFile(tmp_path, 'r') as zip_ref:
                 zip_ref.extractall(master_mod_dir)
         else:
@@ -361,74 +367,95 @@ def install_mod_update(download_url: str, latest_version: str, progress_callback
         if tmp_path and os.path.exists(tmp_path):
             try: os.remove(tmp_path)
             except: pass
+_mod_sync_lock = threading.Lock()
+
+def kill_ghost_java_processes():
+    """Limpia procesos de Java/Minecraft que hayan quedado colgados para liberar archivos."""
+    import subprocess
+    try:
+        if os.name == 'nt':
+            # Buscamos procesos de java.exe que tengan 'fabric' o 'minecraft' en su línea de comandos
+            # O simplemente matamos cualquier java.exe si el usuario no tiene otros procesos Java importantes
+            # Para ser seguros, usamos taskkill por nombre de imagen si está bloqueando
+            subprocess.run(["taskkill", "/F", "/IM", "java.exe", "/T"], capture_output=True)
+            print("[Launcher] Procesos de Java residuales limpiados.")
+    except Exception:
+        pass
 
 def inject_mod_to_profile(profile_path: str):
-    """Sincroniza TODOS los archivos del almacén maestro al perfil indicado."""
+    """Sincroniza archivos del almacén maestro al perfil indicado con manejo de errores de bloqueo."""
+    # Antes de sincronizar, intentamos limpiar procesos fantasmas si hay bloqueo
     import shutil
     import minecraft_launcher_lib
     
-    base_dir = config.get("minecraft_dir") or minecraft_launcher_lib.utils.get_minecraft_directory()
-    master_mod_dir = os.path.join(base_dir, "launcher_data", "mods")
-    
-    if not os.path.exists(master_mod_dir):
-        return
+    with _mod_sync_lock:
+        base_dir = config.get("minecraft_dir") or minecraft_launcher_lib.utils.get_minecraft_directory()
+        master_mod_dir = os.path.join(base_dir, "launcher_data", "mods")
         
-    mods_dir = os.path.join(profile_path, "mods")
-    
-    # 1. Limpiar carpeta de mods para sincronización total
-    if os.path.exists(mods_dir):
-        try: shutil.rmtree(mods_dir)
-        except: pass
-    os.makedirs(mods_dir, exist_ok=True)
+        if not os.path.exists(master_mod_dir):
+            return
             
-    target_mods_dir = os.path.join(profile_path, "mods")
-    
-    try:
-        # Realizar sincronización completa: Borrar y copiar todo
-        if os.path.exists(target_mods_dir):
-            shutil.rmtree(target_mods_dir)
+        target_mods_dir = os.path.join(profile_path, "mods")
         
-        if os.path.exists(master_mod_dir) and os.listdir(master_mod_dir):
-            shutil.copytree(master_mod_dir, target_mods_dir)
-            files = os.listdir(target_mods_dir)
-            print(f"[Launcher] Sincronizados {len(files)} mods al perfil: {', '.join(files[:5])}{'...' if len(files)>5 else ''}")
-        else:
-            os.makedirs(target_mods_dir, exist_ok=True)
-            print(f"[Launcher] Perfil inicializado con carpeta mods vacía (no hay mods en master).")
-            
-    except Exception as e:
-        print(f"[Launcher] Error sincronizando mods al perfil: {e}")
+        try:
+            # Intentar sincronización limpia
+            try:
+                if os.path.exists(target_mods_dir):
+                    shutil.rmtree(target_mods_dir)
+                shutil.copytree(master_mod_dir, target_mods_dir)
+                print(f"[Launcher] Sincronización limpia exitosa en perfil: {os.path.basename(profile_path)}")
+            except (PermissionError, OSError):
+                # Si hay bloqueo, intentamos matar procesos zombie de Java
+                print(f"[Launcher] Bloqueo detectado en {os.path.basename(profile_path)}. Limpiando Java...")
+                kill_ghost_java_processes()
+                
+                # Reintentar tras limpieza
+                try:
+                    if os.path.exists(target_mods_dir):
+                        shutil.rmtree(target_mods_dir)
+                    shutil.copytree(master_mod_dir, target_mods_dir)
+                    print(f"[Launcher] Sincronización exitosa tras limpieza.")
+                except:
+                    # Fallback final: Copiar uno por uno saltando los bloqueados
+                    os.makedirs(target_mods_dir, exist_ok=True)
+                    for item in os.listdir(master_mod_dir):
+                        s = os.path.join(master_mod_dir, item)
+                        d = os.path.join(target_mods_dir, item)
+                        try:
+                            if os.path.isdir(s):
+                                shutil.copytree(s, d, dirs_exist_ok=True)
+                            else:
+                                shutil.copy2(s, d)
+                        except: pass
+        except Exception as e:
+            print(f"[Launcher] Error sincronizando mods: {e}")
 
 
-def check_and_prompt(root_window=None, log_cb=None):
+def check_and_prompt(app, log_cb=None):
     """
     Comprueba actualizaciones en background.
-    1. Si hay update del modclient, lo descarga e instala en los perfiles silenciosamente.
-    2. Si hay update del launcher, abre la ventana animada de descarga.
-    Llamar desde main.py después de crear la instancia de LauncherApp.
+    Si hay update del launcher, le avisa a la app para que lo muestre de forma nativa.
     """
     def _worker():
-        # 1. Check launcher update FIRST (it's the most important)
+        # Pequeño delay para dejar que la ventana principal cargue
+        time.sleep(1.5)
+        
+        # 1. Check launcher update
         info = check_for_update(silent=True)
         if info:
             latest = info.get("latest_version", "?")
             url    = info.get("download_url", "")
-            if url and root_window:
-                # Al toque
-                root_window.after(0, lambda: _open_window(latest, url))
-                return # Don't check mods if we are updating the whole launcher
+            if url and hasattr(app, "on_launcher_update_detected"):
+                app.after(0, lambda: app.on_launcher_update_detected(latest, url))
+                return
 
         # 2. Check mod update silently
-        mod_info = check_for_mod_update(silent=True)
-        if mod_info:
-            latest_mod = mod_info.get("latest_version")
-            url_mod = mod_info.get("download_url")
-            if latest_mod and url_mod:
-                install_mod_update(url_mod, latest_mod)
-
-    def _open_window(latest, url):
-        _UpdateWindow(root_window, latest, url,
-                      on_complete=None,
-                      on_cancel=None)
+        if config.get("auto_sync_mods"):
+            mod_info = check_for_mod_update(silent=True)
+            if mod_info:
+                latest_mod = mod_info.get("latest_version")
+                url_mod = mod_info.get("download_url")
+                if latest_mod and url_mod:
+                    install_mod_update(url_mod, latest_mod)
 
     threading.Thread(target=_worker, daemon=True).start()
