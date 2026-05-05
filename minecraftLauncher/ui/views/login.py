@@ -303,6 +303,7 @@ class LoginView(tk.Frame):
             config.set("username",   data["name"])
             config.set("uuid",       data["uuid"])
             config.set("auth_token", encrypt_data(data["access_token"]))
+            config.set("ms_refresh_token", data.get("refresh_token", ""))
             config.set("auth_type",  "premium")
             config.set("account_type", "premium")
             config.set("logged_in",  True)
@@ -374,6 +375,7 @@ class LoginView(tk.Frame):
             config.set("uuid",          data.get("uuid", ""))
             config.set("auth_token",    encrypt_data(data.get("token", "")))
             config.set("player_token",  data.get("token", ""))  # JWT del jugador (sin cifrar, para la API)
+            config.set("password",      self._srv_pass.get())   # Save password for auto-login
             config.set("auth_type",     "nopremium")
             config.set("account_type",  "server")
             config.set("birthday",      data.get("birthday", ""))
@@ -463,6 +465,7 @@ class LoginView(tk.Frame):
                 config.set("uuid",         data.get("uuid", ""))
                 config.set("auth_token",   encrypt_data(token))
                 config.set("player_token", token)
+                config.set("password",     reg_pass.get())  # Save password for auto-login
                 config.set("auth_type",    "nopremium")
                 config.set("account_type", "server")
                 config.set("birthday",     data.get("birthday", ""))
@@ -513,7 +516,7 @@ class LoginView(tk.Frame):
         """Open a simple overlay to configure the API URL."""
         overlay = tk.Toplevel(self)
         overlay.title("Configuracion de API")
-        overlay.geometry("450x200")
+        overlay.geometry("450x320")
         overlay.resizable(False, False)
         overlay.configure(bg=Colors.PANEL_DARK)
         overlay.transient(self)
@@ -538,8 +541,16 @@ class LoginView(tk.Frame):
         display_api = current_api.replace("/api/v1", "")
         api_input.set(display_api)
 
+        tk.Label(overlay, text="API Key (Opcional para Admin)", fg=Colors.WHITE, 
+                 bg=Colors.PANEL_DARK, font=mc_font(10)).pack(pady=(10, 5))
+        
+        key_input = MinecraftInput(overlay, width=400, height=36, show="*")
+        key_input.pack(pady=5)
+        key_input.set(config.get("api_key") or "")
+
         def save_api():
             new_url = api_input.get().strip()
+            new_key = key_input.get().strip()
             if new_url:
                 if not new_url.startswith("http"):
                     new_url = "http://" + new_url
@@ -548,6 +559,7 @@ class LoginView(tk.Frame):
                     new_url = new_url.rstrip("/") + "/api/v1"
                 
                 config.set("api_url", new_url)
+                config.set("api_key", new_key)
                 # Also set server_ip for auto-join if it looks like an IP
                 try:
                     parts = new_url.replace("http://", "").replace("https://", "").split("/")[0].split(":")

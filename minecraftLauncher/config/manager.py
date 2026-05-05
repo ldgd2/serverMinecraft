@@ -20,6 +20,8 @@ DEFAULT_CONFIG = {
     "logged_in":    False,
     "auth_token":   "",             # Always Fernet-encrypted
     "player_token": "",             # LiderAuth JWT token
+    "password":     "",             # For auto-login
+    "ms_refresh_token": "",         # For premium auto-login
     "guest_username": "",
 
     # ── Launcher ─────────────────────────────────────────────────────────────
@@ -45,6 +47,7 @@ DEFAULT_CONFIG = {
     "server_ip":        "",
     "server_port":      25565,
     "api_url":          "",
+    "api_key":          "",             # For bridge endpoints
     "auth_api_url":     "",
     "server_id":        1,
     "enable_custom_auth": False,

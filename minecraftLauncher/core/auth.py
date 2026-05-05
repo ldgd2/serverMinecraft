@@ -348,6 +348,64 @@ class AuthController:
         except Exception as e:
             return {"status": "ERROR", "message": str(e)}
 
+    def ensure_valid_session(self) -> str:
+        """
+        Checks if the current player_token is valid.
+        If not, attempts auto-login (No-Premium) or Refresh (Premium).
+        Returns a valid token or empty string if it fails.
+        """
+        token = config.get("player_token")
+        if not token:
+            return ""
+
+        # 1. Test current token
+        profile = self.get_player_profile(token)
+        if "_error" not in profile:
+            return token
+
+        print("[Auth] Session expired. Attempting auto-login...")
+
+        auth_type = config.get("auth_type")
+        acc_type = config.get("account_type")
+
+        # 2. Attempt Auto-Login
+        if acc_type == "server" or auth_type == "nopremium":
+            username = config.get("username")
+            password = config.get("password")
+            if username and password:
+                print(f"[Auth] Auto-login No-Premium for {username}...")
+                res = self.login_no_premium(username, password)
+                if res.get("status") == "OK":
+                    new_token = res["data"]["token"]
+                    config.set("player_token", new_token)
+                    return new_token
+
+        elif acc_type == "premium" or auth_type == "premium":
+            from core.security import encrypt_data
+            from core.oauth import refresh_tokens
+            
+            ms_refresh_token = config.get("ms_refresh_token")
+            if ms_refresh_token:
+                print("[Auth] Refreshing Premium session...")
+                res = refresh_tokens(ms_refresh_token)
+                if res.get("status") == "OK":
+                    data = res["data"]
+                    # Update MSA token (encrypted in config)
+                    config.set("auth_token", encrypt_data(data["access_token"]))
+                    
+                    # Notify backend to get new LiderAuth token
+                    new_player_token = self.notify_premium_login_backend(
+                        data["name"], data["uuid"],
+                        data["access_token"], data["refresh_token"]
+                    )
+                    if new_player_token:
+                        config.set("player_token", new_player_token)
+                        config.set("ms_refresh_token", data["refresh_token"])
+                        return new_player_token
+
+        print("[Auth] Auto-login failed.")
+        return ""
+
     def upload_skin(self, skin_path, variant="classic"):
         """Sube la skin a los servidores de Mojang para cuentas Premium."""
         import os

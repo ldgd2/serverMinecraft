@@ -20,6 +20,9 @@ from core.broadcaster import broadcaster
 from app.services.player_service import PlayerService
 from app.services.achievements import AchievementService
 from app.services.minecraft.player_manager import PlayerManager
+from jose import jwt, JWTError
+from app.services.auth_service import SECRET_KEY, ALGORITHM
+from database.models.players.player_account import PlayerAccount
 
 router = APIRouter(prefix="/bridge", tags=["Minecraft Bridge"])
 logger = logging.getLogger("uvicorn")
@@ -55,20 +58,57 @@ def cache_player_leave(server_name: str, username: str):
 
 # --- Dependencias ---
 
-async def verify_api_key(x_api_key: str = Header(...), db: Session = Depends(get_db)):
-    hashed_received = hashlib.sha256(x_api_key.encode()).hexdigest()
-    user = db.query(User).filter(User.api_key_hashed == hashed_received).first()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid API Key"
-        )
-    return user
+async def verify_bridge_auth(
+    x_api_key: Optional[str] = Header(None),
+    authorization: Optional[str] = Header(None),
+    db: Session = Depends(get_db)
+):
+    """
+    Verifica la autenticación del 'puente'. 
+    Acepta:
+    1. X-API-KEY (Admin/Servidor Mod)
+    2. Authorization: Bearer <token> (Launcher/Jugador)
+    """
+    # 1. Intentar con API Key (Hash SHA256)
+    if x_api_key:
+        hashed_received = hashlib.sha256(x_api_key.encode()).hexdigest()
+        user = db.query(User).filter(User.api_key_hashed == hashed_received).first()
+        if user:
+            return user
+
+    # 2. Intentar con JWT de Jugador
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.split(" ")[1]
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            player_id: int = payload.get("player_id")
+            if player_id:
+                account = db.query(PlayerAccount).filter(PlayerAccount.id == player_id).first()
+                if account:
+                    # Si es un jugador válido, permitimos la acción.
+                    # Retornamos el dueño de su primer servidor como 'User' para no romper
+                    # la lógica que espera un objeto User administrador.
+                    player_link = db.query(Player).filter(Player.uuid == account.uuid).first()
+                    if player_link:
+                        server = db.query(Server).filter(Server.id == player_link.server_id).first()
+                        if server:
+                            admin = db.query(User).filter(User.id == server.user_id).first()
+                            if admin: return admin
+                    
+                    # Fallback al primer admin si no se encuentra relación directa
+                    return db.query(User).first()
+        except JWTError:
+            pass
+
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Unauthorized: Invalid API Key or Player Token"
+    )
 
 # --- Handlers ---
 
 @router.post("/events")
-async def receive_event(event: dict, request: Request, user: User = Depends(verify_api_key)):
+async def receive_event(event: dict, request: Request, user: User = Depends(verify_bridge_auth)):
     player_name = event.get("player", "Unknown")
     player_uuid = event.get("uuid") or event.get("player_uuid")
     event_type = event.get("type", "unknown")
@@ -171,7 +211,7 @@ async def receive_event(event: dict, request: Request, user: User = Depends(veri
 
 
 @router.post("/status/player")
-async def receive_player_status(event: dict, request: Request, user: User = Depends(verify_api_key)):
+async def receive_player_status(event: dict, request: Request, user: User = Depends(verify_bridge_auth)):
     """
     Endpoint usado por el Launcher para reportar que el jugador está activo,
     su IP actual y su Skin.
@@ -181,7 +221,7 @@ async def receive_player_status(event: dict, request: Request, user: User = Depe
 
 
 @router.post("/chat")
-async def receive_chat(chat: dict, db: Session = Depends(get_db), user: User = Depends(verify_api_key)):
+async def receive_chat(chat: dict, db: Session = Depends(get_db), user: User = Depends(verify_bridge_auth)):
     player_name = chat.get("player", "Unknown")
     player_uuid = chat.get("uuid") or chat.get("player_uuid")
     message = chat.get("message", "")
@@ -217,7 +257,7 @@ async def receive_chat(chat: dict, db: Session = Depends(get_db), user: User = D
     return {"status": "ok"}
 
 @router.post("/batch")
-async def receive_batch(batch: dict, request: Request, db: Session = Depends(get_db), user: User = Depends(verify_api_key)):
+async def receive_batch(batch: dict, request: Request, db: Session = Depends(get_db), user: User = Depends(verify_bridge_auth)):
     events = batch.get("events", [])
     chats = batch.get("chats", [])
     server_name = batch.get("server_name") or batch.get("server")
@@ -244,7 +284,7 @@ async def receive_batch(batch: dict, request: Request, db: Session = Depends(get
     }
 
 @router.get("/players/{server_name}")
-async def get_cached_players(server_name: str, user: User = Depends(verify_api_key)):
+async def get_cached_players(server_name: str, user: User = Depends(verify_bridge_auth)):
     players = server_player_cache.get(server_name, {})
     return {
         "server": server_name,

@@ -44,10 +44,15 @@ def notify_backend(ip_objetivo, username, uuid, url_api):
             "type": "player_state" # Importante para que el bridge lo reconozca
         }
         
-        # Obtenemos la API Key desde la configuración para autorizar la petición
-        headers = {
-            "x-api-key": config.get("api_key") or ""
-        }
+        # Intentamos autorizar con API Key o con Token de Jugador
+        headers = {}
+        api_key = config.get("api_key")
+        player_token = config.get("player_token")
+        
+        if api_key:
+            headers["x-api-key"] = api_key
+        if player_token:
+            headers["Authorization"] = f"Bearer {player_token}"
         
         print(f"[*] [SkinSync] Enviando skin de {username} a {url_api}...")
         response = requests.post(url_api, json=payload, headers=headers, timeout=5)

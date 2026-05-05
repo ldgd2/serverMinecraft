@@ -114,6 +114,15 @@ def launch_minecraft(version_id, callback_dict=None):
         start_time = time.time()
         
         minecraft_directory = config.get("minecraft_dir")
+        
+        # Ensure session is valid BEFORE launching (important for skin sync and stats later)
+        from core.auth import AuthController
+        auth = AuthController()
+        if config.get("logged_in") and config.get("account_type") != "guest":
+            if callback_dict and 'log' in callback_dict:
+                callback_dict['log']("[Auth] Verificando sesión antes de lanzar...")
+            auth.ensure_valid_session()
+
         username = config.get("username")
         ram_mb = config.get("ram_mb")
         java_path = config.get("java_path")
@@ -392,13 +401,20 @@ def launch_minecraft(version_id, callback_dict=None):
                 from core.auth import AuthController
                 auth = AuthController()
                 
+                # Ensure session is still valid (auto-login if needed)
+                token = auth.ensure_valid_session()
+                if not token:
+                     if callback_dict and 'log' in callback_dict:
+                         callback_dict['log']("[Auth] No se pudo sincronizar stats: Sesión expirada y auto-login falló.")
+                     return
+
                 # Update basic playtime
                 server_name = config.get("server_ip") or "Local / Singleplayer"
                 # Note: Detailed gameplay stats (kills, blocks, etc.) are tracked in real-time by the 
                 # Minecraft bridge mod. The launcher here primarily synchronizes total playtime
                 # for the global profile. Sending 0s here will not overwrite the server-side totals.
                 success = auth.update_player_stats(
-                    player_token, 
+                    token, 
                     server_name=server_name,
                     playtime_seconds=playtime_seconds,
                     kills=0, deaths=0, blocks_broken=0, blocks_placed=0, kill_streak=0

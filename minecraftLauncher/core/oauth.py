@@ -203,3 +203,94 @@ def exchange_code_for_tokens(code: str) -> dict:
         }
     except Exception as e:
         return {"status": "ERROR", "message": str(e)}
+
+def refresh_tokens(refresh_token: str) -> dict:
+    """
+    Refresh tokens using the Microsoft refresh token.
+    """
+    try:
+        # 1. Refresh MS access token
+        r1 = requests.post("https://login.live.com/oauth20_token.srf", data={
+            "client_id": CLIENT_ID,
+            "refresh_token": refresh_token,
+            "grant_type": "refresh_token",
+            "redirect_uri": REDIRECT_URI,
+            "scope": "XboxLive.signin offline_access"
+        })
+        if r1.status_code != 200:
+            return {"status": "ERROR", "message": f"Refresh falló: {r1.text}"}
+        
+        ms_data = r1.json()
+        ms_access_token = ms_data["access_token"]
+        ms_refresh_token = ms_data.get("refresh_token", refresh_token) # May be same or new
+
+        # --- Re-use exchange logic from Step 2 onwards ---
+        # 2. Xbox Live Auth
+        r2 = requests.post("https://user.auth.xboxlive.com/user/authenticate", 
+            headers={"Content-Type": "application/json", "Accept": "application/json"},
+            json={
+                "Properties": {
+                    "AuthMethod": "RPS",
+                    "SiteName": "user.auth.xboxlive.com",
+                    "RpsTicket": f"d={ms_access_token}"
+                },
+                "RelyingParty": "http://auth.xboxlive.com",
+                "TokenType": "JWT"
+            }
+        )
+        if r2.status_code != 200:
+            return {"status": "ERROR", "message": f"Xbox Live auth falló: {r2.text}"}
+            
+        xbl_data = r2.json()
+        xbl_token = xbl_data["Token"]
+        uhs = xbl_data["DisplayClaims"]["xui"][0]["uhs"]
+
+        # 3. XSTS Token
+        r3 = requests.post("https://xsts.auth.xboxlive.com/xsts/authorize",
+            headers={"Content-Type": "application/json", "Accept": "application/json"},
+            json={
+                "Properties": {
+                    "SandboxId": "RETAIL",
+                    "UserTokens": [xbl_token]
+                },
+                "RelyingParty": "rp://api.minecraftservices.com/",
+                "TokenType": "JWT"
+            }
+        )
+        if r3.status_code != 200:
+            return {"status": "ERROR", "message": f"XSTS auth falló: {r3.text}"}
+            
+        xsts_token = r3.json()["Token"]
+
+        # 4. Minecraft Token
+        r4 = requests.post("https://api.minecraftservices.com/authentication/login_with_xbox",
+            headers={"Content-Type": "application/json", "Accept": "application/json"},
+            json={
+                "identityToken": f"XBL3.0 x={uhs};{xsts_token}"
+            }
+        )
+        if r4.status_code != 200:
+            return {"status": "ERROR", "message": f"Login de Minecraft falló: {r4.text}"}
+            
+        mc_access_token = r4.json()["access_token"]
+
+        # 5. Minecraft Profile
+        r5 = requests.get("https://api.minecraftservices.com/minecraft/profile",
+            headers={"Authorization": f"Bearer {mc_access_token}"}
+        )
+        if r5.status_code != 200:
+            return {"status": "ERROR", "message": f"Obtener perfil falló: {r5.text}"}
+            
+        profile_data = r5.json()
+
+        return {
+            "status": "OK",
+            "data": {
+                "name":          profile_data["name"],
+                "uuid":          profile_data["id"],
+                "access_token":  mc_access_token,
+                "refresh_token": ms_refresh_token,
+            }
+        }
+    except Exception as e:
+        return {"status": "ERROR", "message": str(e)}
