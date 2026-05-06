@@ -1,8 +1,5 @@
 from sqlalchemy import Column, Integer, String, Text
-try:
-    from database.connection import Base
-except ImportError:
-    from server.database.connection import Base
+from . import Base
 
 class SkinRestorerSkin(Base):
     """Modelo compatible con la tabla 'Skins' de SkinRestorer"""

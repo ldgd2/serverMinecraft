@@ -9,6 +9,8 @@ from .bitacora import Bitacora
 from .version import Version
 from .mod_loader import ModLoader
 from .world import World, ServerWorld
+from .trade import Trade, CounterOffer
+from .skinrestorer import SkinRestorerSkin, SkinRestorerPlayer
 
 # Player System
 from .players.player import Player

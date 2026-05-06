@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, JSON, ForeignKey, DateTime
 from sqlalchemy.orm import relationship
-from database.connection import Base
+from . import Base
 from datetime import datetime
 
 class Trade(Base):
