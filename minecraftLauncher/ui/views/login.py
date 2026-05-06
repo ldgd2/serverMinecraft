@@ -440,22 +440,22 @@ class LoginView(tk.Frame):
             
             def do():
                 result = self._auth.register_no_premium(username, password, birthday)
-                self.after(0, lambda: _handle(result))
+                self.after(0, lambda: _handle(result, password))
             threading.Thread(target=do, daemon=True).start()
 
-        def _handle(result):
+        def _handle(result, pwd):
             reg_btn.configure_state(False)
             if result.get("status") == "OK":
                 status_var.set("¡Cuenta creada con éxito! Iniciando sesión...")
                 self.after(1000, reg_win.destroy)
-                self._handle_register_result(result, reg_user.get().strip())
+                self._handle_register_result(result, reg_user.get().strip(), pwd)
             else:
                 status_var.set(result.get("message", "Error al registrar."))
 
         reg_btn = MinecraftButton(reg_win, text="Crear Cuenta", width=200, height=40, command=_submit_registration)
         reg_btn.pack(pady=10)
 
-    def _handle_register_result(self, result, requested_username=""):
+    def _handle_register_result(self, result, requested_username="", password=""):
         if result.get("status") == "OK":
             data = result.get("data", {})
             if data.get("access_token") or data.get("token"):
@@ -465,7 +465,7 @@ class LoginView(tk.Frame):
                 config.set("uuid",         data.get("uuid", ""))
                 config.set("auth_token",   encrypt_data(token))
                 config.set("player_token", token)
-                config.set("password",     reg_pass.get())  # Save password for auto-login
+                config.set("password",     password)  # Save password for auto-login
                 config.set("auth_type",    "nopremium")
                 config.set("account_type", "server")
                 config.set("birthday",     data.get("birthday", ""))

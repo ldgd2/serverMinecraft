@@ -817,6 +817,10 @@ class MinecraftDatePicker(tk.Frame):
         if month == 2: return 29 # Allow 29th for birthdays
         return 31
 
+    def get(self):
+        """Return birthday in MM-DD format."""
+        return f"{self.month.get():02d}-{self.day.get():02d}"
+
 # ─────────────────────────────────────────────────────────────────────────────
 #  MinecraftToast
 # ─────────────────────────────────────────────────────────────────────────────
