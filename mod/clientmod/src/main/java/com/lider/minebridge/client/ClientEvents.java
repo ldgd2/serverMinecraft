@@ -59,7 +59,7 @@ public class ClientEvents {
         marketplaceKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
             "key.minebridge.marketplace",
             InputUtil.Type.KEYSYM,
-            GLFW.GLFW_KEY_PERIOD,
+            GLFW.GLFW_KEY_M,
             "category.minebridge"
         ));
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
