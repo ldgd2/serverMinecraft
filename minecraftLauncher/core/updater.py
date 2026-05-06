@@ -202,24 +202,34 @@ pause
 exit
 """
     try:
+        print(f"[Updater] Creando script BAT en: {bat_path}")
         # Escribir con codificación ANSI (cp1252) para que CMD no tenga problemas con tildes/espacios
         with open(bat_path, "w", encoding="cp1252") as f:
             f.write(bat_content)
-            
-        print(f"[Updater] Ejecutando script de actualizacion: {bat_path}")
         
-        # Ejecutar .bat y salir inmediatamente
-        # Usamos shell=False y una lista para evitar problemas de inyección/espacios
-        subprocess.Popen(["cmd.exe", "/c", bat_path], 
-                         cwd=exe_dir,
-                         creationflags=subprocess.CREATE_NEW_CONSOLE if os.name == 'nt' else 0)
+        # Forzar que el sistema operativo escriba el archivo antes de continuar
+        if hasattr(os, 'fsync'):
+            with open(bat_path, "a") as f:
+                os.fsync(f.fileno())
+            
+        print(f"[Updater] Ejecutando script de actualizacion...")
+        sys.stdout.flush()
+        
+        # Ejecutar .bat y salir inmediatamente de forma limpia
+        # os.startfile es lo más fiable en Windows para lanzar y desentenderse
+        print(f"[Updater] Lanzando script nativo: {bat_path}")
+        os.startfile(bat_path)
         
         # Salida limpia para permitir que el BAT haga su trabajo
-        time.sleep(0.5)
+        print("[Updater] Script lanzado. Cerrando Launcher en 1 segundo...")
+        sys.stdout.flush()
+        time.sleep(1)
         os._exit(0)
     except Exception as e:
-        print(f"[Updater] Error al lanzar el script de actualizacion: {e}")
+        print(f"[Updater] ERROR FATAL al lanzar el script de actualizacion: {e}")
+        sys.stdout.flush()
         # Intentar al menos cerrar para no dejar al usuario colgado
+        time.sleep(2)
         os._exit(1)
 
 

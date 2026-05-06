@@ -237,8 +237,13 @@ class UpdatesView(tk.Frame):
                     "size": size
                 })
 
-            # 2. Ordenar por tamaño (menor a mayor)
-            tasks.sort(key=lambda x: x["size"])
+            # 2. Ordenar: Mods primero (prioridad 0), Launcher al final (prioridad 1)
+            # Dentro de la misma categoría, el más liviano primero.
+            def _sort_key(x):
+                priority = 0 if x["type"] == "mods" else 1
+                return (priority, x["size"])
+            
+            tasks.sort(key=_sort_key)
 
             # 3. Ejecutar en orden
             for task in tasks:
@@ -252,8 +257,9 @@ class UpdatesView(tk.Frame):
                 # Función para formatear el estado: "$nombre           $descargado/$total"
                 def _update_formatted_status(mb_txt):
                     # Usamos padding para empujar el tamaño a la derecha
-                    # La etiqueta tiene wraplength, así que un formato simple basta
                     combined = f"{filename:<30} {mb_txt}"
+                    # Forzamos fuente Courier para alineación perfecta durante descarga
+                    self.after(0, lambda: self.status_lbl.config(font=("Courier", 10)))
                     self.after(0, lambda: self._set_status(combined, Colors.YELLOW))
 
                 if task["type"] == "mods":
@@ -275,7 +281,10 @@ class UpdatesView(tk.Frame):
                     )
                     if not success:
                         raise Exception("Error durante la actualización del Launcher.")
-                    return
+                    
+                    # Asegurar que la barra se vea llena al 100% mientras se prepara el cierre
+                    self.after(0, lambda: self._set_progress(100))
+                    self.after(0, self._show_progress)
                 
             self.after(0, lambda: self._set_status("✓ ¡Todo completado con éxito!", Colors.PREMIUM_GREEN))
             self.after(0, lambda: self.check_btn.set_text("✓ Finalizado"))

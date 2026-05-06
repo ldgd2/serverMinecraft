@@ -56,14 +56,16 @@ def _load_api_config() -> dict:
                 cfg[k] = v
     
     # Valores por defecto si no existen
+    cfg.setdefault("upload_ip", "127.0.0.1")
+    cfg.setdefault("upload_port", "8000")
     cfg.setdefault("server_mod_ip", "127.0.0.1")
     cfg.setdefault("server_mod_port", "8000")
-    cfg.setdefault("client_mod_ip", "0.0.0.0")
+    cfg.setdefault("client_mod_ip", "127.0.0.1")
     cfg.setdefault("client_mod_port", "8000")
     
-    # URL base para que el empaquetador hable con la API (USA LA IP DE CLIENTE PARA LOGIN)
-    connect_ip = cfg["client_mod_ip"] if cfg["client_mod_ip"] != "0.0.0.0" else "127.0.0.1"
-    cfg['api_url'] = f"http://{connect_ip}:{cfg['client_mod_port']}"
+    # URL base para que el empaquetador hable con la API para SUBIR archivos
+    cfg['api_url'] = f"http://{cfg['upload_ip']}:{cfg['upload_port']}"
+    # URL local para inyectar si es necesario (puedes ajustar esto si es redundante)
     cfg['local_url'] = f"http://127.0.0.1:{cfg['server_mod_port']}"
     
     return cfg
@@ -75,22 +77,32 @@ def configure_packager():
     print("  ║      CONFIGURACIÓN DEL EMPAQUETADOR  ║")
     print("  ╚══════════════════════════════════════╝")
     
-    # --- 1. Red Servidor ---
-    print(f"\n  [1] Red para el MOD DEL SERVIDOR (Internal)")
+    # --- 1. Red de Subida (API) ---
+    print(f"\n  [1] Red de Subida (A donde se enviará todo)")
+    new_u_ip = input(f"      IP de Subida [{cfg['upload_ip']}]: ").strip()
+    if new_u_ip: cfg['upload_ip'] = new_u_ip
+    new_u_port = input(f"      Puerto de Subida [{cfg['upload_port']}]: ").strip()
+    if new_u_port: cfg['upload_port'] = new_u_port
+    
+    # Re-generar api_url tras cambio
+    cfg['api_url'] = f"http://{cfg['upload_ip']}:{cfg['upload_port']}"
+
+    # --- 2. Red Mod Servidor ---
+    print(f"\n  [2] Red para el MOD DEL SERVIDOR (Internal)")
     new_s_ip = input(f"      IP Servidor [{cfg['server_mod_ip']}]: ").strip()
     if new_s_ip: cfg['server_mod_ip'] = new_s_ip
     new_s_port = input(f"      Puerto Servidor [{cfg['server_mod_port']}]: ").strip()
     if new_s_port: cfg['server_mod_port'] = new_s_port
 
-    # --- 2. Red Cliente ---
-    print(f"\n  [2] Red para el MOD DEL CLIENTE (Public)")
+    # --- 3. Red Mod Cliente ---
+    print(f"\n  [3] Red para el MOD DEL CLIENTE (Public)")
     new_c_ip = input(f"      IP Cliente [{cfg['client_mod_ip']}]: ").strip()
     if new_c_ip: cfg['client_mod_ip'] = new_c_ip
     new_c_port = input(f"      Puerto Cliente [{cfg['client_mod_port']}]: ").strip()
     if new_c_port: cfg['client_mod_port'] = new_c_port
 
-    # --- 3. Credenciales ---
-    print(f"\n  [3] Credenciales y Seguridad")
+    # --- 4. Credenciales ---
+    print(f"\n  [4] Credenciales y Seguridad")
     new_user = input(f"      Usuario Admin [{cfg.get('username','admin')}]: ").strip()
     if new_user: cfg['username'] = new_user
     import getpass
@@ -122,6 +134,7 @@ def configure_packager():
     except Exception as e:
         print(f"      [X] Fallo de conexión: {e}")
         print("      (Asegúrate de que el backend esté corriendo y sea accesible)")
+        print("\n  [!] ATENCIÓN: No se pudo validar la conexión. Revisa tus datos.")
 
     print("\n  [✓] Proceso de configuración finalizado.")
     return cfg
@@ -132,9 +145,13 @@ def _save_api_config(cfg: dict):
             f.write(f"{k}={v}\n")
 
 def _get_api_config() -> dict:
+    # Si es la primera vez (no hay archivo), forzamos el asistente completo
+    if not os.path.exists(_API_CFG_FILE):
+        print("\n  [!] Detectada primera ejecución. Iniciando asistente...")
+        return configure_packager()
+
     cfg = _load_api_config()
     changed = False
-
     if not cfg.get('username'):
         print("\n  ┌─ Credenciales de Administrador ────────────────")
         cfg['username'] = input("  │ Usuario admin: ").strip()
@@ -180,11 +197,14 @@ def _get_token(cfg: dict) -> str:
             return token
     except urllib.error.HTTPError as e:
         body_err = e.read().decode('utf-8')
-        # Clear saved password so user is prompted again next run
         if e.code == 401 and os.path.exists(_API_CFG_FILE):
             os.remove(_API_CFG_FILE)
             print("  [!] Credenciales borradas del caché (.packager_config)")
         raise RuntimeError(f"Login falló ({e.code}): {body_err}")
+    except urllib.error.URLError as e:
+        raise RuntimeError(f"No se pudo conectar al servidor: {e.reason}")
+    except Exception as e:
+        raise RuntimeError(f"Error inesperado: {e}")
 
 def _upload_binary(cfg: dict, token: str, platform: str, version: str, filepath: str):
     url = f"{cfg['api_url']}/api/v1/updates/upload/{platform}/{version}"
@@ -642,8 +662,10 @@ def main():
         token = _get_token(cfg)
         print("  [✓] Autenticado correctamente")
     except RuntimeError as e:
-        print(f"  [X] Error: {e}")
-        sys.exit(1)
+        print(f"\n  [X] ERROR DE CONEXIÓN/AUTH: {e}")
+        print("  [!] Verifica que el servidor esté encendido y que la IP en [5] CONFIGURACIÓN sea correcta.")
+        input("\n  Presiona Enter para volver al menú...")
+        return main()
 
     if choice in ('1', '4'): build_launcher(cfg, token)
     if choice in ('2', '4'): build_app(cfg, token)
