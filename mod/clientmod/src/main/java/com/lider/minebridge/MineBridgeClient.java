@@ -15,6 +15,13 @@ public class MineBridgeClient implements ModInitializer {
         PayloadTypeRegistry.playS2C().register(com.lider.minebridge.networking.payload.UpdateCountdownPayload.ID, com.lider.minebridge.networking.payload.UpdateCountdownPayload.CODEC);
         PayloadTypeRegistry.playS2C().register(com.lider.minebridge.networking.payload.SyncSkinPayload.ID, com.lider.minebridge.networking.payload.SyncSkinPayload.CODEC);
         PayloadTypeRegistry.playC2S().register(com.lider.minebridge.networking.payload.MarketplaceRequestPayload.ID, com.lider.minebridge.networking.payload.MarketplaceRequestPayload.CODEC);
+        PayloadTypeRegistry.playC2S().register(com.lider.minebridge.networking.payload.OpenCreationMenuPayload.ID, com.lider.minebridge.networking.payload.OpenCreationMenuPayload.CODEC);
+        
+        net.minecraft.client.gui.screen.ingame.HandledScreens.register(
+            com.lider.minebridge.MineBridge.MARKETPLACE_CREATION_HANDLER, 
+            com.lider.minebridge.client.ui.MarketplaceCreationScreen::new
+        );
+
         ClientEvents.init();
     }
 }

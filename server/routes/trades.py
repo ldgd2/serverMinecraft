@@ -50,6 +50,7 @@ def get_open_trades(db: Session = Depends(get_db)):
             "id": t.id,
             "title": t.title,
             "seller": t.seller_name,
+            "seller_uuid": t.seller_uuid,
             "selling": t.selling_item,
             "asking": t.asking_item
         })

@@ -24,6 +24,10 @@ public class MineBridge implements ModInitializer {
     private static MinecraftServer serverInstance;
     private static BackendClient backendClient;
 
+    public static final net.minecraft.screen.ScreenHandlerType<com.lider.minebridge.marketplace.MarketplaceCreationScreenHandler> MARKETPLACE_CREATION_HANDLER = 
+        net.minecraft.registry.Registry.register(net.minecraft.registry.Registries.SCREEN_HANDLER, Identifier.of(MOD_ID, "creation"), 
+        new net.minecraft.screen.ScreenHandlerType<>(com.lider.minebridge.marketplace.MarketplaceCreationScreenHandler::new, net.minecraft.resource.featuretoggle.FeatureSet.empty()));
+
     @Override
     public void onInitialize() {
         // Register custom payloads
@@ -31,6 +35,7 @@ public class MineBridge implements ModInitializer {
         PayloadTypeRegistry.playS2C().register(com.lider.minebridge.networking.payload.UpdateCountdownPayload.ID, com.lider.minebridge.networking.payload.UpdateCountdownPayload.CODEC);
         PayloadTypeRegistry.playS2C().register(com.lider.minebridge.networking.payload.SyncSkinPayload.ID, com.lider.minebridge.networking.payload.SyncSkinPayload.CODEC);
         PayloadTypeRegistry.playC2S().register(com.lider.minebridge.networking.payload.MarketplaceRequestPayload.ID, com.lider.minebridge.networking.payload.MarketplaceRequestPayload.CODEC);
+        PayloadTypeRegistry.playC2S().register(com.lider.minebridge.networking.payload.OpenCreationMenuPayload.ID, com.lider.minebridge.networking.payload.OpenCreationMenuPayload.CODEC);
         
         ServerLifecycleEvents.SERVER_STARTING.register(server -> {
             serverInstance = server;
@@ -48,6 +53,12 @@ public class MineBridge implements ModInitializer {
             context.server().execute(() -> {
                 com.google.gson.JsonArray trades = com.google.gson.JsonParser.parseString(payload.tradeData()).getAsJsonArray();
                 com.lider.minebridge.marketplace.MarketplaceManager.openMarketplace(context.player(), trades);
+            });
+        });
+
+        net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.registerGlobalReceiver(com.lider.minebridge.networking.payload.OpenCreationMenuPayload.ID, (payload, context) -> {
+            context.server().execute(() -> {
+                com.lider.minebridge.marketplace.MarketplaceManager.openCreationMenu(context.player());
             });
         });
 

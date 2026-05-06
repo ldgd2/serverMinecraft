@@ -1,102 +1,79 @@
 package com.lider.minebridge.client.ui;
 
-import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import com.lider.minebridge.marketplace.MarketplaceCreationScreenHandler;
 import com.lider.minebridge.networking.TradeClient;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.screen.Screen;
+import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.gui.screen.ingame.HandledScreen;
 import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.client.gui.widget.TextFieldWidget;
+import net.minecraft.entity.player.PlayerInventory;
+import net.minecraft.item.ItemStack;
+import net.minecraft.registry.Registries;
 import net.minecraft.text.Text;
+import net.minecraft.util.Identifier;
 
-public class MarketplaceCreationScreen extends Screen {
-    private TextFieldWidget titleField;
-    private TextFieldWidget askingItemField;
-    private TextFieldWidget askingCountField;
-    private net.minecraft.item.ItemStack sellingStack;
+public class MarketplaceCreationScreen extends HandledScreen<MarketplaceCreationScreenHandler> {
+    private static final Identifier TEXTURE = Identifier.of("minecraft", "textures/gui/container/generic_54.png"); // Placeholder texture
 
-    public MarketplaceCreationScreen() {
-        super(Text.of("§6§lCrear Nueva Oferta"));
-        this.sellingStack = MinecraftClient.getInstance().player.getMainHandStack();
+    public MarketplaceCreationScreen(MarketplaceCreationScreenHandler handler, PlayerInventory inventory, Text title) {
+        super(handler, inventory, title);
+        this.backgroundHeight = 166;
+        this.playerInventoryTitleY = this.backgroundHeight - 94;
     }
 
     @Override
     protected void init() {
-        // Título de la venta
-        this.addDrawable(new net.minecraft.client.gui.widget.TextWidget(this.width / 2 - 100, 30, 200, 20, Text.of("Título de la Oferta:"), this.textRenderer));
-        this.titleField = new TextFieldWidget(this.textRenderer, this.width / 2 - 100, 45, 200, 20, Text.of("Título"));
-        this.titleField.setPlaceholder(Text.of("Ej: Vendo Espada de Netherite"));
-        if (!sellingStack.isEmpty()) {
-            this.titleField.setText("Vendo " + sellingStack.getName().getString());
-        }
-        this.addDrawableChild(this.titleField);
-
-        // Qué pides a cambio
-        this.addDrawable(new net.minecraft.client.gui.widget.TextWidget(this.width / 2 - 100, 75, 140, 20, Text.of("¿Qué pides? (ID):"), this.textRenderer));
-        this.askingItemField = new TextFieldWidget(this.textRenderer, this.width / 2 - 100, 90, 140, 20, Text.of("Item"));
-        this.askingItemField.setPlaceholder(Text.of("diamond, gold_ingot..."));
-        this.addDrawableChild(this.askingItemField);
-
-        // Cantidad
-        this.addDrawable(new net.minecraft.client.gui.widget.TextWidget(this.width / 2 + 50, 75, 50, 20, Text.of("Cant.:"), this.textRenderer));
-        this.askingCountField = new TextFieldWidget(this.textRenderer, this.width / 2 + 50, 90, 50, 20, Text.of("Cant"));
-        this.askingCountField.setText("1");
-        this.addDrawableChild(this.askingCountField);
+        super.init();
+        this.titleX = (this.backgroundWidth - this.textRenderer.getWidth(this.title)) / 2;
 
         // Botón Publicar
-        this.addDrawableChild(ButtonWidget.builder(Text.of("§a§lPUBLICAR VENTA"), button -> {
-            String title = this.titleField.getText();
-            String askingId = this.askingItemField.getText().trim();
-            int askingCount = 1;
-            try { askingCount = Integer.parseInt(this.askingCountField.getText()); } catch(Exception e) {}
+        this.addDrawableChild(ButtonWidget.builder(Text.of("§a§lPUBLICAR"), button -> {
+            ItemStack selling = this.handler.getTradeInventory().getStack(0);
+            ItemStack asking = this.handler.getTradeInventory().getStack(1);
 
-            if (title.isEmpty() || askingId.isEmpty() || sellingStack.isEmpty()) {
-                MinecraftClient.getInstance().player.sendMessage(Text.of("§cDebes llenar todos los campos y tener un item en la mano."), false);
+            if (selling.isEmpty() || asking.isEmpty()) {
+                MinecraftClient.getInstance().player.sendMessage(Text.of("§cDebes poner qué vendes y qué pides."), false);
                 return;
             }
 
-            // Preparar JSONs
-            JsonObject selling = new JsonObject();
-            selling.addProperty("id", net.minecraft.registry.Registries.ITEM.getId(sellingStack.getItem()).toString());
-            selling.addProperty("count", sellingStack.getCount());
+            JsonObject sellingJson = new JsonObject();
+            sellingJson.addProperty("id", Registries.ITEM.getId(selling.getItem()).toString());
+            sellingJson.addProperty("count", selling.getCount());
 
-            JsonObject asking = new JsonObject();
-            // Intentar arreglar ID si el usuario no puso namespace
-            if (!askingId.contains(":")) askingId = "minecraft:" + askingId;
-            asking.addProperty("id", askingId);
-            asking.addProperty("count", askingCount);
+            JsonObject askingJson = new JsonObject();
+            askingJson.addProperty("id", Registries.ITEM.getId(asking.getItem()).toString());
+            askingJson.addProperty("count", asking.getCount());
 
             TradeClient.publishTrade(
                 MinecraftClient.getInstance().player.getUuidAsString(),
                 MinecraftClient.getInstance().player.getName().getString(),
-                title, selling, asking
-            ).thenAccept(success -> {
-                if (success) {
-                    MinecraftClient.getInstance().execute(() -> {
-                        this.close();
-                        MinecraftClient.getInstance().player.sendMessage(Text.of("§6[Market] §a¡Venta publicada con éxito!"), false);
-                    });
-                }
-            });
-        }).dimensions(this.width / 2 - 100, 140, 200, 20).build());
-
-        // Botón Cancelar
-        this.addDrawableChild(ButtonWidget.builder(Text.of("§cCancelar"), button -> this.close())
-            .dimensions(this.width / 2 - 100, 170, 200, 20).build());
+                "Oferta de " + selling.getName().getString(),
+                sellingJson, askingJson
+            );
+            
+            this.close();
+        }).dimensions(this.x + this.backgroundWidth / 2 - 40, this.y + 60, 80, 20).build());
     }
 
     @Override
-    public void render(net.minecraft.client.gui.DrawContext context, int mouseX, int mouseY, float delta) {
-        this.renderBackground(context, mouseX, mouseY, delta);
-        context.drawCenteredTextWithShadow(this.textRenderer, this.title, this.width / 2, 10, 0xFFFFFF);
+    protected void drawBackground(DrawContext context, float delta, int mouseX, int mouseY) {
+        int i = (this.width - this.backgroundWidth) / 2;
+        int j = (this.height - this.backgroundHeight) / 2;
+        context.drawTexture(TEXTURE, i, j, 0, 0, this.backgroundWidth, this.backgroundHeight);
         
-        // Mostrar qué está vendiendo (dibujar item)
-        if (!sellingStack.isEmpty()) {
-            context.drawTextWithShadow(this.textRenderer, "Vendiendo: " + sellingStack.getCount() + "x " + sellingStack.getName().getString(), this.width / 2 - 100, 120, 0xFFFF55);
-        } else {
-            context.drawTextWithShadow(this.textRenderer, "§c¡No tienes nada en la mano!", this.width / 2 - 100, 120, 0xFF5555);
-        }
+        // Dibujar cajas personalizadas para los slots
+        context.fill(i + 43, j + 34, i + 43 + 18, j + 34 + 18, 0x8000FF00); // Selling box (verde)
+        context.fill(i + 115, j + 34, i + 115 + 18, j + 34 + 18, 0x80FF0000); // Asking box (rojo)
+        
+        context.drawCenteredTextWithShadow(this.textRenderer, "Vendes", i + 52, j + 24, 0xFFFFFF);
+        context.drawCenteredTextWithShadow(this.textRenderer, "Pides", i + 124, j + 24, 0xFFFFFF);
+    }
 
+    @Override
+    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
+        this.renderBackground(context, mouseX, mouseY, delta);
         super.render(context, mouseX, mouseY, delta);
+        this.drawMouseoverTooltip(context, mouseX, mouseY);
     }
 }
