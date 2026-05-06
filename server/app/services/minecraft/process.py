@@ -13,13 +13,14 @@ from database.connection import SessionLocal
 from core.broadcaster import broadcaster
 
 class MinecraftProcess:
-    def __init__(self, name: str, ram_mb: int, jar_path: str, working_dir: str, server_id: int = None, masterbridge_config: Dict = None, cpu_cores: float = 1.0):
+    def __init__(self, name: str, ram_mb: int, jar_path: str, working_dir: str, port: int, server_id: int = None, masterbridge_config: Dict = None, cpu_cores: float = 1.0):
         self.name = name
         self.server_id = server_id
         self.ram_mb = ram_mb
         self.cpu_cores = cpu_cores
         self.jar_path = jar_path
         self.working_dir = working_dir
+        self.port = port
         self.process: Optional[async_subprocess.Process] = None
         self.log_subscribers: List[asyncio.Queue] = []
         self._status = "OFFLINE" # OFFLINE, STARTING, ONLINE, STOPPING
@@ -38,14 +39,31 @@ class MinecraftProcess:
 
     @property
     def status(self):
-        # Fallback if process died unexpectedly
+        # 1. Comprobación rápida por proceso
         if self._status != "OFFLINE" and not self.is_process_alive():
-             self._status = "OFFLINE"
+             # Si el proceso no vive pero el puerto está ocupado, es que perdimos el PID
+             if self._is_port_in_use():
+                 self._status = "ONLINE"
+             else:
+                 self._status = "OFFLINE"
+        
+        # 2. Sincronización de seguridad: Si dice OFFLINE pero el puerto está ocupado, está ONLINE (Recuperación)
+        if self._status == "OFFLINE" and self._is_port_in_use():
+            self._status = "ONLINE"
+            
         return self._status
+
+    def _is_port_in_use(self) -> bool:
+        import socket
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            # Timeout corto para no bloquear
+            s.settimeout(0.5)
+            return s.connect_ex(('127.0.0.1', self.port)) == 0
     
     async def start(self):
-        if self.is_running():
-            print(f"Server {self.name} is already running.")
+        if self.is_running() or self._is_port_in_use():
+            print(f"Server {self.name} is already running (PID or Port {self.port} active).")
+            self._status = "ONLINE"
             return
 
         print(f"DEBUG: Starting server {self.name}")
@@ -297,15 +315,39 @@ class MinecraftProcess:
     def kill(self):
         print(f"INFO: Force killing server {self.name}")
         pid = self._get_pid()
+        killed = False
+        
+        # 1. Intentar por PID conocido
         if pid:
             try:
                 p = psutil.Process(pid)
                 p.kill()
                 print(f"INFO: Process {pid} killed successfully")
+                killed = True
             except psutil.NoSuchProcess:
-                print(f"INFO: Process {pid} already dead")
+                pass
+            except Exception as e:
+                print(f"WARN: Could not kill PID {pid}: {e}")
+
+        # 2. Si el puerto sigue ocupado, buscar proceso por puerto (Linux/Unix)
+        if self._is_port_in_use():
+            print(f"WARN: Port {self.port} still in use, searching for process...")
+            try:
+                import subprocess
+                # Usar lsof o netstat para encontrar el PID en el puerto
+                cmd = f"lsof -t -i:{self.port}"
+                out = subprocess.check_output(cmd, shell=True).decode().strip()
+                if out:
+                    for p_id in out.split('\n'):
+                        print(f"INFO: Killing process {p_id} found on port {self.port}")
+                        os.system(f"kill -9 {p_id}")
+                    killed = True
+            except Exception as e:
+                print(f"ERROR: Could not find/kill process on port {self.port}: {e}")
+
         self._cleanup_pid()
         self.current_players = 0
+        self._status = "OFFLINE"
 
     def _cleanup_pid(self):
         pid_file = os.path.join(self.working_dir, "server.pid")

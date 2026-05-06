@@ -31,6 +31,7 @@ class ServerService:
                 ram_mb=record.ram_mb,
                 jar_path=jar_path,
                 working_dir=working_dir,
+                port=record.port,
                 server_id=record.id,
                 masterbridge_config=masterbridge_config,
                 cpu_cores=record.cpu_cores
@@ -223,6 +224,7 @@ class ServerService:
             ram_mb=server_db.ram_mb,
             jar_path=os.path.join(self.base_dir, server_db.name, "server.jar"),
             working_dir=os.path.join(self.base_dir, server_db.name),
+            port=server_db.port,
             server_id=server_db.id,
             masterbridge_config=masterbridge_config,
             cpu_cores=server_db.cpu_cores
@@ -479,6 +481,7 @@ class ServerService:
                 ram_mb=4096,
                 jar_path=jar_path,
                 working_dir=final_server_dir,
+                port=port,
                 masterbridge_config=masterbridge_config
             )
             self.servers[server_name] = instance

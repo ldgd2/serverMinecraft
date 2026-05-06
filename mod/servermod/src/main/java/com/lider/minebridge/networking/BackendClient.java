@@ -90,7 +90,11 @@ public class BackendClient {
             .buildAsync(URI.create(wsUrl), new WebSocketListener())
             .thenAccept(ws -> {
                 this.webSocket = ws;
-                // MineBridge.LOGGER.info("Connected to Backend WebSocket Bridge");
+                MineBridge.LOGGER.info("Connected to Backend WebSocket Bridge: " + activeUrl);
+                // Notificar éxito al servidor
+                MineBridge.getServer().execute(() -> {
+                    MineBridge.LOGGER.info("§a[MineBridge] Conexión WebSocket establecida con éxito.");
+                });
             })
             .exceptionally(t -> {
                 MineBridge.LOGGER.error("Failed to connect to WebSocket: " + t.getMessage());
@@ -276,6 +280,7 @@ public class BackendClient {
                 
                 if ("command".equals(action)) {
                     String cmd = json.get("command").getAsString();
+                    MineBridge.LOGGER.info("§b[MineBridge] Ejecutando comando remoto: §f" + cmd);
                     executeCommand(cmd);
                 } else if ("achievement".equals(action)) {
                     String target = json.get("player").getAsString();
