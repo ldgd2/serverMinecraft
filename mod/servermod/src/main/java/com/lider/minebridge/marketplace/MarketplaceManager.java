@@ -23,17 +23,20 @@ import org.jetbrains.annotations.Nullable;
 import java.util.Optional;
 
 public class MarketplaceManager {
-
     public static void openMarketplace(ServerPlayerEntity player, JsonArray trades) {
         MineBridge.getServer().execute(() -> {
             TradeOfferList offers = new TradeOfferList();
+            java.util.List<Integer> tradeIds = new java.util.ArrayList<>();
+            
             for (int i = 0; i < trades.size(); i++) {
                 JsonObject tradeJson = trades.get(i).getAsJsonObject();
+                int tradeId = tradeJson.get("id").getAsInt();
                 ItemStack selling = parseItemStack(tradeJson.getAsJsonObject("selling"));
                 ItemStack asking = parseItemStack(tradeJson.getAsJsonObject("asking"));
                 
                 if (!selling.isEmpty() && !asking.isEmpty()) {
                     offers.add(new TradeOffer(new TradedItem(asking.getItem(), asking.getCount()), selling, 1, 0, 0f));
+                    tradeIds.add(tradeId);
                 }
             }
 
@@ -42,7 +45,7 @@ public class MarketplaceManager {
                 return;
             }
 
-            SimpleMerchant merchant = new SimpleMerchant(player);
+            SimpleMerchant merchant = new SimpleMerchant(player, tradeIds);
             merchant.setOffers(offers);
             player.openHandledScreen(new SimpleNamedScreenHandlerFactory((syncId, inv, p) -> 
                 new net.minecraft.screen.MerchantScreenHandler(syncId, inv, merchant), 
@@ -61,25 +64,32 @@ public class MarketplaceManager {
         }
     }
 
-    /** Un mercante virtual simple para la UI */
     private static class SimpleMerchant implements Merchant {
         private final PlayerEntity customer;
+        private final java.util.List<Integer> tradeIds;
         private TradeOfferList offers = new TradeOfferList();
 
-        public SimpleMerchant(PlayerEntity customer) {
+        public SimpleMerchant(PlayerEntity customer, java.util.List<Integer> tradeIds) {
             this.customer = customer;
+            this.tradeIds = tradeIds;
         }
 
         @Override public void setCustomer(@Nullable PlayerEntity customer) {}
         @Override public @Nullable PlayerEntity getCustomer() { return customer; }
         @Override public TradeOfferList getOffers() { return offers; }
         public void setOffers(TradeOfferList offers) { this.offers = offers; }
+        
         @Override public void trade(TradeOffer offer) {
-            // Aquí es donde se completa el trato
-            // Debemos notificar al backend que este tradeID se ha completado
-            // Pero TradeOffer no guarda el ID de nuestra DB. 
-            // Podríamos usar el NBT del item o un mapa.
+            // Buscar qué tradeID corresponde a esta oferta
+            for (int i = 0; i < offers.size(); i++) {
+                if (offers.get(i) == offer && i < tradeIds.size()) {
+                    int tradeId = tradeIds.get(i);
+                    TradeClient.completeTrade(tradeId, customer.getUuidAsString(), customer.getName().getString());
+                    break;
+                }
+            }
         }
+
         @Override public void setOffersFromServer(TradeOfferList offers) {}
         @Override public boolean isClient() { return false; }
         @Override public int getExperience() { return 0; }

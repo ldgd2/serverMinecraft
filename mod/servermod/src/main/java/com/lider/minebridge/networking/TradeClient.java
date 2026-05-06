@@ -62,4 +62,20 @@ public class TradeClient {
 
         httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString());
     }
+
+    public static void completeTrade(int tradeId, String buyerUuid, String buyerName) {
+        JsonObject data = new JsonObject();
+        data.addProperty("buyer_uuid", buyerUuid);
+        data.addProperty("buyer_name", buyerName);
+
+        String url = ModConfig.getBackendUrl() + "api/v1/trades/" + tradeId + "/complete";
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .header("Content-Type", "application/json")
+                .header("X-API-Key", ModConfig.getApiKey())
+                .POST(HttpRequest.BodyPublishers.ofString(data.toString()))
+                .build();
+
+        httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString());
+    }
 }

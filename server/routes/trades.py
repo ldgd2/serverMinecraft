@@ -111,3 +111,22 @@ async def resolve_offer(offer_id: int, action: str, reason: str = None, db: Sess
 
     db.commit()
     return APIResponse(status="success")
+
+@router.post("/{trade_id}/complete")
+async def complete_trade(trade_id: int, data: dict, db: Session = Depends(get_db)):
+    """
+    Completar un trade directamente (desde el Mod).
+    Data: { buyer_uuid, buyer_name }
+    """
+    trade = db.query(Trade).filter(Trade.id == trade_id, Trade.status == "OPEN").first()
+    if not trade: raise HTTPException(status_code=404, detail="Trade not found or already completed")
+    
+    trade.status = "COMPLETED"
+    buyer_name = data.get("buyer_name", "Alguien")
+    
+    # Notificar al vendedor
+    msg = f"§6[Market] §a¡Venta Completada! §b{buyer_name} §fha comprado tu §e{trade.title}"
+    await server_controller.send_command("MinecraftTest", f'tellraw {trade.seller_name} {{"text":"{msg}"}}')
+    
+    db.commit()
+    return APIResponse(status="success")
