@@ -93,7 +93,24 @@ public class ClientEvents {
         });
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            if (!isActive || client.player == null) return;
+            if (client.player == null) return;
+
+            // --- Tecla Marketplace (Independiente de isActive) ---
+            while (marketplaceKey.wasPressed()) {
+                if (Screen.hasShiftDown()) {
+                    // Abrir pantalla de CREACIÓN
+                    MinecraftClient.getInstance().setScreen(new com.lider.minebridge.client.ui.MarketplaceCreationScreen());
+                } else {
+                    // Abrir pantalla de MERCADO GLOBAL (Fetch desde backend)
+                    com.lider.minebridge.networking.TradeClient.getOpenTrades().thenAccept(trades -> {
+                        if (ClientPlayNetworking.canSend(com.lider.minebridge.networking.payload.MarketplaceRequestPayload.ID)) {
+                            ClientPlayNetworking.send(new com.lider.minebridge.networking.payload.MarketplaceRequestPayload(trades.toString()));
+                        }
+                    });
+                }
+            }
+
+            if (!isActive) return;
             
             tickCounter++;
             com.lider.minebridge.client.gui.UpdateTimerHud.tick();
@@ -138,7 +155,7 @@ public class ClientEvents {
                 }
                 
                 if (client.player.getY() <= -60) {
-                    if (!unlockedAchievementsSession.contains("DESCEND_MADNESS") && (client.player.hasStatusEffect(StatusEffects.BLINDNESS) || client.player.hasStatusEffect(StatusEffects.DARKNESS))) {
+                    if (!unlockedAchievementsSession.contains("DESCEND_MADNESS") && (client.player.hasStatusEffect(net.minecraft.entity.effect.StatusEffects.BLINDNESS) || client.player.hasStatusEffect(net.minecraft.entity.effect.StatusEffects.DARKNESS))) {
                         triggerAchievement("DESCEND_MADNESS", "Descendiendo a la Locura", "En lo profundo y ciego, el abismo te devuelve la mirada.");
                     }
                     if (!unlockedAchievementsSession.contains("EDGE_REASON") && client.player.getMainHandStack().getItem() == net.minecraft.item.Items.TOTEM_OF_UNDYING && 
@@ -152,7 +169,7 @@ public class ClientEvents {
                 }
 
                 // 3. Efectos y Estados
-                if (!unlockedAchievementsSession.contains("FEAR_PARALYSIS") && client.player.hasStatusEffect(StatusEffects.DARKNESS)) triggerAchievement("FEAR_PARALYSIS", "Parálisis del Miedo", "La oscuridad te consume.");
+                if (!unlockedAchievementsSession.contains("FEAR_PARALYSIS") && client.player.hasStatusEffect(net.minecraft.entity.effect.StatusEffects.DARKNESS)) triggerAchievement("FEAR_PARALYSIS", "Parálisis del Miedo", "La oscuridad te consume.");
                 if (!unlockedAchievementsSession.contains("MANY_EFFECTS") && client.player.getActiveStatusEffects().size() >= 10) triggerAchievement("MANY_EFFECTS", "Farmacia Ambulante", "10 efectos simultáneos.");
                 
                 if (!unlockedAchievementsSession.contains("BLOOD_SWEAT") && client.player.getHealth() <= 2.0f && client.player.getHungerManager().getFoodLevel() == 0 && client.player.isSprinting()) {
@@ -179,23 +196,8 @@ public class ClientEvents {
                     if (nearby >= 5) triggerAchievement("MEME_ANTOJEN", "¡Antojen!", "Sosteniendo pastel ante 5 personas.");
                 }
             }
-
-            // --- Tecla Marketplace ---
-            while (marketplaceKey.wasPressed()) {
-                if (Screen.hasShiftDown()) {
-                    // Abrir pantalla de CREACIÓN
-                    MinecraftClient.getInstance().setScreen(new com.lider.minebridge.client.ui.MarketplaceCreationScreen());
-                } else {
-                    // Abrir pantalla de MERCADO GLOBAL (Fetch desde backend)
-                    com.lider.minebridge.networking.TradeClient.getOpenTrades().thenAccept(trades -> {
-                        if (ClientPlayNetworking.canSend(MarketplaceRequestPayload.ID)) {
-                            ClientPlayNetworking.send(new MarketplaceRequestPayload(trades.toString()));
-                        }
-                    });
-                }
-            }
         });
-
+        
         PlayerBlockBreakEvents.AFTER.register((world, player, pos, state, blockEntity) -> {
             if (!isActive || !world.isClient) return;
 
