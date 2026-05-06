@@ -15,11 +15,11 @@ import net.minecraft.util.Identifier;
 
 public class MarketplaceCreationScreen extends HandledScreen<MarketplaceCreationScreenHandler> {
     private static final int PANEL_WIDTH = 176;
-    private static final int PANEL_HEIGHT = 166;
+    private static final int PANEL_HEIGHT = 188;
 
     public MarketplaceCreationScreen(MarketplaceCreationScreenHandler handler, PlayerInventory inventory, Text title) {
         super(handler, inventory, title);
-        this.backgroundHeight = 166;
+        this.backgroundHeight = PANEL_HEIGHT;
         this.playerInventoryTitleY = this.backgroundHeight - 94;
     }
 
@@ -28,7 +28,7 @@ public class MarketplaceCreationScreen extends HandledScreen<MarketplaceCreation
         super.init();
         this.titleX = (this.backgroundWidth - this.textRenderer.getWidth(this.title)) / 2;
 
-        // Botón Publicar
+        // Botón Publicar - Movido hacia abajo
         this.addDrawableChild(ButtonWidget.builder(Text.of("§a§lPUBLICAR"), button -> {
             ItemStack selling = this.handler.getTradeInventory().getStack(0);
             ItemStack asking1 = this.handler.getTradeInventory().getStack(1);
@@ -59,11 +59,11 @@ public class MarketplaceCreationScreen extends HandledScreen<MarketplaceCreation
             );
             
             this.close();
-        }).dimensions(this.x + this.backgroundWidth / 2 - 40, this.y + 140, 80, 20).build());
+        }).dimensions(this.x + this.backgroundWidth / 2 - 40, this.y + 164, 80, 18).build());
 
-        // Botón X para cerrar
+        // Botón X estilizado
         this.addDrawableChild(ButtonWidget.builder(Text.of("§cX"), b -> this.close())
-            .dimensions(this.x + this.backgroundWidth - 15, this.y + 5, 12, 12).build());
+            .dimensions(this.x + this.backgroundWidth - 16, this.y + 4, 12, 12).build());
     }
 
     @Override
@@ -71,21 +71,33 @@ public class MarketplaceCreationScreen extends HandledScreen<MarketplaceCreation
         int i = this.x;
         int j = this.y;
         
-        // Panel fondo (Estilo Global)
-        context.fill(i - 1, j - 1, i + this.backgroundWidth + 1, j + this.backgroundHeight + 1, 0xFF444444);
-        context.fill(i, j, i + this.backgroundWidth, j + this.backgroundHeight, 0xFF101010);
+        // Panel fondo (Premium Dark)
+        context.fill(i - 1, j - 1, i + this.backgroundWidth + 1, j + this.backgroundHeight + 1, 0xFF555555);
+        context.fill(i, j, i + this.backgroundWidth, j + this.backgroundHeight, 0xFF181818);
         
         // Cabecera
-        context.fill(i, j, i + this.backgroundWidth, j + 25, 0xFF222222);
+        context.fill(i, j, i + this.backgroundWidth, j + 22, 0xFF252525);
 
-        // Cajas de slots
-        context.fill(i + 43, j + 34, i + 43 + 18, j + 34 + 18, 0x4000FF00); // Venta
-        context.fill(i + 115, j + 34, i + 115 + 18, j + 34 + 18, 0x40FF0000); // Pedido
+        // Cajas de slots con bordes y etiquetas
+        drawSlotBox(context, i + 40, j + 40, 0x40FF0000, "PEDIDO"); // Pedido 1
+        drawSlotBox(context, i + 66, j + 40, 0x40FF0000, null); // Pedido 2
         
-        context.drawCenteredTextWithShadow(this.textRenderer, "LO QUE VENDES", i + 52, j + 24, 0xAAAAAA);
-        context.drawCenteredTextWithShadow(this.textRenderer, "LO QUE PIDES", i + 124, j + 24, 0xAAAAAA);
+        // Flecha central
+        context.drawText(this.textRenderer, "§6§l➡", i + 92, j + 44, 0xFFFFFF, false);
         
-        context.drawTextWithShadow(this.textRenderer, "Inventario", i + 8, j + 72, 0x404040);
+        drawSlotBox(context, i + 120, j + 40, 0x4000FF00, "VENTA"); // Venta
+        
+        context.drawTextWithShadow(this.textRenderer, "Inventario", i + 8, j + 72, 0xAAAAAA);
+    }
+
+    private void drawSlotBox(DrawContext context, int x, int y, int color, String label) {
+        context.fill(x - 1, y - 1, x + 19, y + 19, 0xFF888888); // Borde
+        context.fill(x, y, x + 18, y + 18, 0xFF000000); // Fondo
+        context.fill(x, y, x + 18, y + 18, color); // Tinte
+        
+        if (label != null) {
+            context.drawText(this.textRenderer, "§e" + label, x, y - 10, 0xFFFFFF, false);
+        }
     }
 
     private JsonObject serializeItemStack(ItemStack stack) {

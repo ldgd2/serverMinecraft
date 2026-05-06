@@ -143,7 +143,7 @@ class SkinsView(tk.Frame):
         act_row = tk.Frame(right, bg=Colors.PANEL_DARK)
         act_row.pack(padx=14, pady=(0, 6))
 
-        btn_text = "Equipar y Subir a Mojang" if is_premium else "Equipar Localmente"
+        btn_text = "Equipar y Subir a Mojang" if is_premium else "Equipar y Sincronizar"
         MinecraftButton(act_row, text=btn_text, width=240, height=36, font_size=10,
                         command=self._equip_selected).pack(side="left")
 
@@ -179,12 +179,17 @@ class SkinsView(tk.Frame):
             lbl = tk.Label(row, text=name, bg=Colors.DARK, fg=Colors.WHITE, font=mc_font(9), anchor="w")
             lbl.pack(side="left", fill="x", expand=True)
             
-            # Bind clicks (single click only, to select)
+            # Bind clicks (single click to preview/select, double to equip/sync)
             def on_single_click(e, p=path):
                 self._on_gallery_single_click(p)
+            
+            def on_double_click(e, p=path):
+                self._on_gallery_single_click(p)
+                self._equip_selected()
                 
             for w in (row, head, lbl):
                 w.bind("<Button-1>", on_single_click)
+                w.bind("<Double-Button-1>", on_double_click)
                 
             self._gallery_items.append((path, row, head, lbl))
             
@@ -202,7 +207,13 @@ class SkinsView(tk.Frame):
         config.set("skin_path", path)
         self._highlight_selected()
         self._refresh_preview()
-        self._status("Skin seleccionada. Presiona 'Equipar' para aplicar.", Colors.GRAY_TEXT)
+        
+        # Para No-Premium, intentamos sincronizar al seleccionar para que sea más intuitivo
+        auth_type = config.get("auth_type")
+        if auth_type != "premium":
+            self._equip_selected()
+        else:
+            self._status("Skin seleccionada. Presiona 'Equipar' para subir a Mojang.", Colors.GRAY_TEXT)
 
     def _equip_selected(self):
         path = config.get("skin_path")

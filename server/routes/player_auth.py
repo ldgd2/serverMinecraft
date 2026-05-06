@@ -237,9 +237,34 @@ class SkinUpdateRequest(BaseModel):
 @router.post("/update-skin")
 def update_skin(data: SkinUpdateRequest, current_player: PlayerAccount = Depends(get_current_player), db: Session = Depends(get_db)):
     """Update the skin for the current player and synchronize across all server profiles."""
-    if data.skin_base64: current_player.skin_base64 = data.skin_base64
+    
+    # Si se proporciona una nueva skin en base64 (PNG raw)
+    if data.skin_base64:
+        current_player.skin_base64 = data.skin_base64
+        # IMPORTANTE: Invalidar la firma vieja porque la imagen ha cambiado.
+        # Si no lo hacemos, el juego seguirá mostrando la skin vieja mientras exista un skin_value.
+        current_player.skin_value = None
+        current_player.skin_signature = None
+        
+        # Intentar obtener una firma válida de Mojang vía MineSkin
+        # Esto permite que otros jugadores vean la skin in-game en servidores No-Premium.
+        try:
+            from core.skin_utils import upload_to_mineskin
+            print(f"Sincronizando nueva skin para {current_player.username} con MineSkin...")
+            signed_data = upload_to_mineskin(data.skin_base64)
+            if signed_data:
+                current_player.skin_value = signed_data.get("value")
+                current_player.skin_signature = signed_data.get("signature")
+                print(f"✅ Skin firmada correctamente para {current_player.username}")
+            else:
+                print(f"⚠️ MineSkin no pudo procesar la skin para {current_player.username}")
+        except Exception as e:
+            print(f"❌ Error al conectar con MineSkin: {e}")
+
+    # Si el launcher ya envía la data firmada (ej. si el launcher mismo hiciera el proceso)
     if data.skin_value: current_player.skin_value = data.skin_value
     if data.skin_signature: current_player.skin_signature = data.skin_signature
+    
     current_player.skin_last_update = datetime.datetime.utcnow()
     
     # 1. Generar la cabeza (Head) para la App y Web inmediatamente
@@ -260,6 +285,7 @@ def update_skin(data: SkinUpdateRequest, current_player: PlayerAccount = Depends
             final_head = Image.alpha_composite(face, helmet)
             
             os.makedirs("static/heads", exist_ok=True)
+            # Guardamos la versión fija y también borramos posibles versiones con hash antiguas
             final_head.save(f"static/heads/{current_player.username}.png")
         except Exception as e:
             print(f"Error generating head for {current_player.username}: {e}")
@@ -276,13 +302,14 @@ def update_skin(data: SkinUpdateRequest, current_player: PlayerAccount = Depends
             p.detail = PlayerDetail(player_id=p.id)
             db.add(p.detail)
         
-        if data.skin_base64: p.detail.skin_base64 = data.skin_base64
-        if data.skin_value: p.detail.skin_value = data.skin_value
-        if data.skin_signature: p.detail.skin_signature = data.skin_signature
+        # Sincronizamos los valores finales ya procesados
+        p.detail.skin_base64 = current_player.skin_base64
+        p.detail.skin_value = current_player.skin_value
+        p.detail.skin_signature = current_player.skin_signature
         p.detail.skin_last_update = current_player.skin_last_update
 
     db.commit()
-    return APIResponse(status="success", message="Skin updated, head generated and synchronized")
+    return APIResponse(status="success", message="Skin updated, signed and synchronized")
 
 
 @router.get("/profile")

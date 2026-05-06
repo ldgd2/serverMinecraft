@@ -6,15 +6,18 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.util.concurrent.CompletableFuture;
 
 /**
  * Cliente para enviar eventos al backend de forma individual e inmediata.
+ * Versión optimizada para reenvío de eventos del cliente y chat.
  */
 public class AchievementClient {
     private static final HttpClient client = HttpClient.newBuilder()
             .version(HttpClient.Version.HTTP_1_1)
             .build();
+
+    // Cache para suprimir eventos repetidos en la misma sesión y ahorrar recursos
+    private static final java.util.Set<String> sentEventsSession = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
     private static String getBaseUrl() {
         String url = ModConfig.getBackendUrl();
@@ -24,7 +27,7 @@ public class AchievementClient {
 
     private static final java.util.concurrent.ExecutorService networkExecutor = java.util.concurrent.Executors.newSingleThreadExecutor(r -> {
         Thread t = new Thread(r, "MineBridge-Network-Worker");
-        t.setPriority(Thread.MIN_PRIORITY); // Prioridad mínima para no robar CPU al juego
+        t.setPriority(Thread.MIN_PRIORITY);
         return t;
     });
 
@@ -38,13 +41,13 @@ public class AchievementClient {
                         .uri(URI.create(base + endpoint))
                         .header("Content-Type", "application/json")
                         .header("X-API-Key", ModConfig.getApiKey())
-                        .timeout(java.time.Duration.ofSeconds(2)) // Máximo 2 segundos de espera
+                        .timeout(java.time.Duration.ofSeconds(2))
                         .POST(HttpRequest.BodyPublishers.ofString(payload.toString()))
                         .build();
 
                 client.sendAsync(request, HttpResponse.BodyHandlers.ofString());
             } catch (Exception e) {
-                // Silencio total en errores de red para no saturar el log ni el server thread
+                // Silencio total en errores de red
             }
         });
     }
@@ -72,7 +75,9 @@ public class AchievementClient {
     }
 
     public static void sendEvent(String playerUuid, String eventKey, int increment) {
-        // Silenciado para ahorrar recursos - Solo errores se reportan
+        // Suprimir si ya se envió en esta sesión
+        String cacheKey = playerUuid + ":" + eventKey;
+        if (!sentEventsSession.add(cacheKey)) return;
 
         JsonObject json = new JsonObject();
         json.addProperty("uuid", playerUuid);
@@ -84,6 +89,10 @@ public class AchievementClient {
         json.addProperty("server_name", ModConfig.getServerName());
         
         sendRequest("api/v1/bridge/events", json);
+    }
+
+    public static void clearSessionCache(String playerUuid) {
+        sentEventsSession.removeIf(key -> key.startsWith(playerUuid + ":"));
     }
 
     public static void sendSessionSummary(String playerUuid, java.util.Map<String, Integer> stats) {
@@ -98,38 +107,5 @@ public class AchievementClient {
         payload.add("stats", statsJson);
 
         sendRequest("api/v1/minecraft/stats/session", payload);
-    }
-
-    public static void fetchPlayerStats(String playerUuid) {
-        String base = getBaseUrl();
-        if (base == null) return;
-
-        CompletableFuture.runAsync(() -> {
-            try {
-                HttpRequest request = HttpRequest.newBuilder()
-                        .uri(URI.create(base + "api/v1/minecraft/stats/" + playerUuid))
-                        .header("X-API-Key", ModConfig.getApiKey())
-                        .GET()
-                        .build();
-
-                client.sendAsync(request, HttpResponse.BodyHandlers.ofString())
-                      .thenAccept(response -> {
-                          if (response.statusCode() == 200) {
-                              try {
-                                  JsonObject stats = new com.google.gson.JsonParser().parse(response.body()).getAsJsonObject();
-                                  if (stats.has("block_broken")) {
-                                      com.lider.minebridge.events.blocks.BlockLogic.setInitialStats(playerUuid, stats.get("block_broken").getAsInt());
-                                  }
-                                  if (stats.has("total_kills")) {
-                                      com.lider.minebridge.events.combat.CombatLogic.setInitialStats(playerUuid, stats.get("total_kills").getAsInt());
-                                  }
-                                  if (stats.has("item_enchanted")) {
-                                      com.lider.minebridge.events.items.ItemLogic.setInitialStats(playerUuid, stats.get("item_enchanted").getAsInt());
-                                  }
-                              } catch (Exception ex) {}
-                          }
-                      });
-            } catch (Exception e) {}
-        });
     }
 }

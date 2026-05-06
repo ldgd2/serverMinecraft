@@ -20,8 +20,13 @@ public class MarketplaceGlobalScreen extends Screen {
     private final Map<Integer, ItemStack[]> iconCache = new HashMap<>();
     private final boolean showOnlyMine;
     
-    private static final int PANEL_WIDTH = 340;
-    private static final int PANEL_HEIGHT = 200;
+    private static final int PANEL_WIDTH = 380;
+    private static final int PANEL_HEIGHT = 220;
+    private static final int ROWS = 4;
+    private static final int COLS = 3;
+    private static final int PAGE_SIZE = ROWS * COLS;
+    
+    private int currentPage = 0;
 
     public MarketplaceGlobalScreen(JsonArray trades) {
         this(trades, false);
@@ -68,22 +73,36 @@ public class MarketplaceGlobalScreen extends Screen {
         
         int centerX = this.width / 2;
         int centerY = this.height / 2;
-        int startY = centerY - (PANEL_HEIGHT / 2) + 40;
+        int startX = centerX - (PANEL_WIDTH / 2) + 15;
+        int startY = centerY - (PANEL_HEIGHT / 2) + 35;
         
         String myUuid = MinecraftClient.getInstance().player.getUuidAsString();
 
-        int renderedCount = 0;
+        // Filtrar trades visibles
+        java.util.List<JsonObject> visibleTrades = new java.util.ArrayList<>();
         for (int i = 0; i < trades.size(); i++) {
             JsonObject trade = trades.get(i).getAsJsonObject();
-            if (trade == null) continue;
+            String sellerUuid = trade.has("seller_uuid") ? trade.get("seller_uuid").getAsString() : "unknown";
+            if (showOnlyMine && !sellerUuid.equals(myUuid)) continue;
+            visibleTrades.add(trade);
+        }
 
+        int maxPage = (int) Math.ceil((double) visibleTrades.size() / PAGE_SIZE) - 1;
+        if (currentPage > maxPage) currentPage = Math.max(0, maxPage);
+
+        int startIndex = currentPage * PAGE_SIZE;
+        for (int i = 0; i < PAGE_SIZE && (startIndex + i) < visibleTrades.size(); i++) {
+            JsonObject trade = visibleTrades.get(startIndex + i);
+            int tradeId = trade.get("id").getAsInt();
             String sellerUuid = trade.has("seller_uuid") ? trade.get("seller_uuid").getAsString() : "unknown";
             boolean isSelf = sellerUuid.equals(myUuid);
-            if (showOnlyMine && !isSelf) continue;
 
-            int tradeId = trade.get("id").getAsInt();
+            int col = i % COLS;
+            int row = i / COLS;
+            int x = startX + (col * 120);
+            int y = startY + (row * 40);
 
-            Text buttonText = isSelf ? Text.of("§cELIMINAR") : Text.of("§bVER");
+            Text buttonText = isSelf ? Text.of("§cDEL") : Text.of("§bVER");
             this.addDrawableChild(ButtonWidget.builder(buttonText, button -> {
                 if (isSelf) {
                     TradeClient.cancelTrade(tradeId);
@@ -91,24 +110,30 @@ public class MarketplaceGlobalScreen extends Screen {
                 } else {
                     MinecraftClient.getInstance().setScreen(new MarketplaceDetailScreen(trade));
                 }
-            }).dimensions(centerX + 85, startY + (renderedCount * 25), 65, 20).build());
+            }).dimensions(x + 75, y + 10, 35, 20).build());
+        }
 
-            renderedCount++;
-            if (startY + (renderedCount * 25) > centerY + (PANEL_HEIGHT / 2) - 30) break;
+        // Navegación
+        if (currentPage > 0) {
+            this.addDrawableChild(ButtonWidget.builder(Text.of("§e<<"), b -> { currentPage--; init(); })
+                .dimensions(centerX - 120, centerY + (PANEL_HEIGHT / 2) - 25, 30, 20).build());
+        }
+        if (startIndex + PAGE_SIZE < visibleTrades.size()) {
+            this.addDrawableChild(ButtonWidget.builder(Text.of("§e>>"), b -> { currentPage++; init(); })
+                .dimensions(centerX + 90, centerY + (PANEL_HEIGHT / 2) - 25, 30, 20).build());
         }
 
         this.addDrawableChild(ButtonWidget.builder(Text.of("Cerrar"), b -> this.close())
-            .dimensions(centerX - 50, centerY + (PANEL_HEIGHT / 2) - 25, 100, 20).build());
+            .dimensions(centerX - 40, centerY + (PANEL_HEIGHT / 2) - 25, 80, 20).build());
 
-        // Botón X para cerrar (Esquina superior derecha)
+        // Botón X
         this.addDrawableChild(ButtonWidget.builder(Text.of("§cX"), b -> this.close())
-            .dimensions(centerX + (PANEL_WIDTH / 2) - 20, centerY - (PANEL_HEIGHT / 2) + 2, 18, 18).build());
+            .dimensions(centerX + (PANEL_WIDTH / 2) - 18, centerY - (PANEL_HEIGHT / 2) + 4, 14, 14).build());
     }
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        // Dibujar fondo sólido primero para bloquear el mundo
-        context.fill(0, 0, this.width, this.height, 0xFF000000); 
+        context.fill(0, 0, this.width, this.height, 0xCC000000); 
 
         int centerX = this.width / 2;
         int centerY = this.height / 2;
@@ -117,68 +142,69 @@ public class MarketplaceGlobalScreen extends Screen {
         int x2 = centerX + (PANEL_WIDTH / 2);
         int y2 = centerY + (PANEL_HEIGHT / 2);
 
-        // Subir a la capa de GUI (Z=100)
         context.getMatrices().push();
         context.getMatrices().translate(0, 0, 100);
 
         // Panel Principal
-        context.fill(x1 - 1, y1 - 1, x2 + 1, y2 + 1, 0xFF444444);
-        context.fill(x1, y1, x2, y2, 0xFF101010);
+        context.fill(x1 - 1, y1 - 1, x2 + 1, y2 + 1, 0xFF555555);
+        context.fill(x1, y1, x2, y2, 0xFF181818);
         
         // Cabecera
-        context.fill(x1, y1, x2, y1 + 25, 0xFF222222);
+        context.fill(x1, y1, x2, y1 + 25, 0xFF252525);
         context.drawCenteredTextWithShadow(this.textRenderer, this.title, centerX, y1 + 8, 0xFFFFFF);
 
-        int startY = y1 + 40;
+        int startX = x1 + 15;
+        int startY = y1 + 35;
         String myUuid = MinecraftClient.getInstance().player.getUuidAsString();
 
-        int renderedCount = 0;
+        java.util.List<JsonObject> visibleTrades = new java.util.ArrayList<>();
         for (int i = 0; i < trades.size(); i++) {
             JsonObject trade = trades.get(i).getAsJsonObject();
-            if (trade == null) continue;
-
             String sellerUuid = trade.has("seller_uuid") ? trade.get("seller_uuid").getAsString() : "unknown";
-            boolean isSelf = sellerUuid.equals(myUuid);
-            if (showOnlyMine && !isSelf) continue;
+            if (showOnlyMine && !sellerUuid.equals(myUuid)) continue;
+            visibleTrades.add(trade);
+        }
 
+        int startIndex = currentPage * PAGE_SIZE;
+        for (int i = 0; i < PAGE_SIZE && (startIndex + i) < visibleTrades.size(); i++) {
+            JsonObject trade = visibleTrades.get(startIndex + i);
             int tradeId = trade.get("id").getAsInt();
-            String title = trade.has("title") ? trade.get("title").getAsString() : "Sin título";
             String seller = trade.has("seller") ? trade.get("seller").getAsString() : "Anónimo";
             
-            int currentY = startY + (renderedCount * 25);
+            int col = i % COLS;
+            int row = i / COLS;
+            int x = startX + (col * 120);
+            int y = startY + (row * 40);
             
-            // Fila de item
-            context.fill(x1 + 5, currentY - 2, x2 - 5, currentY + 22, 0x33FFFFFF);
-            context.drawTextWithShadow(this.textRenderer, "§e" + truncate(title, 10), x1 + 10, currentY + 2, 0xFFFFFF);
-            context.drawTextWithShadow(this.textRenderer, "§7de §f" + truncate(seller, 8), x1 + 10, currentY + 11, 0xFFFFFF);
+            // Tarjeta de trade
+            context.fill(x, y, x + 115, y + 36, 0x22FFFFFF);
+            context.fill(x, y, x + 115, y + 1, 0x44FFFFFF); // Borde superior sutil
+            
+            context.drawTextWithShadow(this.textRenderer, "§f" + truncate(seller, 8), x + 40, y + 4, 0xAAAAAA);
             
             ItemStack[] icons = iconCache.get(tradeId);
             if (icons != null) {
-                // Venta
-                context.drawItem(icons[0], centerX - 60, currentY);
-                context.drawTextWithShadow(this.textRenderer, "➔", centerX - 35, currentY + 6, 0xFFFFFF);
-                
-                // Pedido 1
-                if (!icons[1].isEmpty()) {
-                    context.drawItem(icons[1], centerX - 10, currentY);
-                }
-                
-                // Pedido 2
+                context.drawItem(icons[0], x + 2, y + 2);
+                context.drawTextWithShadow(this.textRenderer, "➔", x + 20, y + 6, 0xFFFFFF);
+                context.drawItem(icons[1], x + 32, y + 18);
                 if (!icons[2].isEmpty()) {
-                    context.drawItem(icons[2], centerX + 15, currentY);
+                    context.drawItem(icons[2], x + 52, y + 18);
                 }
             }
+        }
 
-            renderedCount++;
-            if (currentY + 25 > y2 - 30) break;
+        // Indicador de página
+        int maxPage = (int) Math.ceil((double) visibleTrades.size() / PAGE_SIZE);
+        if (maxPage > 1) {
+            context.drawCenteredTextWithShadow(this.textRenderer, (currentPage + 1) + " / " + maxPage, centerX, y2 - 18, 0xAAAAAA);
         }
 
         super.render(context, mouseX, mouseY, delta);
-        context.getMatrices().pop(); // Restaurar capa
+        context.getMatrices().pop();
     }
     
     private ItemStack parseJsonItem(JsonObject json) {
-        if (json == null) return ItemStack.EMPTY;
+        if (json == null || !json.has("id")) return ItemStack.EMPTY;
         return new ItemStack(Registries.ITEM.get(Identifier.of(json.get("id").getAsString())), json.get("count").getAsInt());
     }
 
@@ -187,12 +213,8 @@ public class MarketplaceGlobalScreen extends Screen {
     }
 
     @Override
-    public boolean shouldPause() {
-        return false;
-    }
+    public boolean shouldPause() { return false; }
 
     @Override
-    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta) {
-        // Evitar el desenfoque
-    }
+    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta) {}
 }

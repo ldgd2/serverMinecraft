@@ -32,7 +32,7 @@ public class MineBridge implements ModInitializer {
     public static final net.minecraft.screen.ScreenHandlerType<com.lider.minebridge.marketplace.MarketplaceTransactionScreenHandler> MARKETPLACE_TRANSACTION_HANDLER = 
         net.minecraft.registry.Registry.register(net.minecraft.registry.Registries.SCREEN_HANDLER, Identifier.of(MOD_ID, "transaction"), 
         new net.fabricmc.fabric.api.screenhandler.v1.ExtendedScreenHandlerType<>(
-            (syncId, inv, data) -> new com.lider.minebridge.marketplace.MarketplaceTransactionScreenHandler(syncId, inv, data.tradeId()),
+            (syncId, inv, data) -> new com.lider.minebridge.marketplace.MarketplaceTransactionScreenHandler(syncId, inv, data.tradeId(), data.req1(), data.req2()),
             com.lider.minebridge.networking.payload.TransactionScreenDataPayload.CODEC
         ));
 
@@ -87,10 +87,19 @@ public class MineBridge implements ModInitializer {
         // Register payload receiver
         net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.registerGlobalReceiver(AchievementUnlockPayload.ID, (payload, context) -> {
             context.server().execute(() -> {
+                String key = payload.achievementKey();
+                String playerName = context.player().getName().getString();
+                
+                // Anunciar al chat global (El servidor solo anuncia)
+                context.server().getPlayerManager().broadcast(
+                    net.minecraft.text.Text.of("§6[Logro] §f" + playerName + " ha desbloqueado: §e" + key.replace("_", " ").toUpperCase()),
+                    false
+                );
+
                 if (backendClient != null) {
                     com.lider.minebridge.networking.AchievementClient.sendEvent(
                         context.player().getUuidAsString(),
-                        payload.achievementKey(),
+                        key,
                         1
                     );
                 }

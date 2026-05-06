@@ -32,7 +32,7 @@ public class MineBridgeClient implements ModInitializer {
 
         MARKETPLACE_TRANSACTION_HANDLER = Registry.register(Registries.SCREEN_HANDLER, Identifier.of("minebridge", "transaction"), 
             new net.fabricmc.fabric.api.screenhandler.v1.ExtendedScreenHandlerType<>(
-                (syncId, inv, data) -> new com.lider.minebridge.marketplace.MarketplaceTransactionScreenHandler(syncId, inv, data.tradeId()),
+                (syncId, inv, data) -> new com.lider.minebridge.marketplace.MarketplaceTransactionScreenHandler(syncId, inv, data.tradeId(), data.req1(), data.req2()),
                 com.lider.minebridge.networking.payload.TransactionScreenDataPayload.CODEC
             ));
 

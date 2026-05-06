@@ -4,7 +4,11 @@
   "package": "com.lider.minebridge.client.mixin",
   "compatibilityLevel": "JAVA_17",
   "client": [
-    "AbstractClientPlayerEntityMixin"
+    "AbstractClientPlayerEntityMixin",
+    "BlockItemMixin",
+    "ClientPlayerEntityMixin",
+    "EnchantmentScreenHandlerMixin",
+    "AnvilScreenHandlerMixin"
   ],
   "injectors": {
     "defaultRequire": 1

@@ -77,21 +77,54 @@ public class MarketplaceManager {
     }
 
     public static void openTransactionMenu(ServerPlayerEntity player, int tradeId) {
-        player.openHandledScreen(new net.fabricmc.fabric.api.screenhandler.v1.ExtendedScreenHandlerFactory<com.lider.minebridge.networking.payload.TransactionScreenDataPayload>() {
-            @Override
-            public com.lider.minebridge.networking.payload.TransactionScreenDataPayload getScreenOpeningData(ServerPlayerEntity player) {
-                return new com.lider.minebridge.networking.payload.TransactionScreenDataPayload(tradeId);
-            }
+        // Consultar detalles del trade para enviar los requisitos al cliente
+        com.lider.minebridge.networking.TradeClient.getOpenTrades().thenAccept(trades -> {
+            MineBridge.getServer().execute(() -> {
+                JsonObject targetTrade = null;
+                for (int i = 0; i < trades.size(); i++) {
+                    if (trades.get(i).getAsJsonObject().get("id").getAsInt() == tradeId) {
+                        targetTrade = trades.get(i).getAsJsonObject();
+                        break;
+                    }
+                }
 
-            @Override
-            public Text getDisplayName() {
-                return Text.of("§6Trueque en Progreso");
-            }
+                if (targetTrade == null) {
+                    player.sendMessage(Text.of("§cEste trade ya no está disponible."), false);
+                    return;
+                }
 
-            @Override
-            public net.minecraft.screen.ScreenHandler createMenu(int syncId, PlayerInventory inv, PlayerEntity player) {
-                return new MarketplaceTransactionScreenHandler(syncId, inv, tradeId);
-            }
+                com.google.gson.JsonElement askingElement = targetTrade.get("asking");
+                ItemStack req1 = ItemStack.EMPTY;
+                ItemStack req2 = ItemStack.EMPTY;
+
+                if (askingElement.isJsonArray()) {
+                    JsonArray array = askingElement.getAsJsonArray();
+                    if (array.size() > 0) req1 = parseItemStack(array.get(0).getAsJsonObject());
+                    if (array.size() > 1) req2 = parseItemStack(array.get(1).getAsJsonObject());
+                } else {
+                    req1 = parseItemStack(askingElement.getAsJsonObject());
+                }
+
+                final ItemStack finalReq1 = req1;
+                final ItemStack finalReq2 = req2;
+
+                player.openHandledScreen(new net.fabricmc.fabric.api.screenhandler.v1.ExtendedScreenHandlerFactory<com.lider.minebridge.networking.payload.TransactionScreenDataPayload>() {
+                    @Override
+                    public com.lider.minebridge.networking.payload.TransactionScreenDataPayload getScreenOpeningData(ServerPlayerEntity player) {
+                        return new com.lider.minebridge.networking.payload.TransactionScreenDataPayload(tradeId, finalReq1, finalReq2);
+                    }
+
+                    @Override
+                    public Text getDisplayName() {
+                        return Text.of("§6§lTRUEQUE EN PROGRESO");
+                    }
+
+                    @Override
+                    public net.minecraft.screen.ScreenHandler createMenu(int syncId, PlayerInventory inv, PlayerEntity player) {
+                        return new MarketplaceTransactionScreenHandler(syncId, inv, tradeId, finalReq1, finalReq2);
+                    }
+                });
+            });
         });
     }
 

@@ -4,20 +4,7 @@
   "package": "com.lider.minebridge.mixin",
   "compatibilityLevel": "JAVA_17",
   "mixins": [
-    "ServerPlayerEntityMixin",
-    "PlayerAdvancementTrackerMixin",
-    "LivingEntityMixin",
-    "BlockItemMixin",
-    "FishingMixin",
-    "BrewingStandBlockEntityMixin",
-    "EnchantmentScreenHandlerMixin",
-    "SheepEntityMixin",
-    "TameableEntityMixin",
-    "ProjectileEntityMixin",
-    "InventoryMixin",
-    "ItemEntityMixin",
-    "MerchantEntityMixin",
-    "AnvilScreenHandlerMixin"
+    "ServerPlayerEntityMixin"
   ],
   "injectors": {
     "defaultRequire": 1

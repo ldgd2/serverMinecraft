@@ -140,6 +140,14 @@ public class ClientEvents {
                 }
             }
 
+            // --- Chequeo de Dimensión ---
+            String currentDim = client.world.getRegistryKey().getValue().toString();
+            if (currentDim.contains("the_end")) {
+                triggerAchievement("enter_dimension:minecraft:the_end", "El Fin de los Tiempos", "Has llegado al End.");
+            } else if (currentDim.contains("the_nether")) {
+                triggerAchievement("enter_dimension:minecraft:the_nether", "Inframundo", "Has llegado al Nether.");
+            }
+
             // ==========================================
             // CHEQUEOS PESADOS (1 Vez por Segundo = 20 Ticks)
             // ==========================================
@@ -175,10 +183,10 @@ public class ClientEvents {
                 if (!unlockedAchievementsSession.contains("BLOOD_SWEAT") && client.player.getHealth() <= 2.0f && client.player.getHungerManager().getFoodLevel() == 0 && client.player.isSprinting()) {
                     triggerAchievement("BLOOD_SWEAT", "Sudor y Sangre", "Corriendo por tu vida, hambriento y moribundo.");
                 }
-
-                // 4. Inventarios e Ítems
-                if (!unlockedAchievementsSession.contains("has_dragon_egg") && client.player.getInventory().contains(new net.minecraft.item.ItemStack(net.minecraft.item.Items.DRAGON_EGG))) {
-                    triggerAchievement("has_dragon_egg", "Dueño del Dragón", "Tienes el huevo de dragón.");
+                
+                // 4. Inventarios e Ítems (Delegado a ClientAchievementLogic)
+                for (int i = 0; i < client.player.getInventory().size(); i++) {
+                    com.lider.minebridge.events.ClientAchievementLogic.onInventoryCheck(client.player.getInventory().getStack(i));
                 }
                 
                 if (!unlockedAchievementsSession.contains("IMMINENT_MASSACRE")) {
@@ -198,70 +206,10 @@ public class ClientEvents {
             }
         });
         
-        PlayerBlockBreakEvents.AFTER.register((world, player, pos, state, blockEntity) -> {
-            if (!isActive || !world.isClient) return;
-
-            Block block = state.getBlock();
-            String id = Registries.BLOCK.getId(block).getPath();
-            
-            int total = blockBrokenSession.merge(id, 1, Integer::sum);
-            
-            if (id.equals("obsidian") && total == 1000) {
-                triggerAchievement("MEME_NO_AFECTO", "Falta de Afecto", "Picaste 1000 de obsidiana.");
-            }
-            if ((id.equals("soul_sand") || id.equals("soul_soil")) && total == 500) {
-                triggerAchievement("HARVEST_SOULS", "Cosecha de Almas", "El lamento de 500 almas liberadas por tu pico.");
-            }
-        });
-
-        UseEntityCallback.EVENT.register((player, world, hand, entity, hitResult) -> {
-            if (isActive && world.isClient) {
-                if (entity instanceof SheepEntity sheep && sheep.getColor() == DyeColor.PINK) {
-                    triggerAchievement("pink_sheep_found", "Oveja Rosa", "Encontraste la mítica oveja rosa.");
-                }
-                if (Registries.ENTITY_TYPE.getId(entity.getType()).getPath().contains("wandering_trader")) {
-                    int trades = traderTrades.merge(player.getUuidAsString(), 1, Integer::sum);
-                    if (trades == 1) triggerAchievement("wandering_trader_trade", "Negociante", "Comerciaste con el errante.");
-                    if (trades == 10) triggerAchievement("TRADER_10", "Cliente Frecuente", "Has hablado 10 veces con errantes.");
-                }
-            }
-            return ActionResult.PASS;
-        });
-    }
-
-    public static final int COLOR_COMMON = 0xAAAAAA;
-    public static final int COLOR_UNCOMMON = 0x55FF55;
-    public static final int COLOR_RARE = 0x5555FF;
-    public static final int COLOR_EPIC = 0xAA00AA;
-    public static final int COLOR_LEGENDARY = 0xFFAA00;
-    public static final int COLOR_MYTHIC = 0xAA0000;
-
-    private static int getColorForKey(String key) {
-        return switch (key) {
-            case "EDGE_REASON" -> COLOR_MYTHIC;
-            case "DESCEND_MADNESS", "TIME_LEGEND", "TIME_ANCIENT", "DOMINATOR" -> COLOR_LEGENDARY;
-            case "HARVEST_SOULS", "FATHOMLESS_ABYSS" -> COLOR_EPIC;
-            case "BLOOD_SWEAT", "IMMINENT_MASSACRE" -> COLOR_RARE;
-            case "MEME_VOID_STARK", "MEME_NO_AFECTO", "EVEREST" -> COLOR_UNCOMMON;
-            default -> COLOR_COMMON;
-        };
+        // NOTA: El resto de eventos (Bloques, Entidades) se han movido a ClientAchievementLogic.init()
     }
 
     public static void triggerAchievement(String key, String title, String description) {
-        if (unlockedAchievementsSession.contains(key)) {
-            return;
-        }
-        unlockedAchievementsSession.add(key);
-
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client != null && client.getToastManager() != null) {
-            int color = getColorForKey(key);
-            client.getToastManager().add(new AchievementToast(Text.of(title), Text.of(description), color));
-        }
-
-        // Send payload to server
-        if (ClientPlayNetworking.canSend(AchievementUnlockPayload.ID)) {
-            ClientPlayNetworking.send(new AchievementUnlockPayload(key));
-        }
+        com.lider.minebridge.networking.AchievementClient.triggerAchievement(key, title, description);
     }
 }

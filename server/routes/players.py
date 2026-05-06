@@ -323,7 +323,10 @@ async def get_skin_head(identifier: str, db: Session = Depends(get_db)):
     os.makedirs(head_dir, exist_ok=True)
 
     # Use hash-based filename to auto-invalidate when skin changes
-    skin_hash = hashlib.md5((skin_value or username).encode()).hexdigest()[:12]
+    # Include skin_last_update in hash to force refresh if it changed
+    last_upd = (detail.skin_last_update if detail else None) or (account.skin_last_update if account else None)
+    upd_str = last_upd.isoformat() if last_upd else "no_upd"
+    skin_hash = hashlib.md5(f"{skin_value or username}_{upd_str}".encode()).hexdigest()[:12]
     head_path = f"{head_dir}/{username}_{skin_hash}.png"
     legacy_path = f"{head_dir}/{username}.png"
 

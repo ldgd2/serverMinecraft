@@ -51,35 +51,56 @@ public class MarketplaceTransactionScreen extends HandledScreen<MarketplaceTrans
         int i = this.x;
         int j = this.y;
         
-        // Panel fondo (Estilo Global)
-        context.fill(i - 1, j - 1, i + this.backgroundWidth + 1, j + this.backgroundHeight + 1, 0xFF444444);
-        context.fill(i, j, i + this.backgroundWidth, j + this.backgroundHeight, 0xFF101010);
+        // Panel fondo (Premium Dark)
+        context.fill(i - 1, j - 1, i + this.backgroundWidth + 1, j + this.backgroundHeight + 1, 0xFF555555);
+        context.fill(i, j, i + this.backgroundWidth, j + this.backgroundHeight, 0xFF181818);
         
         // Cabecera
-        context.fill(i, j, i + this.backgroundWidth, j + 25, 0xFF222222);
+        context.fill(i, j, i + this.backgroundWidth, j + 22, 0xFF252525);
 
-        // Dibujar cajas de pago centradas
-        int slotX1 = i + (this.backgroundWidth / 2) - 20;
-        int slotX2 = i + (this.backgroundWidth / 2) + 6;
+        // Slots de pago
+        int slotX1 = i + 71;
+        int slotX2 = i + 97;
         int slotY = j + 40;
 
-        context.fill(slotX1, slotY, slotX1 + 18, slotY + 18, 0x80FFAA00); 
-        context.fill(slotX2, slotY, slotX2 + 18, slotY + 18, 0x80FFAA00); 
+        drawPaymentSlot(context, slotX1, slotY, this.handler.getReq1(), "ITEM 1");
+        drawPaymentSlot(context, slotX2, slotY, this.handler.getReq2(), "ITEM 2");
         
-        context.drawCenteredTextWithShadow(this.textRenderer, "Coloca el PAGO aquí", i + this.backgroundWidth / 2, j + 30, 0xFFFFFF);
+        context.drawCenteredTextWithShadow(this.textRenderer, "§6§lCOLOCA EL PAGO EXACTO", i + this.backgroundWidth / 2, j + 28, 0xFFFFFF);
+        context.drawTextWithShadow(this.textRenderer, "Inventario", i + 8, j + 72, 0xAAAAAA);
+    }
+
+    private void drawPaymentSlot(DrawContext context, int x, int y, ItemStack ghost, String label) {
+        // Borde y fondo
+        context.fill(x - 2, y - 2, x + 20, y + 20, 0xFFFFAA00); // Borde dorado
+        context.fill(x - 1, y - 1, x + 19, y + 19, 0xFF000000); // Fondo negro
         
-        context.drawTextWithShadow(this.textRenderer, "Inventario", i + 8, j + 72, 0x404040);
+        if (!ghost.isEmpty()) {
+            context.getMatrices().push();
+            context.getMatrices().translate(0, 0, 100);
+            
+            // Ítem fantasma (Tinte naranja para indicar "falta esto")
+            context.drawItem(ghost, x, y);
+            context.fill(x, y, x + 18, y + 18, 0x80555555); // Oscurecer
+            
+            // Cantidad requerida en rojo/amarillo
+            String count = "x" + ghost.getCount();
+            context.drawTextWithShadow(this.textRenderer, "§c" + count, x + 18 - this.textRenderer.getWidth(count), y + 12, 0xFFFFFF);
+            
+            context.getMatrices().pop();
+        } else {
+            // Slot bloqueado/no necesario
+            context.fill(x, y, x + 18, y + 18, 0x80333333);
+        }
     }
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        context.fill(0, 0, this.width, this.height, 0xFF000000); // Fondo sólido negro
+        context.fill(0, 0, this.width, this.height, 0xCC000000); 
         super.render(context, mouseX, mouseY, delta);
         this.drawMouseoverTooltip(context, mouseX, mouseY);
     }
 
     @Override
-    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta) {
-        // Bloquear borroso
-    }
+    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta) {}
 }

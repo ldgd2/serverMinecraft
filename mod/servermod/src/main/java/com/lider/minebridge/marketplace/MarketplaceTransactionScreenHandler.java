@@ -13,10 +13,14 @@ public class MarketplaceTransactionScreenHandler extends ScreenHandler {
 
     private final Inventory inventory = new SimpleInventory(2); // 0: Pago 1, 1: Pago 2
     private final int tradeId;
+    private final ItemStack req1;
+    private final ItemStack req2;
 
-    public MarketplaceTransactionScreenHandler(int syncId, PlayerInventory playerInventory, int tradeId) {
+    public MarketplaceTransactionScreenHandler(int syncId, PlayerInventory playerInventory, int tradeId, ItemStack req1, ItemStack req2) {
         super(com.lider.minebridge.MineBridge.MARKETPLACE_TRANSACTION_HANDLER, syncId); 
         this.tradeId = tradeId;
+        this.req1 = req1;
+        this.req2 = req2;
         
         // Slots de PAGO (Donde el comprador pone lo que se pide)
         this.addSlot(new Slot(inventory, 0, 71, 40));
@@ -71,6 +75,9 @@ public class MarketplaceTransactionScreenHandler extends ScreenHandler {
     public Inventory getInventory() {
         return inventory;
     }
+
+    public ItemStack getReq1() { return req1; }
+    public ItemStack getReq2() { return req2; }
 
     @Override
     public void onClosed(PlayerEntity player) {

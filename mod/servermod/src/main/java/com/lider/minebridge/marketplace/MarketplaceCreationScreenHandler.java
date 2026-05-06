@@ -17,12 +17,12 @@ public class MarketplaceCreationScreenHandler extends ScreenHandler {
     public MarketplaceCreationScreenHandler(int syncId, PlayerInventory playerInventory) {
         super(com.lider.minebridge.MineBridge.MARKETPLACE_CREATION_HANDLER, syncId); 
         
-        // Slot de VENTA (Item real que se entregará al completar)
-        this.addSlot(new Slot(inventory, 0, 44, 35));
-        
         // Slots de PEDIDO (Items de referencia)
-        this.addSlot(new Slot(inventory, 1, 100, 35));
-        this.addSlot(new Slot(inventory, 2, 126, 35));
+        this.addSlot(new Slot(inventory, 1, 40, 40));
+        this.addSlot(new Slot(inventory, 2, 66, 40));
+        
+        // Slot de VENTA (Item real que se entregará al completar)
+        this.addSlot(new Slot(inventory, 0, 120, 40));
 
         // Player Inventory
         for (int i = 0; i < 3; i++) {
