@@ -196,13 +196,19 @@ async def startup_event():
             """
         ]
         for query in queries:
-            db.execute(text(query))
+            try:
+                db.execute(text(query))
+            except Exception as e:
+                print(f"WARNING: Schema update query failed (might be fine if table missing): {e}")
+                db.rollback()
         db.commit()
         print("Schema update complete.")
         
         server_service.load_servers_from_db(db)
     except Exception as e:
         print(f"Error updating schema or loading servers: {e}")
+        import traceback
+        traceback.print_exc()
     finally:
         db.close()
 
