@@ -117,7 +117,7 @@ public class MarketplaceManager {
                     
                     if (sellerUuid.equals(customer.getUuidAsString())) {
                         deleteTrade((ServerPlayerEntity) customer, tradeId);
-                        customer.closeHandledScreen();
+                        ((ServerPlayerEntity) customer).closeHandledScreen();
                     } else {
                         TradeClient.completeTrade(tradeId, customer.getUuidAsString(), customer.getName().getString());
                     }

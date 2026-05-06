@@ -125,7 +125,10 @@ class MinecraftProcess:
                 "-XX:+PerfDisableSharedMem",
                 "-XX:MaxTenuringThreshold=1",
                 "-Dusing.aikars.flags=https://mcflags.emc.gs",
-                "-Daikars.new.flags=true"
+                "-Daikars.new.flags=true",
+                f"-XX:ActiveProcessorCount={int(self.cpu_cores)}",
+                f"-Dcom.ishland.c2me.common.threading.globalExecutorParallelism={int(self.cpu_cores)}",
+                f"-Dcom.ishland.c2me.common.threading.backgroundExecutorParallelism={int(self.cpu_cores)}"
             ]
             for flag in aikar_flags:
                 new_lines.append(f"{flag}\n")
@@ -182,6 +185,9 @@ class MinecraftProcess:
                 "-XX:SurvivorRatio=32",
                 "-XX:+PerfDisableSharedMem",
                 "-XX:MaxTenuringThreshold=1",
+                f"-XX:ActiveProcessorCount={int(self.cpu_cores)}",
+                f"-Dcom.ishland.c2me.common.threading.globalExecutorParallelism={int(self.cpu_cores)}",
+                f"-Dcom.ishland.c2me.common.threading.backgroundExecutorParallelism={int(self.cpu_cores)}",
                 "-jar",
                 self.jar_path,
                 "nogui"

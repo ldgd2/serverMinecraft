@@ -8,12 +8,16 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.screen.ScreenHandler;
 import net.minecraft.screen.ScreenHandlerType;
 import net.minecraft.screen.slot.Slot;
+import net.minecraft.util.Identifier;
 
 public class MarketplaceCreationScreenHandler extends ScreenHandler {
+    public static final ScreenHandlerType<MarketplaceCreationScreenHandler> TYPE = 
+        new ScreenHandlerType<>(MarketplaceCreationScreenHandler::new, net.minecraft.resource.featuretoggle.FeatureSet.empty());
+
     private final Inventory inventory = new SimpleInventory(2); // 0: Selling, 1: Asking (Template)
 
     public MarketplaceCreationScreenHandler(int syncId, PlayerInventory playerInventory) {
-        super(null, syncId); // null because we'll register it properly or use a simple one
+        super(TYPE, syncId); 
         
         // Slot de VENTA (Item real que se entregará al completar)
         this.addSlot(new Slot(inventory, 0, 44, 35));

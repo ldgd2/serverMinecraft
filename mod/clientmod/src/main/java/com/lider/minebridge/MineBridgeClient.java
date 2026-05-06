@@ -18,7 +18,7 @@ public class MineBridgeClient implements ModInitializer {
         PayloadTypeRegistry.playC2S().register(com.lider.minebridge.networking.payload.OpenCreationMenuPayload.ID, com.lider.minebridge.networking.payload.OpenCreationMenuPayload.CODEC);
         
         net.minecraft.client.gui.screen.ingame.HandledScreens.register(
-            com.lider.minebridge.MineBridge.MARKETPLACE_CREATION_HANDLER, 
+            com.lider.minebridge.marketplace.MarketplaceCreationScreenHandler.TYPE, 
             com.lider.minebridge.client.ui.MarketplaceCreationScreen::new
         );
 
