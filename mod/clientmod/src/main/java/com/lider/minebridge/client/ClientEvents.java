@@ -103,11 +103,11 @@ public class ClientEvents {
                         ClientPlayNetworking.send(new com.lider.minebridge.networking.payload.OpenCreationMenuPayload());
                     }
                 } else {
-                    // Abrir pantalla de MERCADO GLOBAL (Fetch desde backend)
+                    // Abrir pantalla de MERCADO GLOBAL (Fetch desde backend directamente)
                     com.lider.minebridge.networking.TradeClient.getOpenTrades().thenAccept(trades -> {
-                        if (ClientPlayNetworking.canSend(com.lider.minebridge.networking.payload.MarketplaceRequestPayload.ID)) {
-                            ClientPlayNetworking.send(new com.lider.minebridge.networking.payload.MarketplaceRequestPayload(trades.toString()));
-                        }
+                        MinecraftClient.getInstance().execute(() -> {
+                            MinecraftClient.getInstance().setScreen(new com.lider.minebridge.client.ui.MarketplaceGlobalScreen(trades));
+                        });
                     });
                 }
             }

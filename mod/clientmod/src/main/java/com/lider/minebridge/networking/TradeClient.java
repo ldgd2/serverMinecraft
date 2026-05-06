@@ -81,4 +81,20 @@ public class TradeClient {
         return httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
                 .thenApply(res -> res.statusCode() == 200);
     }
+
+    public static CompletableFuture<Boolean> completeTrade(int tradeId, String buyerUuid, String buyerName) {
+        String url = ClientConfig.getApiUrl() + "api/v1/trades/" + tradeId + "/complete";
+        JsonObject data = new JsonObject();
+        data.addProperty("buyer_uuid", buyerUuid);
+        data.addProperty("buyer_name", buyerName);
+
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .POST(HttpRequest.BodyPublishers.ofString(data.toString()))
+                .header("Content-Type", "application/json")
+                .build();
+
+        return httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
+                .thenApply(res -> res.statusCode() == 200);
+    }
 }

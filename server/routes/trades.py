@@ -21,6 +21,9 @@ async def publish_trade(data: dict, db: Session = Depends(get_db)):
     selling = data.get("selling")
     asking = data.get("asking")
     
+    # 1. Quitar items al VENDEDOR
+    await server_controller.send_command("MinecraftTest", f'clear {seller_name} {selling["id"]} {selling["count"]}')
+
     new_trade = Trade(
         seller_uuid=data.get("seller_uuid", "unknown"),
         seller_name=seller_name,
@@ -35,8 +38,7 @@ async def publish_trade(data: dict, db: Session = Depends(get_db)):
 
     # Notificar anuncio global
     msg = f"§6[Market] §b{seller_name} §fha publicado: §e{title}"
-    await server_controller.send_command("MinecraftTest", f'title @a actionbar {{"text":"{msg}"}}')
-    await server_controller.send_command("MinecraftTest", f'tellraw @a {{"text":"{msg} . Pulsa \'.\' para ver."}}')
+    await server_controller.send_command("MinecraftTest", f'tellraw @a {{"text":"{msg}"}}')
     
     return APIResponse(status="success", data=new_trade.id)
 
@@ -122,12 +124,24 @@ async def complete_trade(trade_id: int, data: dict, db: Session = Depends(get_db
     trade = db.query(Trade).filter(Trade.id == trade_id, Trade.status == "OPEN").first()
     if not trade: raise HTTPException(status_code=404, detail="Trade not found or already completed")
     
-    trade.status = "COMPLETED"
-    buyer_name = data.get("buyer_name", "Alguien")
+    buyer_name = data.get("buyer_name")
+    if not buyer_name: raise HTTPException(status_code=400, detail="Buyer name required")
+
+    # 1. Quitar items al COMPRADOR (lo que el vendedor pidió)
+    asking = trade.asking_item
+    await server_controller.send_command("MinecraftTest", f'clear {buyer_name} {asking["id"]} {asking["count"]}')
     
-    # Notificar al vendedor
+    # 2. Dar items al COMPRADOR (lo que el vendedor ofrecía)
+    selling = trade.selling_item
+    await server_controller.send_command("MinecraftTest", f'give {buyer_name} {selling["id"]} {selling["count"]}')
+    
+    # 3. Dar items al VENDEDOR (lo que el comprador pagó)
+    await server_controller.send_command("MinecraftTest", f'give {trade.seller_name} {asking["id"]} {asking["count"]}')
+
+    # 4. Notificar
     msg = f"§6[Market] §a¡Venta Completada! §b{buyer_name} §fha comprado tu §e{trade.title}"
     await server_controller.send_command("MinecraftTest", f'tellraw {trade.seller_name} {{"text":"{msg}"}}')
     
+    trade.status = "COMPLETED"
     db.commit()
     return APIResponse(status="success")
