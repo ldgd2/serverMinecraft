@@ -12,5 +12,5 @@ if pydantic_version.startswith("1."):
 else:
     class APIResponse(BaseModel, Generic[T]):
         status: str
-        message: str
+        message: Optional[str] = None
         data: Optional[T] = None
