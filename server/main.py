@@ -175,38 +175,10 @@ async def startup_event():
     # Auto-Migration for missing columns
     db = SessionLocal()
     try:
-        from sqlalchemy import text
-        print("Checking and fixing database schema...")
-        queries = [
-            "ALTER TABLE player_accounts ADD COLUMN IF NOT EXISTS total_player_kills INTEGER DEFAULT 0;",
-            "ALTER TABLE player_accounts ADD COLUMN IF NOT EXISTS total_hostile_kills INTEGER DEFAULT 0;",
-            "ALTER TABLE player_accounts ADD COLUMN IF NOT EXISTS total_genocide_score INTEGER DEFAULT 0;",
-            """
-            CREATE TABLE IF NOT EXISTS trades (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                seller_name TEXT NOT NULL,
-                buyer_name TEXT,
-                selling_item JSON NOT NULL,
-                asking_item JSON NOT NULL,
-                counter_offer_item JSON,
-                status TEXT DEFAULT 'OPEN',
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                expires_at DATETIME
-            );
-            """
-        ]
-        for query in queries:
-            try:
-                db.execute(text(query))
-            except Exception as e:
-                print(f"WARNING: Schema update query failed (might be fine if table missing): {e}")
-                db.rollback()
-        db.commit()
-        print("Schema update complete.")
-        
+        print("Loading servers from database...")
         server_service.load_servers_from_db(db)
     except Exception as e:
-        print(f"Error updating schema or loading servers: {e}")
+        print(f"Error loading servers: {e}")
         import traceback
         traceback.print_exc()
     finally:

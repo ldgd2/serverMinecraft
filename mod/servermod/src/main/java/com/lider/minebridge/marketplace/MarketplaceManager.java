@@ -17,6 +17,7 @@ import net.minecraft.village.Merchant;
 import net.minecraft.village.MerchantInventory;
 import net.minecraft.village.TradeOffer;
 import net.minecraft.village.TradeOfferList;
+import net.minecraft.village.TradedItem;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Optional;
@@ -32,7 +33,7 @@ public class MarketplaceManager {
                 ItemStack asking = parseItemStack(tradeJson.getAsJsonObject("asking"));
                 
                 if (!selling.isEmpty() && !asking.isEmpty()) {
-                    offers.add(new TradeOffer(asking, selling, 1, 0, 0));
+                    offers.add(new TradeOffer(new TradedItem(asking.getItem(), asking.getCount()), selling, 1, 0, 0f));
                 }
             }
 
@@ -80,11 +81,11 @@ public class MarketplaceManager {
             // Podríamos usar el NBT del item o un mapa.
         }
         @Override public void setOffersFromServer(TradeOfferList offers) {}
-        @Override public void onBridgeOffers(TradeOfferList offers) {}
         @Override public boolean isClient() { return false; }
         @Override public int getExperience() { return 0; }
         @Override public void setExperienceFromServer(int experience) {}
-        @Override public boolean isLevelingMerchant() { return false; }
+        @Override public boolean isLeveledMerchant() { return false; }
+        @Override public void onSellingItem(ItemStack stack) {}
         @Override public net.minecraft.sound.SoundEvent getYesSound() { return net.minecraft.sound.SoundEvents.ENTITY_VILLAGER_YES; }
     }
 }
