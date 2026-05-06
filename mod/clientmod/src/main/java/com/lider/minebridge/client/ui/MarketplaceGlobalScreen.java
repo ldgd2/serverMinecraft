@@ -12,16 +12,34 @@ import net.minecraft.registry.Registries;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 
 public class MarketplaceGlobalScreen extends Screen {
     private final JsonArray trades;
-    private int scrollOffset = 0;
+    private final Map<Integer, ItemStack[]> iconCache = new HashMap<>();
 
     public MarketplaceGlobalScreen(JsonArray trades) {
         super(Text.of("§6§lMarketplace Global"));
         this.trades = trades;
+        precacheIcons();
+    }
+
+    private void precacheIcons() {
+        for (int i = 0; i < trades.size(); i++) {
+            try {
+                JsonObject trade = trades.get(i).getAsJsonObject();
+                int tradeId = trade.get("id").getAsInt();
+                
+                JsonObject sellingJson = trade.getAsJsonObject("selling");
+                JsonObject askingJson = trade.getAsJsonObject("asking");
+
+                ItemStack selling = new ItemStack(Registries.ITEM.get(Identifier.of(sellingJson.get("id").getAsString())), sellingJson.get("count").getAsInt());
+                ItemStack asking = new ItemStack(Registries.ITEM.get(Identifier.of(askingJson.get("id").getAsString())), askingJson.get("count").getAsInt());
+                
+                iconCache.put(tradeId, new ItemStack[]{selling, asking});
+            } catch (Exception ignored) {}
+        }
     }
 
     @Override
@@ -31,8 +49,6 @@ public class MarketplaceGlobalScreen extends Screen {
         for (int i = 0; i < trades.size(); i++) {
             JsonObject trade = trades.get(i).getAsJsonObject();
             int tradeId = trade.get("id").getAsInt();
-            String title = trade.get("title").getAsString();
-            String seller = trade.get("seller").getAsString();
             String sellerUuid = trade.get("seller_uuid").getAsString();
             boolean isSelf = sellerUuid.equals(MinecraftClient.getInstance().player.getUuidAsString());
 
@@ -63,33 +79,28 @@ public class MarketplaceGlobalScreen extends Screen {
         int y = 40;
         for (int i = 0; i < trades.size(); i++) {
             JsonObject trade = trades.get(i).getAsJsonObject();
+            int tradeId = trade.get("id").getAsInt();
             String title = trade.get("title").getAsString();
             String seller = trade.get("seller").getAsString();
             
-            JsonObject selling = trade.getAsJsonObject("selling");
-            JsonObject asking = trade.getAsJsonObject("asking");
-
             // Dibujar información
             context.drawTextWithShadow(this.textRenderer, "§e" + title + " §7(por " + seller + ")", this.width / 2 - 180, y + 5, 0xFFFFFF);
             
-            // Iconos (aproximado)
-            drawItemIcon(context, selling, this.width / 2 - 20, y);
-            context.drawTextWithShadow(this.textRenderer, "➔", this.width / 2 + 5, y + 5, 0xFFFFFF);
-            drawItemIcon(context, asking, this.width / 2 + 25, y);
+            // Usar cache de iconos
+            ItemStack[] icons = iconCache.get(tradeId);
+            if (icons != null) {
+                context.drawItem(icons[0], this.width / 2 - 20, y);
+                context.drawItemInGuiWithOverrides(this.textRenderer, icons[0], this.width / 2 - 20, y);
+                
+                context.drawTextWithShadow(this.textRenderer, "➔", this.width / 2 + 5, y + 5, 0xFFFFFF);
+                
+                context.drawItem(icons[1], this.width / 2 + 25, y);
+                context.drawItemInGuiWithOverrides(this.textRenderer, icons[1], this.width / 2 + 25, y);
+            }
 
             y += 25;
         }
 
         super.render(context, mouseX, mouseY, delta);
-    }
-
-    private void drawItemIcon(DrawContext context, JsonObject itemJson, int x, int y) {
-        try {
-            String id = itemJson.get("id").getAsString();
-            int count = itemJson.get("count").getAsInt();
-            ItemStack stack = new ItemStack(Registries.ITEM.get(Identifier.of(id)), count);
-            context.drawItem(stack, x, y);
-            context.drawItemInGuiWithOverrides(this.textRenderer, stack, x, y);
-        } catch (Exception e) {}
     }
 }

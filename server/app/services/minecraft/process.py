@@ -202,13 +202,14 @@ class MinecraftProcess:
             # --- Set CPU Affinity ---
             try:
                 p = psutil.Process(self.process.pid)
-                # On Windows/Linux we can try to set affinity. 
-                # cpu_cores is a float, so we take ceil or just a range.
-                # If cpu_cores >= total, we use all.
                 total_cpus = psutil.cpu_count()
-                cores_to_use = min(total_cpus, max(1, int(self.cpu_cores)))
-                p.cpu_affinity(list(range(cores_to_use)))
-                print(f"INFO: Set CPU affinity for {self.name} to {cores_to_use} cores")
+                # Si cpu_cores es 0 o >= total_cpus, mejor no poner afinidad y dejar que el OS decida
+                if 0 < self.cpu_cores < total_cpus:
+                    cores_to_use = max(1, int(self.cpu_cores))
+                    p.cpu_affinity(list(range(cores_to_use)))
+                    print(f"INFO: Set CPU affinity for {self.name} to {cores_to_use} cores")
+                else:
+                    print(f"INFO: Using default OS scheduling for {self.name} (Cores: {total_cpus})")
             except Exception as e:
                 print(f"WARN: Failed to set CPU affinity: {e}")
             
@@ -812,8 +813,9 @@ class MinecraftProcess:
                         self._status = "LOADING"
                         print(f"INFO: Server {self.name} is now LOADING resources")
                     elif "Preparing level" in cleaned_line or "Preparing spawn area" in cleaned_line:
-                        self._status = "PREPARING"
-                        print(f"INFO: Server {self.name} is now PREPARING world")
+                        if self._status != "PREPARING":
+                            self._status = "PREPARING"
+                            print(f"INFO: Server {self.name} is now PREPARING world")
                     elif "FAILED TO BIND TO PORT" in cleaned_line or "Address already in use" in cleaned_line:
                         self._status = "ERROR (Port Blocked)"
                         print(f"ERROR: Server {self.name} failed to bind port!")
