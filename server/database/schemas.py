@@ -41,9 +41,9 @@ class ServerResponse(ServerCreate):
     disk_usage: Optional[int] = 0
     
     # MasterBridge compatibility (Restored for App UI)
-    masterbridge_enabled: bool = True
-    masterbridge_ip: str = "127.0.0.1"
-    masterbridge_port: int = 8081
+    masterbridge_enabled: Optional[bool] = True
+    masterbridge_ip: Optional[str] = "127.0.0.1"
+    masterbridge_port: Optional[int] = 8081
     
     class Config:
         from_attributes = True

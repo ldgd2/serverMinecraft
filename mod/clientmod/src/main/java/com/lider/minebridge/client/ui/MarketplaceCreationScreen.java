@@ -31,62 +31,68 @@ public class MarketplaceCreationScreen extends HandledScreen<MarketplaceCreation
         // Botón Publicar
         this.addDrawableChild(ButtonWidget.builder(Text.of("§a§lPUBLICAR"), button -> {
             ItemStack selling = this.handler.getTradeInventory().getStack(0);
-            ItemStack asking = this.handler.getTradeInventory().getStack(1);
+            ItemStack asking1 = this.handler.getTradeInventory().getStack(1);
+            ItemStack asking2 = this.handler.getTradeInventory().getStack(2);
 
-            if (selling.isEmpty() || asking.isEmpty()) {
-                MinecraftClient.getInstance().player.sendMessage(Text.of("§cDebes poner qué vendes y qué pides."), false);
+            if (selling.isEmpty() || (asking1.isEmpty() && asking2.isEmpty())) {
+                MinecraftClient.getInstance().player.sendMessage(Text.of("§cDebes poner qué vendes y al menos qué pides."), false);
                 return;
             }
 
-            JsonObject sellingJson = new JsonObject();
-            sellingJson.addProperty("id", Registries.ITEM.getId(selling.getItem()).toString());
-            sellingJson.addProperty("count", selling.getCount());
-
-            JsonObject askingJson = new JsonObject();
-            askingJson.addProperty("id", Registries.ITEM.getId(asking.getItem()).toString());
-            askingJson.addProperty("count", asking.getCount());
+            JsonObject sellingJson = serializeItemStack(selling);
+            com.google.gson.JsonElement askingData;
+            
+            if (!asking1.isEmpty() && !asking2.isEmpty()) {
+                com.google.gson.JsonArray array = new com.google.gson.JsonArray();
+                array.add(serializeItemStack(asking1));
+                array.add(serializeItemStack(asking2));
+                askingData = array;
+            } else {
+                askingData = serializeItemStack(!asking1.isEmpty() ? asking1 : asking2);
+            }
 
             TradeClient.publishTrade(
                 MinecraftClient.getInstance().player.getUuidAsString(),
                 MinecraftClient.getInstance().player.getName().getString(),
                 "Oferta de " + selling.getName().getString(),
-                sellingJson, askingJson
+                sellingJson, askingData
             );
             
             this.close();
         }).dimensions(this.x + this.backgroundWidth / 2 - 40, this.y + 140, 80, 20).build());
+
+        // Botón X para cerrar
+        this.addDrawableChild(ButtonWidget.builder(Text.of("§cX"), b -> this.close())
+            .dimensions(this.x + this.backgroundWidth - 15, this.y + 5, 12, 12).build());
     }
 
     @Override
     protected void drawBackground(DrawContext context, float delta, int mouseX, int mouseY) {
-        int i = (this.width - this.backgroundWidth) / 2;
-        int j = (this.height - this.backgroundHeight) / 2;
+        int i = this.x;
+        int j = this.y;
         
-        context.getMatrices().push();
-        context.getMatrices().translate(0, 0, 10); // Un poco de aire sobre el fondo negro
-
-        // Panel fondo
-        context.fill(i, j, i + this.backgroundWidth, j + this.backgroundHeight, 0xFF151515);
+        // Panel fondo (Estilo Global)
         context.fill(i - 1, j - 1, i + this.backgroundWidth + 1, j + this.backgroundHeight + 1, 0xFF444444);
+        context.fill(i, j, i + this.backgroundWidth, j + this.backgroundHeight, 0xFF101010);
+        
+        // Cabecera
+        context.fill(i, j, i + this.backgroundWidth, j + 25, 0xFF222222);
 
         // Cajas de slots
         context.fill(i + 43, j + 34, i + 43 + 18, j + 34 + 18, 0x4000FF00); // Venta
         context.fill(i + 115, j + 34, i + 115 + 18, j + 34 + 18, 0x40FF0000); // Pedido
         
-        context.drawCenteredTextWithShadow(this.textRenderer, "LO QUE VENDES", i + 52, j + 20, 0xAAAAAA);
-        context.drawCenteredTextWithShadow(this.textRenderer, "LO QUE PIDES", i + 124, j + 20, 0xAAAAAA);
+        context.drawCenteredTextWithShadow(this.textRenderer, "LO QUE VENDES", i + 52, j + 24, 0xAAAAAA);
+        context.drawCenteredTextWithShadow(this.textRenderer, "LO QUE PIDES", i + 124, j + 24, 0xAAAAAA);
         
-        // Slot inventory slots (dummy boxes for visual)
-        for (int row = 0; row < 3; row++) {
-            for (int col = 0; col < 9; col++) {
-                context.fill(i + 7 + col * 18, j + 83 + row * 18, i + 7 + col * 18 + 18, j + 83 + row * 18 + 18, 0x20FFFFFF);
-            }
-        }
-        for (int col = 0; col < 9; col++) {
-            context.fill(i + 7 + col * 18, j + 141, i + 7 + col * 18 + 18, j + 141 + 18, 0x20FFFFFF);
-        }
+        context.drawTextWithShadow(this.textRenderer, "Inventario", i + 8, j + 72, 0x404040);
+    }
 
-        context.getMatrices().pop();
+    private JsonObject serializeItemStack(ItemStack stack) {
+        JsonObject json = new JsonObject();
+        json.addProperty("id", Registries.ITEM.getId(stack.getItem()).toString());
+        json.addProperty("count", stack.getCount());
+        return json;
     }
 
     @Override

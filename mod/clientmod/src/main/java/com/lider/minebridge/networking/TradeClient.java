@@ -35,7 +35,7 @@ public class TradeClient {
                 }).exceptionally(t -> new JsonArray());
     }
 
-    public static CompletableFuture<Boolean> publishTrade(String sellerUuid, String sellerName, String title, JsonObject selling, JsonObject asking) {
+    public static CompletableFuture<Boolean> publishTrade(String sellerUuid, String sellerName, String title, JsonObject selling, com.google.gson.JsonElement asking) {
         String url = ClientConfig.getApiUrl() + "api/v1/trades/publish";
         JsonObject data = new JsonObject();
         data.addProperty("seller_uuid", sellerUuid);
@@ -83,7 +83,15 @@ public class TradeClient {
     }
 
     public static CompletableFuture<Boolean> completeTrade(int tradeId, String buyerUuid, String buyerName) {
-        String url = ClientConfig.getApiUrl() + "api/v1/trades/" + tradeId + "/complete";
+        return completeTradeInternal(tradeId, buyerUuid, buyerName, false);
+    }
+
+    public static CompletableFuture<Boolean> completeTradeSecurely(int tradeId, String buyerUuid, String buyerName) {
+        return completeTradeInternal(tradeId, buyerUuid, buyerName, true);
+    }
+
+    private static CompletableFuture<Boolean> completeTradeInternal(int tradeId, String buyerUuid, String buyerName, boolean secure) {
+        String url = ClientConfig.getApiUrl() + "api/v1/trades/" + tradeId + "/complete" + (secure ? "?secure=true" : "");
         JsonObject data = new JsonObject();
         data.addProperty("buyer_uuid", buyerUuid);
         data.addProperty("buyer_name", buyerName);

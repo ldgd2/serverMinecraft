@@ -11,19 +11,18 @@ import net.minecraft.screen.slot.Slot;
 import net.minecraft.util.Identifier;
 
 public class MarketplaceCreationScreenHandler extends ScreenHandler {
-    public static final ScreenHandlerType<MarketplaceCreationScreenHandler> TYPE = 
-        new ScreenHandlerType<>(MarketplaceCreationScreenHandler::new, net.minecraft.resource.featuretoggle.FeatureSet.empty());
 
-    private final Inventory inventory = new SimpleInventory(2); // 0: Selling, 1: Asking (Template)
+    private final Inventory inventory = new SimpleInventory(3); // 0: Selling, 1: Asking 1, 2: Asking 2
 
     public MarketplaceCreationScreenHandler(int syncId, PlayerInventory playerInventory) {
-        super(TYPE, syncId); 
+        super(net.minecraft.registry.Registries.SCREEN_HANDLER.get(net.minecraft.util.Identifier.of("minebridge", "creation")), syncId); 
         
         // Slot de VENTA (Item real que se entregará al completar)
         this.addSlot(new Slot(inventory, 0, 44, 35));
         
-        // Slot de PEDIDO (Item de referencia)
-        this.addSlot(new Slot(inventory, 1, 116, 35));
+        // Slots de PEDIDO (Items de referencia)
+        this.addSlot(new Slot(inventory, 1, 100, 35));
+        this.addSlot(new Slot(inventory, 2, 126, 35));
 
         // Player Inventory
         for (int i = 0; i < 3; i++) {
@@ -45,11 +44,11 @@ public class MarketplaceCreationScreenHandler extends ScreenHandler {
         if (slot != null && slot.hasStack()) {
             ItemStack originalStack = slot.getStack();
             newStack = originalStack.copy();
-            if (invSlot < 2) {
-                if (!this.insertItem(originalStack, 2, this.slots.size(), true)) {
+            if (invSlot < 3) {
+                if (!this.insertItem(originalStack, 3, this.slots.size(), true)) {
                     return ItemStack.EMPTY;
                 }
-            } else if (!this.insertItem(originalStack, 0, 2, false)) {
+            } else if (!this.insertItem(originalStack, 0, 3, false)) {
                 return ItemStack.EMPTY;
             }
 

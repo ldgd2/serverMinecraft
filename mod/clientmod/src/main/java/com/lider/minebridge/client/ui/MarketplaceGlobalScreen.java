@@ -41,11 +41,21 @@ public class MarketplaceGlobalScreen extends Screen {
                 if (trade == null || !trade.has("id")) continue;
                 int tradeId = trade.get("id").getAsInt();
                 JsonObject sellingJson = trade.getAsJsonObject("selling");
-                JsonObject askingJson = trade.getAsJsonObject("asking");
-                if (sellingJson != null && askingJson != null) {
+                com.google.gson.JsonElement askingElement = trade.get("asking");
+                if (sellingJson != null && askingElement != null) {
                     ItemStack selling = new ItemStack(Registries.ITEM.get(Identifier.of(sellingJson.get("id").getAsString())), sellingJson.get("count").getAsInt());
-                    ItemStack asking = new ItemStack(Registries.ITEM.get(Identifier.of(askingJson.get("id").getAsString())), askingJson.get("count").getAsInt());
-                    iconCache.put(tradeId, new ItemStack[]{selling, asking});
+                    ItemStack asking1 = ItemStack.EMPTY;
+                    ItemStack asking2 = ItemStack.EMPTY;
+
+                    if (askingElement.isJsonArray()) {
+                        JsonArray array = askingElement.getAsJsonArray();
+                        if (array.size() > 0) asking1 = parseJsonItem(array.get(0).getAsJsonObject());
+                        if (array.size() > 1) asking2 = parseJsonItem(array.get(1).getAsJsonObject());
+                    } else if (askingElement.isJsonObject()) {
+                        asking1 = parseJsonItem(askingElement.getAsJsonObject());
+                    }
+                    
+                    iconCache.put(tradeId, new ItemStack[]{selling, asking1, asking2});
                 }
             } catch (Exception ignored) {}
         }
@@ -89,6 +99,10 @@ public class MarketplaceGlobalScreen extends Screen {
 
         this.addDrawableChild(ButtonWidget.builder(Text.of("Cerrar"), b -> this.close())
             .dimensions(centerX - 50, centerY + (PANEL_HEIGHT / 2) - 25, 100, 20).build());
+
+        // Botón X para cerrar (Esquina superior derecha)
+        this.addDrawableChild(ButtonWidget.builder(Text.of("§cX"), b -> this.close())
+            .dimensions(centerX + (PANEL_WIDTH / 2) - 20, centerY - (PANEL_HEIGHT / 2) + 2, 18, 18).build());
     }
 
     @Override
@@ -140,20 +154,34 @@ public class MarketplaceGlobalScreen extends Screen {
             
             ItemStack[] icons = iconCache.get(tradeId);
             if (icons != null) {
-                context.drawItem(icons[0], centerX - 30, currentY);
-                context.drawTextWithShadow(this.textRenderer, "➔", centerX - 5, currentY + 6, 0xFFFFFF);
-                context.drawItem(icons[1], centerX + 15, currentY);
+                // Venta
+                context.drawItem(icons[0], centerX - 60, currentY);
+                context.drawTextWithShadow(this.textRenderer, "➔", centerX - 35, currentY + 6, 0xFFFFFF);
+                
+                // Pedido 1
+                if (!icons[1].isEmpty()) {
+                    context.drawItem(icons[1], centerX - 10, currentY);
+                }
+                
+                // Pedido 2
+                if (!icons[2].isEmpty()) {
+                    context.drawItem(icons[2], centerX + 15, currentY);
+                }
             }
 
             renderedCount++;
             if (currentY + 25 > y2 - 30) break;
         }
 
-        context.getMatrices().pop(); // Restaurar capa
-
         super.render(context, mouseX, mouseY, delta);
+        context.getMatrices().pop(); // Restaurar capa
     }
     
+    private ItemStack parseJsonItem(JsonObject json) {
+        if (json == null) return ItemStack.EMPTY;
+        return new ItemStack(Registries.ITEM.get(Identifier.of(json.get("id").getAsString())), json.get("count").getAsInt());
+    }
+
     private String truncate(String text, int max) {
         return text.length() > max ? text.substring(0, max - 1) + "…" : text;
     }

@@ -53,6 +53,10 @@ public class MarketplaceResolutionScreen extends Screen {
                 }
             });
         }).dimensions(this.width / 2 - 100, 170, 200, 20).build());
+        
+        // Botón X para cerrar
+        this.addDrawableChild(ButtonWidget.builder(Text.of("§cX"), b -> this.close())
+            .dimensions(this.width - 25, 5, 20, 20).build());
     }
 
     @Override

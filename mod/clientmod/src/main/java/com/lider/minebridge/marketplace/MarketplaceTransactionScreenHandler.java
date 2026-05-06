@@ -10,18 +10,17 @@ import net.minecraft.screen.ScreenHandlerType;
 import net.minecraft.screen.slot.Slot;
 
 public class MarketplaceTransactionScreenHandler extends ScreenHandler {
-    public static final ScreenHandlerType<MarketplaceTransactionScreenHandler> TYPE = 
-        new ScreenHandlerType<>((syncId, inv) -> new MarketplaceTransactionScreenHandler(syncId, inv, -1), net.minecraft.resource.featuretoggle.FeatureSet.empty());
 
-    private final Inventory inventory = new SimpleInventory(1); // 0: Pago
+    private final Inventory inventory = new SimpleInventory(2); // 0: Pago 1, 1: Pago 2
     private final int tradeId;
 
     public MarketplaceTransactionScreenHandler(int syncId, PlayerInventory playerInventory, int tradeId) {
-        super(TYPE, syncId); 
+        super(net.minecraft.registry.Registries.SCREEN_HANDLER.get(net.minecraft.util.Identifier.of("minebridge", "transaction")), syncId); 
         this.tradeId = tradeId;
         
-        // Slot de PAGO (Donde el comprador pone lo que se pide)
-        this.addSlot(new Slot(inventory, 0, 80, 35));
+        // Slots de PAGO (Donde el comprador pone lo que se pide)
+        this.addSlot(new Slot(inventory, 0, 71, 40));
+        this.addSlot(new Slot(inventory, 1, 97, 40));
 
         // Player Inventory
         for (int i = 0; i < 3; i++) {
@@ -43,11 +42,11 @@ public class MarketplaceTransactionScreenHandler extends ScreenHandler {
         if (slot != null && slot.hasStack()) {
             ItemStack originalStack = slot.getStack();
             newStack = originalStack.copy();
-            if (invSlot < 1) {
-                if (!this.insertItem(originalStack, 1, this.slots.size(), true)) {
+            if (invSlot < 2) {
+                if (!this.insertItem(originalStack, 2, this.slots.size(), true)) {
                     return ItemStack.EMPTY;
                 }
-            } else if (!this.insertItem(originalStack, 0, 1, false)) {
+            } else if (!this.insertItem(originalStack, 0, 2, false)) {
                 return ItemStack.EMPTY;
             }
 

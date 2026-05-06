@@ -48,6 +48,10 @@ public class MarketplaceProfileScreen extends Screen {
 
         this.addDrawableChild(ButtonWidget.builder(Text.of("§cCerrar Panel"), b -> this.close())
             .dimensions(centerX - 40, centerY + 55, 80, 20).build());
+
+        // Botón X para cerrar
+        this.addDrawableChild(ButtonWidget.builder(Text.of("§cX"), b -> this.close())
+            .dimensions(centerX + (PANEL_WIDTH / 2) - 20, centerY - (PANEL_HEIGHT / 2) + 2, 18, 18).build());
     }
 
     @Override
@@ -79,9 +83,8 @@ public class MarketplaceProfileScreen extends Screen {
         String name = MinecraftClient.getInstance().player.getName().getString();
         context.drawCenteredTextWithShadow(this.textRenderer, "§7Comerciante: §e" + name, centerX, y1 + 32, 0xFFFFFF);
 
-        context.getMatrices().pop();
-
         super.render(context, mouseX, mouseY, delta);
+        context.getMatrices().pop();
     }
     
     @Override

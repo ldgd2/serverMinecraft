@@ -116,24 +116,27 @@ async def resolve_offer(offer_id: int, action: str, reason: str = None, db: Sess
     return APIResponse(status="success")
 
 @router.post("/{trade_id}/complete")
-async def complete_trade(trade_id: int, data: dict, db: Session = Depends(get_db)):
+async def complete_trade(trade_id: int, data: dict, request: Request, db: Session = Depends(get_db)):
     """
     Completar un trade directamente (desde el Mod).
     Data: { buyer_uuid, buyer_name }
     """
+    secure = request.query_params.get("secure") == "true"
     trade = db.query(Trade).filter(Trade.id == trade_id, Trade.status == "OPEN").first()
     if not trade: raise HTTPException(status_code=404, detail="Trade not found or already completed")
     
     buyer_name = data.get("buyer_name")
     if not buyer_name: raise HTTPException(status_code=400, detail="Buyer name required")
 
-    # 1. Quitar items al COMPRADOR (lo que el vendedor pidió)
     asking = trade.asking_item
-    await server_controller.send_command("MinecraftTest", f'clear {buyer_name} {asking["id"]} {asking["count"]}')
-    
-    # 2. Dar items al COMPRADOR (lo que el vendedor ofrecía)
     selling = trade.selling_item
-    await server_controller.send_command("MinecraftTest", f'give {buyer_name} {selling["id"]} {selling["count"]}')
+
+    if not secure:
+        # 1. Quitar items al COMPRADOR (lo que el vendedor pidió)
+        await server_controller.send_command("MinecraftTest", f'clear {buyer_name} {asking["id"]} {asking["count"]}')
+        
+        # 2. Dar items al COMPRADOR (lo que el vendedor ofrecía)
+        await server_controller.send_command("MinecraftTest", f'give {buyer_name} {selling["id"]} {selling["count"]}')
     
     # 3. Dar items al VENDEDOR (lo que el comprador pagó)
     await server_controller.send_command("MinecraftTest", f'give {trade.seller_name} {asking["id"]} {asking["count"]}')

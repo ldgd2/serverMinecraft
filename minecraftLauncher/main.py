@@ -1,8 +1,12 @@
-import ctypes
 import sys
+import os
 from ui.app import LauncherApp
 
 def main():
+    # Prevent crash on sys.stdout.flush() when running without console (PyInstaller)
+    if sys.stdout is None: sys.stdout = open(os.devnull, "w")
+    if sys.stderr is None: sys.stderr = open(os.devnull, "w")
+
     # Fix blurry UI on High DPI Windows screens
     if sys.platform == "win32":
         try:

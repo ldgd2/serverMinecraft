@@ -33,43 +33,47 @@ public class MarketplaceTransactionScreen extends HandledScreen<MarketplaceTrans
                 return;
             }
 
-            // Aquí el cliente avisa que ya puso las cosas. 
-            // Pero lo ideal es que el servidor lo verifique al darle click al botón.
-            // Para simplicidad en este prototipo, enviamos la resolución.
-            TradeClient.completeTrade(this.handler.getTradeId(), 
-                MinecraftClient.getInstance().player.getUuidAsString(), 
-                MinecraftClient.getInstance().player.getName().getString());
+            // Enviamos un paquete al servidor para que él verifique el slot y complete el trade
+            if (net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.canSend(com.lider.minebridge.networking.payload.CompleteTradePayload.ID)) {
+                net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.send(new com.lider.minebridge.networking.payload.CompleteTradePayload(this.handler.getTradeId()));
+            }
             
             this.close();
         }).dimensions(this.x + this.backgroundWidth / 2 - 60, this.y + 60, 120, 20).build());
+
+        // Botón X para cerrar
+        this.addDrawableChild(ButtonWidget.builder(Text.of("§cX"), b -> this.close())
+            .dimensions(this.x + this.backgroundWidth - 15, this.y + 5, 12, 12).build());
     }
 
     @Override
     protected void drawBackground(DrawContext context, float delta, int mouseX, int mouseY) {
-        int i = (this.width - this.backgroundWidth) / 2;
-        int j = (this.height - this.backgroundHeight) / 2;
-        context.drawTexture(TEXTURE, i, j, 0, 0, this.backgroundWidth, this.backgroundHeight);
+        int i = this.x;
+        int j = this.y;
         
-        // Dibujar caja de pago
-        context.fill(i + 79, j + 34, i + 79 + 18, j + 34 + 18, 0x80FFAA00); 
-        context.drawCenteredTextWithShadow(this.textRenderer, "Coloca el PAGO aquí", i + 88, j + 24, 0xFFFFFF);
+        // Panel fondo (Estilo Global)
+        context.fill(i - 1, j - 1, i + this.backgroundWidth + 1, j + this.backgroundHeight + 1, 0xFF444444);
+        context.fill(i, j, i + this.backgroundWidth, j + this.backgroundHeight, 0xFF101010);
+        
+        // Cabecera
+        context.fill(i, j, i + this.backgroundWidth, j + 25, 0xFF222222);
+
+        // Dibujar cajas de pago centradas
+        int slotX1 = i + (this.backgroundWidth / 2) - 20;
+        int slotX2 = i + (this.backgroundWidth / 2) + 6;
+        int slotY = j + 40;
+
+        context.fill(slotX1, slotY, slotX1 + 18, slotY + 18, 0x80FFAA00); 
+        context.fill(slotX2, slotY, slotX2 + 18, slotY + 18, 0x80FFAA00); 
+        
+        context.drawCenteredTextWithShadow(this.textRenderer, "Coloca el PAGO aquí", i + this.backgroundWidth / 2, j + 30, 0xFFFFFF);
+        
+        context.drawTextWithShadow(this.textRenderer, "Inventario", i + 8, j + 72, 0x404040);
     }
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        context.fill(0, 0, this.width, this.height, 0xFF000000); // Bloqueo total
-        
-        int i = (this.width - this.backgroundWidth) / 2;
-        int j = (this.height - this.backgroundHeight) / 2;
-        
-        context.getMatrices().push();
-        context.getMatrices().translate(0, 0, 100);
-
-        // Dibujar un borde elegante alrededor de la textura del inventario
-        context.fill(i - 2, j - 2, i + this.backgroundWidth + 2, j + this.backgroundHeight + 2, 0xFF664400); 
-
-        context.getMatrices().pop();
-
+        context.fill(0, 0, this.width, this.height, 0xFF000000); // Fondo sólido negro
         super.render(context, mouseX, mouseY, delta);
         this.drawMouseoverTooltip(context, mouseX, mouseY);
     }

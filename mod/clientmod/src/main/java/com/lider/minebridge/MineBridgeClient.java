@@ -24,12 +24,17 @@ public class MineBridgeClient implements ModInitializer {
         PayloadTypeRegistry.playC2S().register(com.lider.minebridge.networking.payload.MarketplaceRequestPayload.ID, com.lider.minebridge.networking.payload.MarketplaceRequestPayload.CODEC);
         PayloadTypeRegistry.playC2S().register(com.lider.minebridge.networking.payload.OpenCreationMenuPayload.ID, com.lider.minebridge.networking.payload.OpenCreationMenuPayload.CODEC);
         PayloadTypeRegistry.playC2S().register(com.lider.minebridge.networking.payload.OpenTransactionMenuPayload.ID, com.lider.minebridge.networking.payload.OpenTransactionMenuPayload.CODEC);
+        PayloadTypeRegistry.playC2S().register(com.lider.minebridge.networking.payload.CompleteTradePayload.ID, com.lider.minebridge.networking.payload.CompleteTradePayload.CODEC);
+        PayloadTypeRegistry.playS2C().register(com.lider.minebridge.networking.payload.TransactionScreenDataPayload.ID, com.lider.minebridge.networking.payload.TransactionScreenDataPayload.CODEC);
         
         MARKETPLACE_CREATION_HANDLER = Registry.register(Registries.SCREEN_HANDLER, Identifier.of("minebridge", "creation"), 
-            com.lider.minebridge.marketplace.MarketplaceCreationScreenHandler.TYPE);
+            new net.minecraft.screen.ScreenHandlerType<>(com.lider.minebridge.marketplace.MarketplaceCreationScreenHandler::new, net.minecraft.resource.featuretoggle.FeatureSet.empty()));
 
         MARKETPLACE_TRANSACTION_HANDLER = Registry.register(Registries.SCREEN_HANDLER, Identifier.of("minebridge", "transaction"), 
-            com.lider.minebridge.marketplace.MarketplaceTransactionScreenHandler.TYPE);
+            new net.fabricmc.fabric.api.screenhandler.v1.ExtendedScreenHandlerType<>(
+                (syncId, inv, data) -> new com.lider.minebridge.marketplace.MarketplaceTransactionScreenHandler(syncId, inv, data.tradeId()),
+                com.lider.minebridge.networking.payload.TransactionScreenDataPayload.CODEC
+            ));
 
         net.minecraft.client.gui.screen.ingame.HandledScreens.register(
             MARKETPLACE_CREATION_HANDLER, 

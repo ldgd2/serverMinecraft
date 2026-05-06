@@ -3,7 +3,6 @@ package com.lider.minebridge.networking;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
-import com.lider.minebridge.MineBridge;
 import com.lider.minebridge.config.ModConfig;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -21,8 +20,8 @@ public class TradeClient {
         String url = ModConfig.getBackendUrl() + "api/v1/trades/open";
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(url))
-                .header("X-API-Key", ModConfig.getApiKey())
                 .GET()
+                .timeout(java.time.Duration.ofSeconds(5))
                 .build();
 
         return httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
@@ -32,50 +31,56 @@ public class TradeClient {
                         return json.getAsJsonArray("data");
                     }
                     return new JsonArray();
-                });
+                }).exceptionally(t -> new JsonArray());
     }
 
-    public static void publishTrade(String seller, JsonObject selling, JsonObject asking) {
+    public static CompletableFuture<Boolean> publishTrade(String sellerUuid, String sellerName, String title, JsonObject selling, com.google.gson.JsonElement asking) {
+        String url = ModConfig.getBackendUrl() + "api/v1/trades/publish";
         JsonObject data = new JsonObject();
-        data.addProperty("seller", seller);
+        data.addProperty("seller_uuid", sellerUuid);
+        data.addProperty("seller_name", sellerName);
+        data.addProperty("title", title);
         data.add("selling", selling);
         data.add("asking", asking);
 
-        String url = ModConfig.getBackendUrl() + "api/v1/trades/publish";
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(url))
-                .header("Content-Type", "application/json")
-                .header("X-API-Key", ModConfig.getApiKey())
                 .POST(HttpRequest.BodyPublishers.ofString(data.toString()))
+                .header("Content-Type", "application/json")
                 .build();
 
-        httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString());
+        return httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
+                .thenApply(res -> res.statusCode() == 200);
     }
 
-    public static void resolveTrade(int tradeId, String action) {
-        String url = ModConfig.getBackendUrl() + "api/v1/trades/" + tradeId + "/resolve?action=" + action;
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(url))
-                .header("X-API-Key", ModConfig.getApiKey())
-                .POST(HttpRequest.BodyPublishers.noBody())
-                .build();
-
-        httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString());
+    public static CompletableFuture<Boolean> completeTrade(int tradeId, String buyerUuid, String buyerName) {
+        return completeTradeSecurely(tradeId, buyerUuid, buyerName);
     }
 
-    public static void completeTrade(int tradeId, String buyerUuid, String buyerName) {
+    public static CompletableFuture<Boolean> completeTradeSecurely(int tradeId, String buyerUuid, String buyerName) {
+        String url = ModConfig.getBackendUrl() + "api/v1/trades/" + tradeId + "/complete?secure=true";
         JsonObject data = new JsonObject();
         data.addProperty("buyer_uuid", buyerUuid);
         data.addProperty("buyer_name", buyerName);
 
-        String url = ModConfig.getBackendUrl() + "api/v1/trades/" + tradeId + "/complete";
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(url))
-                .header("Content-Type", "application/json")
-                .header("X-API-Key", ModConfig.getApiKey())
                 .POST(HttpRequest.BodyPublishers.ofString(data.toString()))
+                .header("Content-Type", "application/json")
                 .build();
 
-        httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString());
+        return httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
+                .thenApply(res -> res.statusCode() == 200);
+    }
+
+    public static CompletableFuture<Boolean> cancelTrade(int tradeId) {
+        String url = ModConfig.getBackendUrl() + "api/v1/trades/" + tradeId + "/cancel";
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .POST(HttpRequest.BodyPublishers.noBody())
+                .build();
+
+        return httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
+                .thenApply(res -> res.statusCode() == 200);
     }
 }

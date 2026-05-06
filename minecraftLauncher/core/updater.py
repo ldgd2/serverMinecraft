@@ -213,7 +213,7 @@ exit
                 os.fsync(f.fileno())
             
         print(f"[Updater] Ejecutando script de actualizacion...")
-        sys.stdout.flush()
+        if sys.stdout: sys.stdout.flush()
         
         # Ejecutar .bat y salir inmediatamente de forma limpia
         # os.startfile es lo más fiable en Windows para lanzar y desentenderse
@@ -222,12 +222,12 @@ exit
         
         # Salida limpia para permitir que el BAT haga su trabajo
         print("[Updater] Script lanzado. Cerrando Launcher en 1 segundo...")
-        sys.stdout.flush()
+        if sys.stdout: sys.stdout.flush()
         time.sleep(1)
         os._exit(0)
     except Exception as e:
         print(f"[Updater] ERROR FATAL al lanzar el script de actualizacion: {e}")
-        sys.stdout.flush()
+        if sys.stdout: sys.stdout.flush()
         # Intentar al menos cerrar para no dejar al usuario colgado
         time.sleep(2)
         os._exit(1)

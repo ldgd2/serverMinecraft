@@ -105,7 +105,12 @@ public class ModCommands {
             asking.addProperty("id", net.minecraft.registry.Registries.ITEM.getId(itemReq.getItem()).toString());
             asking.addProperty("count", count);
 
-            com.lider.minebridge.networking.TradeClient.publishTrade(player.getName().getString(), selling, asking);
+            com.lider.minebridge.networking.TradeClient.publishTrade(
+                player.getUuidAsString(),
+                player.getName().getString(),
+                "Oferta de " + hand.getName().getString(),
+                selling, asking
+            );
             source.sendFeedback(() -> Text.of("§a¡Oferta publicada en el Marketplace!"), true);
             
             return 1;

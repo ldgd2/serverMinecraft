@@ -27,11 +27,14 @@ public class MineBridge implements ModInitializer {
 
     public static final net.minecraft.screen.ScreenHandlerType<com.lider.minebridge.marketplace.MarketplaceCreationScreenHandler> MARKETPLACE_CREATION_HANDLER = 
         net.minecraft.registry.Registry.register(net.minecraft.registry.Registries.SCREEN_HANDLER, Identifier.of(MOD_ID, "creation"), 
-        com.lider.minebridge.marketplace.MarketplaceCreationScreenHandler.TYPE);
+        new net.minecraft.screen.ScreenHandlerType<>(com.lider.minebridge.marketplace.MarketplaceCreationScreenHandler::new, net.minecraft.resource.featuretoggle.FeatureSet.empty()));
 
     public static final net.minecraft.screen.ScreenHandlerType<com.lider.minebridge.marketplace.MarketplaceTransactionScreenHandler> MARKETPLACE_TRANSACTION_HANDLER = 
         net.minecraft.registry.Registry.register(net.minecraft.registry.Registries.SCREEN_HANDLER, Identifier.of(MOD_ID, "transaction"), 
-        com.lider.minebridge.marketplace.MarketplaceTransactionScreenHandler.TYPE);
+        new net.fabricmc.fabric.api.screenhandler.v1.ExtendedScreenHandlerType<>(
+            (syncId, inv, data) -> new com.lider.minebridge.marketplace.MarketplaceTransactionScreenHandler(syncId, inv, data.tradeId()),
+            com.lider.minebridge.networking.payload.TransactionScreenDataPayload.CODEC
+        ));
 
     @Override
     public void onInitialize() {
@@ -42,6 +45,7 @@ public class MineBridge implements ModInitializer {
         PayloadTypeRegistry.playC2S().register(com.lider.minebridge.networking.payload.MarketplaceRequestPayload.ID, com.lider.minebridge.networking.payload.MarketplaceRequestPayload.CODEC);
         PayloadTypeRegistry.playC2S().register(com.lider.minebridge.networking.payload.OpenCreationMenuPayload.ID, com.lider.minebridge.networking.payload.OpenCreationMenuPayload.CODEC);
         PayloadTypeRegistry.playC2S().register(com.lider.minebridge.networking.payload.OpenTransactionMenuPayload.ID, com.lider.minebridge.networking.payload.OpenTransactionMenuPayload.CODEC);
+        PayloadTypeRegistry.playC2S().register(com.lider.minebridge.networking.payload.CompleteTradePayload.ID, com.lider.minebridge.networking.payload.CompleteTradePayload.CODEC);
         
         ServerLifecycleEvents.SERVER_STARTING.register(server -> {
             serverInstance = server;
@@ -71,6 +75,12 @@ public class MineBridge implements ModInitializer {
         net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.registerGlobalReceiver(com.lider.minebridge.networking.payload.OpenTransactionMenuPayload.ID, (payload, context) -> {
             context.server().execute(() -> {
                 com.lider.minebridge.marketplace.MarketplaceManager.openTransactionMenu(context.player(), payload.tradeId());
+            });
+        });
+
+        net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.registerGlobalReceiver(com.lider.minebridge.networking.payload.CompleteTradePayload.ID, (payload, context) -> {
+            context.server().execute(() -> {
+                com.lider.minebridge.marketplace.MarketplaceManager.completeTradeOnServer(context.player(), payload.tradeId());
             });
         });
 
