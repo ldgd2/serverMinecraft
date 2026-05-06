@@ -75,6 +75,12 @@ public class MarketplaceManager {
             Text.of("§2Configurar Nueva Oferta")));
     }
 
+    public static void openTransactionMenu(ServerPlayerEntity player, int tradeId) {
+        player.openHandledScreen(new SimpleNamedScreenHandlerFactory((syncId, inv, p) -> 
+            new MarketplaceTransactionScreenHandler(syncId, inv, tradeId), 
+            Text.of("§6Trueque en Progreso")));
+    }
+
     public static void deleteTrade(ServerPlayerEntity player, int tradeId) {
         TradeClient.resolveTrade(tradeId, "cancel");
         player.sendMessage(Text.of("§6[Market] §cPublicación eliminada."), false);

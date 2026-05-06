@@ -97,4 +97,15 @@ public class TradeClient {
         return httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
                 .thenApply(res -> res.statusCode() == 200);
     }
+
+    public static CompletableFuture<Boolean> cancelTrade(int tradeId) {
+        String url = ClientConfig.getApiUrl() + "api/v1/trades/" + tradeId + "/cancel";
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .POST(HttpRequest.BodyPublishers.noBody())
+                .build();
+
+        return httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
+                .thenApply(res -> res.statusCode() == 200);
+    }
 }

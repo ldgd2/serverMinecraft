@@ -18,11 +18,19 @@ import java.util.Map;
 public class MarketplaceGlobalScreen extends Screen {
     private final JsonArray trades;
     private final Map<Integer, ItemStack[]> iconCache = new HashMap<>();
-    private boolean showOnlyMine = false;
+    private final boolean showOnlyMine;
+    
+    private static final int PANEL_WIDTH = 340;
+    private static final int PANEL_HEIGHT = 200;
 
     public MarketplaceGlobalScreen(JsonArray trades) {
-        super(Text.of("§6§lMarketplace Global"));
+        this(trades, false);
+    }
+
+    public MarketplaceGlobalScreen(JsonArray trades, boolean showOnlyMine) {
+        super(showOnlyMine ? Text.of("§d§lMIS PUBLICACIONES") : Text.of("§6§lMARKETPLACE GLOBAL"));
         this.trades = trades;
+        this.showOnlyMine = showOnlyMine;
         precacheIcons();
     }
 
@@ -31,12 +39,9 @@ public class MarketplaceGlobalScreen extends Screen {
             try {
                 JsonObject trade = trades.get(i).getAsJsonObject();
                 if (trade == null || !trade.has("id")) continue;
-                
                 int tradeId = trade.get("id").getAsInt();
-                
                 JsonObject sellingJson = trade.getAsJsonObject("selling");
                 JsonObject askingJson = trade.getAsJsonObject("asking");
-
                 if (sellingJson != null && askingJson != null) {
                     ItemStack selling = new ItemStack(Registries.ITEM.get(Identifier.of(sellingJson.get("id").getAsString())), sellingJson.get("count").getAsInt());
                     ItemStack asking = new ItemStack(Registries.ITEM.get(Identifier.of(askingJson.get("id").getAsString())), askingJson.get("count").getAsInt());
@@ -51,83 +56,115 @@ public class MarketplaceGlobalScreen extends Screen {
         super.init();
         this.clearChildren();
         
-        // Botón Toggle: Todas / Mis Publicaciones
-        String toggleText = showOnlyMine ? "§bVer: TODAS" : "§dVer: MIS PUBLICACIONES";
-        this.addDrawableChild(ButtonWidget.builder(Text.of(toggleText), button -> {
-            this.showOnlyMine = !this.showOnlyMine;
-            this.init(); // Re-inicializar para actualizar botones
-        }).dimensions(this.width / 2 - 100, 30, 200, 20).build());
-
-        int y = 60;
+        int centerX = this.width / 2;
+        int centerY = this.height / 2;
+        int startY = centerY - (PANEL_HEIGHT / 2) + 40;
+        
         String myUuid = MinecraftClient.getInstance().player.getUuidAsString();
 
+        int renderedCount = 0;
         for (int i = 0; i < trades.size(); i++) {
             JsonObject trade = trades.get(i).getAsJsonObject();
             if (trade == null) continue;
 
             String sellerUuid = trade.has("seller_uuid") ? trade.get("seller_uuid").getAsString() : "unknown";
             boolean isSelf = sellerUuid.equals(myUuid);
-
             if (showOnlyMine && !isSelf) continue;
 
             int tradeId = trade.get("id").getAsInt();
 
-            // Botón para Comprar / Borrar
-            Text buttonText = isSelf ? Text.of("§cELIMINAR") : Text.of("§aCOMPRAR");
+            Text buttonText = isSelf ? Text.of("§cELIMINAR") : Text.of("§bVER");
             this.addDrawableChild(ButtonWidget.builder(buttonText, button -> {
                 if (isSelf) {
-                    TradeClient.resolveOffer(tradeId, "cancel", null);
+                    TradeClient.cancelTrade(tradeId);
+                    this.close();
                 } else {
-                    TradeClient.completeTrade(tradeId, myUuid, MinecraftClient.getInstance().player.getName().getString());
+                    MinecraftClient.getInstance().setScreen(new MarketplaceDetailScreen(trade));
                 }
-                this.close();
-            }).dimensions(this.width / 2 + 60, y, 70, 20).build());
+            }).dimensions(centerX + 85, startY + (renderedCount * 25), 65, 20).build());
 
-            y += 25;
-            if (y > this.height - 60) break; // Límite simple de scroll
+            renderedCount++;
+            if (startY + (renderedCount * 25) > centerY + (PANEL_HEIGHT / 2) - 30) break;
         }
 
-        // Botón Cerrar
         this.addDrawableChild(ButtonWidget.builder(Text.of("Cerrar"), b -> this.close())
-            .dimensions(this.width / 2 - 50, this.height - 30, 100, 20).build());
+            .dimensions(centerX - 50, centerY + (PANEL_HEIGHT / 2) - 25, 100, 20).build());
     }
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        this.renderBackground(context, mouseX, mouseY, delta);
-        context.drawCenteredTextWithShadow(this.textRenderer, this.title, this.width / 2, 10, 0xFFFFFF);
+        // Dibujar fondo sólido primero para bloquear el mundo
+        context.fill(0, 0, this.width, this.height, 0xFF000000); 
 
-        int y = 60;
+        int centerX = this.width / 2;
+        int centerY = this.height / 2;
+        int x1 = centerX - (PANEL_WIDTH / 2);
+        int y1 = centerY - (PANEL_HEIGHT / 2);
+        int x2 = centerX + (PANEL_WIDTH / 2);
+        int y2 = centerY + (PANEL_HEIGHT / 2);
+
+        // Subir a la capa de GUI (Z=100)
+        context.getMatrices().push();
+        context.getMatrices().translate(0, 0, 100);
+
+        // Panel Principal
+        context.fill(x1 - 1, y1 - 1, x2 + 1, y2 + 1, 0xFF444444);
+        context.fill(x1, y1, x2, y2, 0xFF101010);
+        
+        // Cabecera
+        context.fill(x1, y1, x2, y1 + 25, 0xFF222222);
+        context.drawCenteredTextWithShadow(this.textRenderer, this.title, centerX, y1 + 8, 0xFFFFFF);
+
+        int startY = y1 + 40;
         String myUuid = MinecraftClient.getInstance().player.getUuidAsString();
 
+        int renderedCount = 0;
         for (int i = 0; i < trades.size(); i++) {
             JsonObject trade = trades.get(i).getAsJsonObject();
             if (trade == null) continue;
 
             String sellerUuid = trade.has("seller_uuid") ? trade.get("seller_uuid").getAsString() : "unknown";
             boolean isSelf = sellerUuid.equals(myUuid);
-
             if (showOnlyMine && !isSelf) continue;
 
             int tradeId = trade.get("id").getAsInt();
             String title = trade.has("title") ? trade.get("title").getAsString() : "Sin título";
             String seller = trade.has("seller") ? trade.get("seller").getAsString() : "Anónimo";
             
-            // Dibujar información
-            context.drawTextWithShadow(this.textRenderer, "§e" + title + " §7(por " + seller + ")", this.width / 2 - 180, y + 5, 0xFFFFFF);
+            int currentY = startY + (renderedCount * 25);
             
-            // Usar cache de iconos
+            // Fila de item
+            context.fill(x1 + 5, currentY - 2, x2 - 5, currentY + 22, 0x33FFFFFF);
+            context.drawTextWithShadow(this.textRenderer, "§e" + truncate(title, 10), x1 + 10, currentY + 2, 0xFFFFFF);
+            context.drawTextWithShadow(this.textRenderer, "§7de §f" + truncate(seller, 8), x1 + 10, currentY + 11, 0xFFFFFF);
+            
             ItemStack[] icons = iconCache.get(tradeId);
             if (icons != null) {
-                context.drawItem(icons[0], this.width / 2 - 20, y);
-                context.drawTextWithShadow(this.textRenderer, "➔", this.width / 2 + 5, y + 5, 0xFFFFFF);
-                context.drawItem(icons[1], this.width / 2 + 25, y);
+                context.drawItem(icons[0], centerX - 30, currentY);
+                context.drawTextWithShadow(this.textRenderer, "➔", centerX - 5, currentY + 6, 0xFFFFFF);
+                context.drawItem(icons[1], centerX + 15, currentY);
             }
 
-            y += 25;
-            if (y > this.height - 60) break;
+            renderedCount++;
+            if (currentY + 25 > y2 - 30) break;
         }
 
+        context.getMatrices().pop(); // Restaurar capa
+
         super.render(context, mouseX, mouseY, delta);
+    }
+    
+    private String truncate(String text, int max) {
+        return text.length() > max ? text.substring(0, max - 1) + "…" : text;
+    }
+
+    @Override
+    public boolean shouldPause() {
+        return false;
+    }
+
+    @Override
+    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta) {
+        // Evitar el desenfoque
     }
 }

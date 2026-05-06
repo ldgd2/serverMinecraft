@@ -34,5 +34,7 @@ class Server(Base):
     ram_usage = Column(Integer, default=0)
     disk_usage = Column(Integer, default=0)
     
-    # MasterBridge integration removed
-    # (masterbridge_enabled, ip, port, config columns deleted)
+    # MasterBridge compatibility (Restored for App UI)
+    masterbridge_enabled = Column(Boolean, default=True)
+    masterbridge_ip = Column(String, default="127.0.0.1")
+    masterbridge_port = Column(Integer, default=8081)

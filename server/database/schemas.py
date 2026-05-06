@@ -25,7 +25,10 @@ class ServerUpdate(BaseModel):
     max_players: Optional[int] = None
     motd: Optional[str] = None
     
-    # MasterBridge configuration removed
+    # MasterBridge compatibility (Restored for App UI)
+    masterbridge_enabled: Optional[bool] = True
+    masterbridge_ip: Optional[str] = "127.0.0.1"
+    masterbridge_port: Optional[int] = 8081
 
 class ServerResponse(ServerCreate):
     id: int
@@ -36,7 +39,11 @@ class ServerResponse(ServerCreate):
     ram_usage: Optional[int] = 0  # Match model field name
     current_players: Optional[int] = 0  # Match model field name
     disk_usage: Optional[int] = 0
-    # MasterBridge configuration removed
+    
+    # MasterBridge compatibility (Restored for App UI)
+    masterbridge_enabled: bool = True
+    masterbridge_ip: str = "127.0.0.1"
+    masterbridge_port: int = 8081
     
     class Config:
         from_attributes = True

@@ -145,3 +145,17 @@ async def complete_trade(trade_id: int, data: dict, db: Session = Depends(get_db
     trade.status = "COMPLETED"
     db.commit()
     return APIResponse(status="success")
+
+@router.post("/{trade_id}/cancel")
+async def cancel_trade(trade_id: int, db: Session = Depends(get_db)):
+    """
+    Cancelar un trade (borrarlo).
+    """
+    trade = db.query(Trade).filter(Trade.id == trade_id).first()
+    if not trade: raise HTTPException(status_code=404)
+    
+    # Podríamos devolver los items aquí si el clear inicial fue definitivo
+    # Por ahora simplemente lo marcamos como CANCELLED
+    trade.status = "CANCELLED"
+    db.commit()
+    return APIResponse(status="success")

@@ -98,12 +98,10 @@ public class ClientEvents {
             // --- Tecla Marketplace (Independiente de isActive) ---
             while (marketplaceKey.wasPressed()) {
                 if (Screen.hasShiftDown()) {
-                    // Abrir pantalla de CREACIÓN (vía Servidor para los slots)
-                    if (ClientPlayNetworking.canSend(com.lider.minebridge.networking.payload.OpenCreationMenuPayload.ID)) {
-                        ClientPlayNetworking.send(new com.lider.minebridge.networking.payload.OpenCreationMenuPayload());
-                    }
+                    // Abrir PERFIL DE VENDEDOR (Shift + M)
+                    MinecraftClient.getInstance().setScreen(new com.lider.minebridge.client.ui.MarketplaceProfileScreen());
                 } else {
-                    // Abrir pantalla de MERCADO GLOBAL (Fetch desde backend directamente)
+                    // Abrir pantalla de MERCADO GLOBAL (M)
                     com.lider.minebridge.networking.TradeClient.getOpenTrades().thenAccept(trades -> {
                         MinecraftClient.getInstance().execute(() -> {
                             MinecraftClient.getInstance().setScreen(new com.lider.minebridge.client.ui.MarketplaceGlobalScreen(trades));
