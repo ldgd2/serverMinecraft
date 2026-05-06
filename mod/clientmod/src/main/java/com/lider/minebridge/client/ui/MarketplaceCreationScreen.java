@@ -11,34 +11,60 @@ import net.minecraft.text.Text;
 
 public class MarketplaceCreationScreen extends Screen {
     private TextFieldWidget titleField;
-    private JsonObject sellingItem;
-    private JsonObject askingItem;
+    private TextFieldWidget askingItemField;
+    private TextFieldWidget askingCountField;
+    private net.minecraft.item.ItemStack sellingStack;
 
     public MarketplaceCreationScreen() {
-        super(Text.of("§6Crear Nueva Oferta"));
+        super(Text.of("§6§lCrear Nueva Oferta"));
+        this.sellingStack = MinecraftClient.getInstance().player.getMainHandStack();
     }
 
     @Override
     protected void init() {
         // Título de la venta
-        this.titleField = new TextFieldWidget(this.textRenderer, this.width / 2 - 100, 40, 200, 20, Text.of("Título"));
+        this.addDrawable(new net.minecraft.client.gui.widget.TextWidget(this.width / 2 - 100, 30, 200, 20, Text.of("Título de la Oferta:"), this.textRenderer));
+        this.titleField = new TextFieldWidget(this.textRenderer, this.width / 2 - 100, 45, 200, 20, Text.of("Título"));
         this.titleField.setPlaceholder(Text.of("Ej: Vendo Espada de Netherite"));
+        if (!sellingStack.isEmpty()) {
+            this.titleField.setText("Vendo " + sellingStack.getName().getString());
+        }
         this.addDrawableChild(this.titleField);
+
+        // Qué pides a cambio
+        this.addDrawable(new net.minecraft.client.gui.widget.TextWidget(this.width / 2 - 100, 75, 140, 20, Text.of("¿Qué pides? (ID):"), this.textRenderer));
+        this.askingItemField = new TextFieldWidget(this.textRenderer, this.width / 2 - 100, 90, 140, 20, Text.of("Item"));
+        this.askingItemField.setPlaceholder(Text.of("diamond, gold_ingot..."));
+        this.addDrawableChild(this.askingItemField);
+
+        // Cantidad
+        this.addDrawable(new net.minecraft.client.gui.widget.TextWidget(this.width / 2 + 50, 75, 50, 20, Text.of("Cant.:"), this.textRenderer));
+        this.askingCountField = new TextFieldWidget(this.textRenderer, this.width / 2 + 50, 90, 50, 20, Text.of("Cant"));
+        this.askingCountField.setText("1");
+        this.addDrawableChild(this.askingCountField);
 
         // Botón Publicar
         this.addDrawableChild(ButtonWidget.builder(Text.of("§a§lPUBLICAR VENTA"), button -> {
             String title = this.titleField.getText();
-            if (title.isEmpty()) return;
+            String askingId = this.askingItemField.getText().trim();
+            int askingCount = 1;
+            try { askingCount = Integer.parseInt(this.askingCountField.getText()); } catch(Exception e) {}
 
-            // En un caso real, aquí capturaríamos el item seleccionado
-            // Por ahora usamos placeholders para validar el flujo
+            if (title.isEmpty() || askingId.isEmpty() || sellingStack.isEmpty()) {
+                MinecraftClient.getInstance().player.sendMessage(Text.of("§cDebes llenar todos los campos y tener un item en la mano."), false);
+                return;
+            }
+
+            // Preparar JSONs
             JsonObject selling = new JsonObject();
-            selling.addProperty("id", "minecraft:diamond");
-            selling.addProperty("count", 64);
+            selling.addProperty("id", net.minecraft.registry.Registries.ITEM.getId(sellingStack.getItem()).toString());
+            selling.addProperty("count", sellingStack.getCount());
 
             JsonObject asking = new JsonObject();
-            asking.addProperty("id", "minecraft:netherite_ingot");
-            asking.addProperty("count", 1);
+            // Intentar arreglar ID si el usuario no puso namespace
+            if (!askingId.contains(":")) askingId = "minecraft:" + askingId;
+            asking.addProperty("id", askingId);
+            asking.addProperty("count", askingCount);
 
             TradeClient.publishTrade(
                 MinecraftClient.getInstance().player.getUuidAsString(),
@@ -52,17 +78,25 @@ public class MarketplaceCreationScreen extends Screen {
                     });
                 }
             });
-        }).dimensions(this.width / 2 - 100, 160, 200, 20).build());
+        }).dimensions(this.width / 2 - 100, 140, 200, 20).build());
 
         // Botón Cancelar
         this.addDrawableChild(ButtonWidget.builder(Text.of("§cCancelar"), button -> this.close())
-            .dimensions(this.width / 2 - 100, 190, 200, 20).build());
+            .dimensions(this.width / 2 - 100, 170, 200, 20).build());
     }
 
     @Override
     public void render(net.minecraft.client.gui.DrawContext context, int mouseX, int mouseY, float delta) {
         this.renderBackground(context, mouseX, mouseY, delta);
-        context.drawCenteredTextWithShadow(this.textRenderer, this.title, this.width / 2, 20, 0xFFFFFF);
+        context.drawCenteredTextWithShadow(this.textRenderer, this.title, this.width / 2, 10, 0xFFFFFF);
+        
+        // Mostrar qué está vendiendo (dibujar item)
+        if (!sellingStack.isEmpty()) {
+            context.drawTextWithShadow(this.textRenderer, "Vendiendo: " + sellingStack.getCount() + "x " + sellingStack.getName().getString(), this.width / 2 - 100, 120, 0xFFFF55);
+        } else {
+            context.drawTextWithShadow(this.textRenderer, "§c¡No tienes nada en la mano!", this.width / 2 - 100, 120, 0xFF5555);
+        }
+
         super.render(context, mouseX, mouseY, delta);
     }
 }
