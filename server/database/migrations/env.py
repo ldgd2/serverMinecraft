@@ -37,9 +37,9 @@ def run_migrations_offline() -> None:
     from database.connection import get_connection_url
     url = str(get_connection_url()) # Helper returns URL object or string
     
-    def include_name(name, type_, parent_names):
-        if type_ == "table":
-            return name not in ["Skins", "Players"]
+    def include_object(object, name, type_, reflected, compare_to):
+        if type_ == "table" and name in ["Skins", "Players"]:
+            return False
         return True
 
     context.configure(
@@ -47,7 +47,7 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
-        include_name=include_name,
+        include_object=include_object,
     )
 
     with context.begin_transaction():
@@ -64,9 +64,9 @@ def run_migrations_online() -> None:
     # 3. Use the engine already configured in connection.py
     connectable = get_engine()
 
-    def include_name(name, type_, parent_names):
-        if type_ == "table":
-            return name not in ["Skins", "Players"]
+    def include_object(object, name, type_, reflected, compare_to):
+        if type_ == "table" and name in ["Skins", "Players"]:
+            return False
         return True
 
     with connectable.connect() as connection:
@@ -78,7 +78,7 @@ def run_migrations_online() -> None:
             target_metadata=target_metadata,
             # 5. Enable Batch Mode conditionally for SQLite
             render_as_batch=is_sqlite,
-            include_name=include_name
+            include_object=include_object
         )
 
         with context.begin_transaction():
