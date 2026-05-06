@@ -37,11 +37,17 @@ def run_migrations_offline() -> None:
     from database.connection import get_connection_url
     url = str(get_connection_url()) # Helper returns URL object or string
     
+    def include_name(name, type_, parent_names):
+        if type_ == "table":
+            return name not in ["Skins", "Players"]
+        return True
+
     context.configure(
         url=url,
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        include_name=include_name,
     )
 
     with context.begin_transaction():
@@ -58,6 +64,11 @@ def run_migrations_online() -> None:
     # 3. Use the engine already configured in connection.py
     connectable = get_engine()
 
+    def include_name(name, type_, parent_names):
+        if type_ == "table":
+            return name not in ["Skins", "Players"]
+        return True
+
     with connectable.connect() as connection:
         # 4. Detect Dialect
         is_sqlite = connection.dialect.name == "sqlite"
@@ -66,7 +77,8 @@ def run_migrations_online() -> None:
             connection=connection, 
             target_metadata=target_metadata,
             # 5. Enable Batch Mode conditionally for SQLite
-            render_as_batch=is_sqlite 
+            render_as_batch=is_sqlite,
+            include_name=include_name
         )
 
         with context.begin_transaction():
