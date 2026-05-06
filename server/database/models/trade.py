@@ -20,7 +20,7 @@ class Trade(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     
     # Relación con las contra-ofertas
-    offers = relationship("CounterOffer", back_pop_status="trade")
+    offers = relationship("CounterOffer", back_populates="trade")
 
 class CounterOffer(Base):
     __tablename__ = "counter_offers"
@@ -36,4 +36,4 @@ class CounterOffer(Base):
     rejection_reason = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     
-    trade = relationship("Trade", back_pop_status="offers")
+    trade = relationship("Trade", back_populates="offers")
