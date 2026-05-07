@@ -500,6 +500,44 @@ class _SettingsTab extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        const SectionHeader(title: 'CONFIGURATION'),
+        const SizedBox(height: 10),
+        McCard(
+          child: Column(
+            children: [
+              SwitchListTile(
+                title: const Text('Online Mode', style: TextStyle(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.bold)),
+                subtitle: const Text('Allow non-premium (offline) players', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+                value: !server.onlineMode, // We show it as "Allow Offline" so true means onlineMode=false
+                activeColor: AppColors.grassGreen,
+                onChanged: (val) {
+                  context.read<ServerProvider>().updateOnlineMode(server.name, !val);
+                },
+              ),
+              const Divider(color: AppColors.border),
+              ListTile(
+                title: const Text('Max Players', style: TextStyle(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.bold)),
+                subtitle: Text('${server.maxPlayers} players allowed', style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
+                trailing: SizedBox(
+                  width: 100,
+                  child: Slider(
+                    value: server.maxPlayers.toDouble(),
+                    min: 1, max: 100,
+                    divisions: 99,
+                    activeColor: AppColors.diamond,
+                    onChanged: (val) {
+                      // We can use a debouncer or just update on change end
+                    },
+                    onChangeEnd: (val) {
+                      context.read<ServerProvider>().updateMaxPlayers(server.name, val.toInt());
+                    },
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
         const SectionHeader(title: 'DANGER ZONE'),
         const SizedBox(height: 10),
         McCard(

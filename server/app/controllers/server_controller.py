@@ -97,6 +97,28 @@ class ServerController:
         
         # MasterBridge reload removed
         
+        # --- Sync with server.properties ---
+        sync_keys = {
+            'online_mode': 'online-mode',
+            'max_players': 'max-players',
+            'motd': 'motd',
+            'port': 'server-port'
+        }
+        
+        props_to_update = {}
+        for db_key, prop_key in sync_keys.items():
+            if db_key in data:
+                props_to_update[prop_key] = data[db_key]
+        
+        if props_to_update:
+            try:
+                from app.controllers.file_controller import file_controller
+                import asyncio
+                # Run in background to not block
+                asyncio.create_task(file_controller.update_config(name, props_to_update))
+            except Exception as e:
+                print(f"WARN: Failed to sync properties for {name}: {e}")
+
         BitacoraService.add_log(db, "ADMIN", "SERVER_UPDATE", f"Updated server {name} with {list(data.keys())}")
         
         return server

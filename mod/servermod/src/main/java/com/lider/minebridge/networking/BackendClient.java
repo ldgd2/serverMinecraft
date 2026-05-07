@@ -91,10 +91,12 @@ public class BackendClient {
             .thenAccept(ws -> {
                 this.webSocket = ws;
                 MineBridge.LOGGER.info("Connected to Backend WebSocket Bridge: " + activeUrl);
-                // Notificar éxito al servidor
-                MineBridge.getServer().execute(() -> {
-                    MineBridge.LOGGER.info("§a[MineBridge] Conexión WebSocket establecida con éxito.");
-                });
+                // Notificar éxito al servidor (si ya existe)
+                if (MineBridge.getServer() != null) {
+                    MineBridge.getServer().execute(() -> {
+                        MineBridge.LOGGER.info("§a[MineBridge] Conexión WebSocket establecida con éxito.");
+                    });
+                }
             })
             .exceptionally(t -> {
                 MineBridge.LOGGER.error("Failed to connect to WebSocket: " + t.getMessage());

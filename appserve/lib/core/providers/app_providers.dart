@@ -506,6 +506,36 @@ class ServerProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> updateOnlineMode(String name, bool value) async {
+    final updated = await _serverService.updateServer(name, {
+      'online_mode': value,
+    });
+    
+    final idx = _servers.indexWhere((s) => s.name == name);
+    if (idx != -1) {
+      _servers[idx] = updated;
+    }
+    if (_selectedServer?.name == name) {
+      _selectedServer = updated;
+    }
+    notifyListeners();
+  }
+
+  Future<void> updateMaxPlayers(String name, int value) async {
+    final updated = await _serverService.updateServer(name, {
+      'max_players': value,
+    });
+    
+    final idx = _servers.indexWhere((s) => s.name == name);
+    if (idx != -1) {
+      _servers[idx] = updated;
+    }
+    if (_selectedServer?.name == name) {
+      _selectedServer = updated;
+    }
+    notifyListeners();
+  }
+
   Future<void> teleportPlayerToPlayer(String name, String player, String target) async {
     await _serverService.teleport(name, {
       'player': player,

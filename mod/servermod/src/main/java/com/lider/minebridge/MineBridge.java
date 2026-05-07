@@ -106,7 +106,23 @@ public class MineBridge implements ModInitializer {
             });
         });
 
-        // LOGGER.info("MineBridge Modular - Initialization Complete");
+        // Registro de comandos
+        net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
+            dispatcher.register(net.minecraft.server.command.CommandManager.literal("minebridge")
+                .requires(source -> source.hasPermissionLevel(2))
+                .then(net.minecraft.server.command.CommandManager.literal("status")
+                    .executes(context -> {
+                        String status = (backendClient != null && backendClient.isWebSocketConnected()) ? "§aCONECTADO" : "§cDESCONECTADO";
+                        String url = (backendClient != null) ? backendClient.getActiveUrl() : "N/A";
+                        context.getSource().sendFeedback(() -> net.minecraft.text.Text.of("§6[MineBridge] §fEstado: " + status), false);
+                        context.getSource().sendFeedback(() -> net.minecraft.text.Text.of("§6[MineBridge] §fBackend: §e" + url), false);
+                        return 1;
+                    })
+                )
+            );
+        });
+
+        LOGGER.info("MineBridge Modular - Initialization Complete");
     }
 
     private void detectPublicIp() {
