@@ -243,6 +243,15 @@ class ServerService:
             return True
         return False
 
+    def get_server_working_dir(self, name: str) -> str:
+        # If it's running, we can get it from the process
+        process = self.get_process(name)
+        if process:
+            return process.working_dir
+        
+        # If not, we construct it based on base_dir
+        return os.path.join(self.base_dir, name)
+
     def delete_server(self, db: Session, name: str):
         instance = self.servers.get(name)
         if instance:

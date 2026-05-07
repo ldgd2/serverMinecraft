@@ -11,7 +11,7 @@ import zipfile
 import requests
 import time
 
-# ── Rutas ─────────────────────────────────────────────────────────────
+# ------ Rutas ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 LAUNCHER_DIR = os.path.join(ROOT_DIR, 'minecraftLauncher')
 APP_DIR = os.path.join(ROOT_DIR, 'appserve')
@@ -73,12 +73,12 @@ def _load_api_config() -> dict:
 def configure_packager():
     """Wizard interactivo para configurar el empaquetador."""
     cfg = _load_api_config()
-    print("\n  ╔══════════════════════════════════════╗")
-    print("  ║      CONFIGURACIÓN DEL EMPAQUETADOR  ║")
-    print("  ╚══════════════════════════════════════╝")
+    print("\n  ------------------------------------------------------------------------------------------------------------------------")
+    print("  ---      CONFIGURACI--N DEL EMPAQUETADOR  ---")
+    print("  ------------------------------------------------------------------------------------------------------------------------")
     
     # --- 1. Red de Subida (API) ---
-    print(f"\n  [1] Red de Subida (A donde se enviará todo)")
+    print(f"\n  [1] Red de Subida (A donde se enviar-- todo)")
     new_u_ip = input(f"      IP de Subida [{cfg['upload_ip']}]: ").strip()
     if new_u_ip: cfg['upload_ip'] = new_u_ip
     new_u_port = input(f"      Puerto de Subida [{cfg['upload_port']}]: ").strip()
@@ -106,37 +106,37 @@ def configure_packager():
     new_user = input(f"      Usuario Admin [{cfg.get('username','admin')}]: ").strip()
     if new_user: cfg['username'] = new_user
     import getpass
-    new_pass = getpass.getpass("      Nueva Contraseña (vacío para omitir): ").strip()
+    new_pass = getpass.getpass("      Nueva Contrase--a (vac--o para omitir): ").strip()
     if new_pass: cfg['password'] = new_pass
     
     new_key = input(f"      API Key del Mod [{cfg.get('mod_api_key','PENDING')}]: ").strip()
     if new_key: cfg['mod_api_key'] = new_key
 
     _save_api_config(cfg)
-    # 4. Test de Conexión
-    print(f"\n  [>] Verificando Conexión con {cfg['api_url']}...")
+    # 4. Test de Conexi--n
+    print(f"\n  [>] Verificando Conexi--n con {cfg['api_url']}...")
     try:
         # Test 1: Credenciales Admin
         token = _get_token(cfg)
-        print("      [✓] Conexión y Login Admin: OK")
+        print("      [---] Conexi--n y Login Admin: OK")
         
         # Test 2: API Key del Mod (Usando la nueva ruta /bridge/test)
         test_url = f"{cfg['api_url']}/api/v1/bridge/test"
         res = requests.get(test_url, headers={"X-API-Key": cfg['mod_api_key']}, timeout=5)
         if res.status_code == 200:
             data = res.json()
-            print(f"      [✓] API Key del Mod: OK (Pertenece a: {data.get('user', 'admin')})")
+            print(f"      [---] API Key del Mod: OK (Pertenece a: {data.get('user', 'admin')})")
         elif res.status_code == 401:
-            print(f"      [X] API Key del Mod: INVÁLIDA (401 Unauthorized)")
+            print(f"      [X] API Key del Mod: INV--LIDA (401 Unauthorized)")
         else:
             print(f"      [X] API Key del Mod: Error {res.status_code}")
             
     except Exception as e:
-        print(f"      [X] Fallo de conexión: {e}")
-        print("      (Asegúrate de que el backend esté corriendo y sea accesible)")
-        print("\n  [!] ATENCIÓN: No se pudo validar la conexión. Revisa tus datos.")
+        print(f"      [X] Fallo de conexi--n: {e}")
+        print("      (Aseg--rate de que el backend est-- corriendo y sea accesible)")
+        print("\n  [!] ATENCI--N: No se pudo validar la conexi--n. Revisa tus datos.")
 
-    print("\n  [✓] Proceso de configuración finalizado.")
+    print("\n  [---] Proceso de configuraci--n finalizado.")
     return cfg
 
 def _save_api_config(cfg: dict):
@@ -147,39 +147,39 @@ def _save_api_config(cfg: dict):
 def _get_api_config() -> dict:
     # Si es la primera vez (no hay archivo), forzamos el asistente completo
     if not os.path.exists(_API_CFG_FILE):
-        print("\n  [!] Detectada primera ejecución. Iniciando asistente...")
+        print("\n  [!] Detectada primera ejecuci--n. Iniciando asistente...")
         return configure_packager()
 
     cfg = _load_api_config()
     changed = False
     if not cfg.get('username'):
-        print("\n  ┌─ Credenciales de Administrador ────────────────")
-        cfg['username'] = input("  │ Usuario admin: ").strip()
+        print("\n  ------ Credenciales de Administrador ------------------------------------------------")
+        cfg['username'] = input("  --- Usuario admin: ").strip()
         changed = True
 
     if not cfg.get('password'):
         import getpass
-        print("\n  ┌─ Credenciales de Administrador ────────────────")
+        print("\n  ------ Credenciales de Administrador ------------------------------------------------")
         pwd = ''
         while not pwd:
-            pwd = getpass.getpass(f"  │ Contraseña para '{cfg.get('username', 'admin')}': ")
+            pwd = getpass.getpass(f"  --- Contrase--a para '{cfg.get('username', 'admin')}': ")
             if not pwd:
-                print("  │ [!] La contraseña no puede estar vacía.")
+                print("  --- [!] La contrase--a no puede estar vac--a.")
         cfg['password'] = pwd
         changed = True
 
     if not cfg.get('mod_api_key'):
-        print("\n  ┌─ Configuración del MOD (MineBridge) ───────────")
-        print("  │ Esta es la 'Firma' o API Key que usará el mod")
-        print("  │ para reportar logros y estadísticas al backend.")
-        cfg['mod_api_key'] = input("  │ API Key del Mod: ").strip()
+        print("\n  ------ Configuraci--n del MOD (MineBridge) ---------------------------------")
+        print("  --- Esta es la 'Firma' o API Key que usar-- el mod")
+        print("  --- para reportar logros y estad--sticas al backend.")
+        cfg['mod_api_key'] = input("  --- API Key del Mod: ").strip()
         changed = True
 
     if changed:
-        save = input("\n  └ ¿Guardar configuración para próximas veces? [s/N]: ").strip().lower()
+        save = input("\n  --- --Guardar configuraci--n para pr--ximas veces? [s/N]: ").strip().lower()
         if save in ('s', 'si', 'y', 'yes'):
             _save_api_config(cfg)
-            print("  [✓] Guardado en .packager_config (ignorado por git)")
+            print("  [---] Guardado en .packager_config (ignorado por git)")
 
     return cfg
 
@@ -193,14 +193,14 @@ def _get_token(cfg: dict) -> str:
             resp = json.loads(r.read())
             token = resp.get('access_token') or resp.get('token') or (resp.get('data') or {}).get('access_token') or (resp.get('data') or {}).get('token')
             if not token:
-                raise RuntimeError(f"No se encontró token en la respuesta: {resp}")
+                raise RuntimeError(f"No se encontr-- token en la respuesta: {resp}")
             return token
     except urllib.error.HTTPError as e:
         body_err = e.read().decode('utf-8')
         if e.code == 401 and os.path.exists(_API_CFG_FILE):
             os.remove(_API_CFG_FILE)
-            print("  [!] Credenciales borradas del caché (.packager_config)")
-        raise RuntimeError(f"Login falló ({e.code}): {body_err}")
+            print("  [!] Credenciales borradas del cach-- (.packager_config)")
+        raise RuntimeError(f"Login fall-- ({e.code}): {body_err}")
     except urllib.error.URLError as e:
         raise RuntimeError(f"No se pudo conectar al servidor: {e.reason}")
     except Exception as e:
@@ -277,7 +277,7 @@ def _upload_binary(cfg: dict, token: str, platform: str, version: str, filepath:
     try:
         with urllib.request.urlopen(req, timeout=None) as r:
             resp = json.loads(r.read())
-            print() # Salto de línea tras la barra
+            print() # Salto de l--nea tras la barra
             if resp.get('status') == 'error':
                 print(f"  [X] Error: {resp.get('message')}")
                 raise RuntimeError(resp.get('message'))
@@ -288,8 +288,8 @@ def _upload_binary(cfg: dict, token: str, platform: str, version: str, filepath:
 
 def _force_set_version(cfg: dict, token: str, platform: str, version: str):
     """
-    Llama a PUT /api/v1/updates/set/{platform} para que el backend apunte a esta versión.
-    Si la versión es la misma que la actual, fuerza el apuntado igualmente
+    Llama a PUT /api/v1/updates/set/{platform} para que el backend apunte a esta versi--n.
+    Si la versi--n es la misma que la actual, fuerza el apuntado igualmente
     (garantiza que el server sirve lo que acababas de compilar hoy).
     """
     url = f"{cfg['api_url']}/api/v1/updates/set/{platform}"
@@ -305,11 +305,11 @@ def _force_set_version(cfg: dict, token: str, platform: str, version: str):
     try:
         with urllib.request.urlopen(req, timeout=15) as r:
             resp = json.loads(r.read())
-            print(f"  [✓] {platform} apunta ahora a v{version}: {resp.get('message', 'OK')}")
+            print(f"  [---] {platform} apunta ahora a v{version}: {resp.get('message', 'OK')}")
     except urllib.error.HTTPError as e:
-        # Si falla por 404 (versión no existía aún), el upload ya lo registró, ignorar
+        # Si falla por 404 (versi--n no exist--a a--n), el upload ya lo registr--, ignorar
         body_err = e.read().decode('utf-8')
-        print(f"  [!] set/{platform} devolvió {e.code}: {body_err[:120]}")
+        print(f"  [!] set/{platform} devolvi-- {e.code}: {body_err[:120]}")
 
 
 # --- Versiones Helpers ---
@@ -321,7 +321,7 @@ def _bump(version: str, tipo: str) -> str:
     return '.'.join(str(p) for p in parts)
 
 def _ask_bump(current: str) -> tuple[str, str]:
-    print(f"\n  Versión actual: {current}")
+    print(f"\n  Versi--n actual: {current}")
     print("  [1] Grande   (X.0.0)")
     print("  [2] Mediana  (x.Y.0)")
     print("  [3] Parche   (x.y.Z)")
@@ -329,7 +329,7 @@ def _ask_bump(current: str) -> tuple[str, str]:
     choice = input("  Selecciona [1-4]: ").strip()
     labels = {'1': 'GRANDE', '2': 'MEDIANA', '3': 'PARCHE', '4': 'MANTENER'}
     if choice not in labels:
-        print("  [X] Inválido"); sys.exit(1)
+        print("  [X] Inv--lido"); sys.exit(1)
     return _bump(current, choice), labels[choice]
 
 # --- 1. Launcher ---
@@ -337,21 +337,21 @@ def _launcher_current_version() -> tuple[str, str]:
     with open(LAUNCHER_INFO, encoding='utf-8') as f:
         content = f.read()
     m = re.search(r"VERSION\s*=\s*'([^']+)'", content)
-    if not m: raise RuntimeError(f"[X] No se encontró VERSION en {LAUNCHER_INFO}")
+    if not m: raise RuntimeError(f"[X] No se encontr-- VERSION en {LAUNCHER_INFO}")
     return m.group(1), content
 
 def build_launcher(cfg: dict, token: str):
-    print("\n╔══════════════════════════════════════╗")
-    print("║        COMPILAR LAUNCHER             ║")
-    print("╚══════════════════════════════════════╝")
+    print("\n------------------------------------------------------------------------------------------------------------------------")
+    print("---        COMPILAR LAUNCHER             ---")
+    print("------------------------------------------------------------------------------------------------------------------------")
     try:
         current, content = _launcher_current_version()
     except Exception as e:
         print(f"  [X] Error: {e}"); return
         
     new_v, label = _ask_bump(current)
-    print(f"\n  → {current}  →  {new_v}  [{label}]")
-    if input("  ¿Continuar? [s/N]: ").strip().lower() not in ('s', 'si', 'y', 'yes'):
+    print(f"\n  --- {current}  ---  {new_v}  [{label}]")
+    if input("  --Continuar? [s/N]: ").strip().lower() not in ('s', 'si', 'y', 'yes'):
         print("  Cancelado."); return
 
     if new_v != current:
@@ -362,44 +362,44 @@ def build_launcher(cfg: dict, token: str):
                 spec = f.read()
             with open(LAUNCHER_SPEC, 'w', encoding='utf-8') as f:
                 f.write(spec.replace(f"VERSION = '{current}'", f"VERSION = '{new_v}'"))
-        print(f"  [✓] core/info.py → VERSION = '{new_v}'")
+        print(f"  [---] core/info.py --- VERSION = '{new_v}'")
 
     print("  [>] Verificando dependencias del launcher...")
     if os.path.exists(LAUNCHER_REQS):
         subprocess.run([sys.executable, "-m", "pip", "install", "-r", LAUNCHER_REQS, "--quiet"], cwd=LAUNCHER_DIR)
 
     exe_name = f"MinecraftLauncher_v{new_v}.exe"
-    print(f"\n  [>] PyInstaller → {exe_name}")
+    print(f"\n  [>] PyInstaller --- {exe_name}")
     env = os.environ.copy()
     env["BUILD_VERSION"] = new_v
     proc = subprocess.Popen([sys.executable, "-m", "PyInstaller", LAUNCHER_SPEC, "-y"], cwd=LAUNCHER_DIR, env=env)
     if proc.wait() != 0:
-        print("  [X] PyInstaller falló."); sys.exit(1)
+        print("  [X] PyInstaller fall--."); sys.exit(1)
 
     exe_path = os.path.join(LAUNCHER_DIR, 'dist', exe_name)
     if not os.path.exists(exe_path):
-        print(f"  [X] No se encontró el exe: {exe_path}"); return
+        print(f"  [X] No se encontr-- el exe: {exe_path}"); return
 
     print("\n  [>] Publicando en el servidor...")
     try:
         _upload_binary(cfg, token, "launcher", new_v, exe_path)
         _force_set_version(cfg, token, "launcher", new_v)
     except Exception as e:
-        print(f"  [X] Falló la subida: {e}")
+        print(f"  [X] Fall-- la subida: {e}")
 
 # --- 2. App ---
 def _app_current_version() -> tuple[str, int, str]:
-    if not os.path.exists(APP_PUBSPEC): raise RuntimeError("[X] No se encontró pubspec.yaml")
+    if not os.path.exists(APP_PUBSPEC): raise RuntimeError("[X] No se encontr-- pubspec.yaml")
     with open(APP_PUBSPEC, encoding='utf-8') as f:
         content = f.read()
     m = re.search(r'^version:\s*(\d+\.\d+\.\d+)\+(\d+)', content, re.MULTILINE)
-    if not m: raise RuntimeError(f"[X] No se encontró version en {APP_PUBSPEC}")
+    if not m: raise RuntimeError(f"[X] No se encontr-- version en {APP_PUBSPEC}")
     return m.group(1), int(m.group(2)), content
 
 def build_app(cfg: dict, token: str):
-    print("\n╔══════════════════════════════════════╗")
-    print("║        COMPILAR APP FLUTTER          ║")
-    print("╚══════════════════════════════════════╝")
+    print("\n------------------------------------------------------------------------------------------------------------------------")
+    print("---        COMPILAR APP FLUTTER          ---")
+    print("------------------------------------------------------------------------------------------------------------------------")
     try:
         current, build_num, content = _app_current_version()
     except Exception as e:
@@ -407,8 +407,8 @@ def build_app(cfg: dict, token: str):
         
     new_v, label = _ask_bump(current)
     new_build = build_num + 1 if new_v != current else build_num
-    print(f"\n  → {current}+{build_num}  →  {new_v}+{new_build}  [{label}]")
-    if input("  ¿Continuar? [s/N]: ").strip().lower() not in ('s', 'si', 'y', 'yes'):
+    print(f"\n  --- {current}+{build_num}  ---  {new_v}+{new_build}  [{label}]")
+    if input("  --Continuar? [s/N]: ").strip().lower() not in ('s', 'si', 'y', 'yes'):
         print("  Cancelado."); return
 
     if new_v != current or new_build != build_num:
@@ -418,23 +418,23 @@ def build_app(cfg: dict, token: str):
     print(f"\n  [>] flutter build apk --release")
     proc = subprocess.Popen("flutter build apk --release", cwd=APP_DIR, shell=True)
     if proc.wait() != 0:
-        print("  [X] Flutter build falló."); sys.exit(1)
+        print("  [X] Flutter build fall--."); sys.exit(1)
 
     apk_path = os.path.join(APP_DIR, 'build', 'app', 'outputs', 'flutter-apk', 'app-release.apk')
     if not os.path.exists(apk_path):
-        # A veces está en otro lado dependiendo de Flutter config
+        # A veces est-- en otro lado dependiendo de Flutter config
         apk_path_alt = os.path.join(APP_DIR, 'build', 'app', 'outputs', 'apk', 'release', 'app-release.apk')
         if os.path.exists(apk_path_alt):
             apk_path = apk_path_alt
         else:
-            print(f"  [X] No se encontró el APK en {apk_path} ni {apk_path_alt}"); return
+            print(f"  [X] No se encontr-- el APK en {apk_path} ni {apk_path_alt}"); return
 
     print("\n  [>] Publicando en el servidor...")
     try:
         _upload_binary(cfg, token, "app", new_v, apk_path)
         _force_set_version(cfg, token, "app", new_v)
     except Exception as e:
-        print(f"  [X] Falló la subida: {e}")
+        print(f"  [X] Fall-- la subida: {e}")
 
 # --- 3. Mods ---
 def _download_jdk21():
@@ -456,17 +456,17 @@ def _download_jdk21():
     return jdk_dir
 
 def _mod_current_version(gradle_file: str) -> tuple[str, str]:
-    if not os.path.exists(gradle_file): raise RuntimeError(f"[X] No se encontró {gradle_file}")
+    if not os.path.exists(gradle_file): raise RuntimeError(f"[X] No se encontr-- {gradle_file}")
     with open(gradle_file, encoding='utf-8') as f:
         content = f.read()
     m = re.search(r'^mod_version=(.+)$', content, re.MULTILINE)
-    if not m: raise RuntimeError(f"[X] No se encontró mod_version en {gradle_file}")
+    if not m: raise RuntimeError(f"[X] No se encontr-- mod_version en {gradle_file}")
     return m.group(1).strip(), content
 
 def build_mods(cfg: dict, token: str):
-    print("\n╔══════════════════════════════════════╗")
-    print("║        COMPILAR MODS (GRADLE)        ║")
-    print("╚══════════════════════════════════════╝")
+    print("\n------------------------------------------------------------------------------------------------------------------------")
+    print("---        COMPILAR MODS (GRADLE)        ---")
+    print("------------------------------------------------------------------------------------------------------------------------")
     
     c_props = os.path.join(CLIENT_DIR, 'gradle.properties')
     s_props = os.path.join(SERVER_DIR, 'gradle.properties')
@@ -480,7 +480,7 @@ def build_mods(cfg: dict, token: str):
         current, c_content = _mod_current_version(c_props)
         _, s_content = _mod_current_version(s_props)
         
-        # --- Inyectar configuración ---
+        # --- Inyectar configuraci--n ---
         print("  [>] Inyectando IP y API Key en los Mods...")
         server_url = f"http://{cfg['server_mod_ip']}:{cfg['server_mod_port']}"
         client_url = f"http://{cfg['client_mod_ip']}:{cfg['client_mod_port']}"
@@ -498,8 +498,8 @@ def build_mods(cfg: dict, token: str):
             with open(client_config_java, 'w', encoding='utf-8') as f: f.write(new_c)
 
         new_v, label = _ask_bump(current)
-        print(f"\n  → {current}  →  {new_v}  [{label}]")
-        if input("  ¿Continuar? [s/N]: ").strip().lower() not in ('s', 'si', 'y', 'yes'):
+        print(f"\n  --- {current}  ---  {new_v}  [{label}]")
+        if input("  --Continuar? [s/N]: ").strip().lower() not in ('s', 'si', 'y', 'yes'):
             print("  Cancelado."); return
 
         if new_v != current:
@@ -507,7 +507,7 @@ def build_mods(cfg: dict, token: str):
                 f.write(c_content.replace(f"mod_version={current}", f"mod_version={new_v}"))
             with open(s_props, 'w', encoding='utf-8') as f:
                 f.write(s_content.replace(f"mod_version={current}", f"mod_version={new_v}"))
-            print(f"  [✓] gradle.properties → mod_version={new_v}")
+            print(f"  [---] gradle.properties --- mod_version={new_v}")
 
         # Configurar JDK
         jdk_dir = _download_jdk21()
@@ -528,18 +528,18 @@ def build_mods(cfg: dict, token: str):
         print("\n  [>] Compilando CLIENT MOD...")
         proc_c = subprocess.Popen(["cmd.exe", "/c", "gradlew.bat", "clean", "build"], cwd=CLIENT_DIR, env=env)
         if proc_c.wait() != 0:
-            print("  [X] Compilación de CLIENT MOD falló."); sys.exit(1)
+            print("  [X] Compilaci--n de CLIENT MOD fall--."); sys.exit(1)
 
         # Compilar Server
         print("\n  [>] Compilando SERVER MOD...")
         proc_s = subprocess.Popen(["cmd.exe", "/c", "gradlew.bat", "clean", "build"], cwd=SERVER_DIR, env=env)
         if proc_s.wait() != 0:
-            print("  [X] Compilación de SERVER MOD falló."); sys.exit(1)
+            print("  [X] Compilaci--n de SERVER MOD fall--."); sys.exit(1)
 
         c_jar = os.path.join(CLIENT_DIR, 'build', 'libs', f'minebridge-client-{new_v}.jar')
         s_jar = os.path.join(SERVER_DIR, 'build', 'libs', f'minebridge-server-{new_v}.jar')
         
-        # Intentar buscar el jar exacto o el más reciente que no sea -sources o -dev
+        # Intentar buscar el jar exacto o el m--s reciente que no sea -sources o -dev
         def find_jar(directory, pattern):
             libs_dir = os.path.join(directory, 'build', 'libs')
             if not os.path.exists(libs_dir): return None
@@ -548,7 +548,7 @@ def build_mods(cfg: dict, token: str):
             exact = os.path.join(libs_dir, pattern)
             if os.path.exists(exact): return exact
             
-            # 2. Buscar por versión pero EXCLUIR -sources, -dev, -all
+            # 2. Buscar por versi--n pero EXCLUIR -sources, -dev, -all
             import glob
             matches = glob.glob(os.path.join(libs_dir, f'*{new_v}*.jar'))
             valid_matches = [m for m in matches if not any(x in os.path.basename(m).lower() for x in ['sources', 'dev', 'all', 'shadow'])]
@@ -556,7 +556,7 @@ def build_mods(cfg: dict, token: str):
             if valid_matches:
                 return sorted(valid_matches, key=os.path.getmtime)[-1]
             
-            # 3. Si no hay nada, el más reciente que sea JAR
+            # 3. Si no hay nada, el m--s reciente que sea JAR
             matches = glob.glob(os.path.join(libs_dir, '*.jar'))
             if matches:
                 return sorted(matches, key=os.path.getmtime)[-1]
@@ -571,14 +571,14 @@ def build_mods(cfg: dict, token: str):
         print("\n  [>] Publicando en el servidor...")
         client_package = os.path.join(ROOT_DIR, f'minebridge-client-pack-{new_v}.zip')
         try:
-            # ── Empaquetado del Cliente (Siempre ZIP para que el Launcher lo extraiga) ──
+            # ------ Empaquetado del Cliente (Siempre ZIP para que el Launcher lo extraiga) ------
             print(f"  [>] Creando paquete ZIP para el cliente...")
             with zipfile.ZipFile(client_package, 'w') as zipf:
                 # 1. Agregar el mod principal
                 print(f"      + {os.path.basename(c_jar)} (Mod Base)")
                 zipf.write(c_jar, os.path.basename(c_jar))
                 
-                # 2. Agregar extras si existen (en la raíz del zip)
+                # 2. Agregar extras si existen (en la ra--z del zip)
                 mods_add_dir = os.path.join(MOD_DIR, 'modsaddclient')
                 if os.path.isdir(mods_add_dir):
                     for item in os.listdir(mods_add_dir):
@@ -596,7 +596,7 @@ def build_mods(cfg: dict, token: str):
             _force_set_version(cfg, token, "modserver", new_v)
             
         except Exception as e:
-            print(f"  [X] Falló la subida de mods: {e}")
+            print(f"  [X] Fall-- la subida de mods: {e}")
         finally:
             # Limpiar ZIP temporal para no ensuciar el repo
             if client_package and os.path.exists(client_package):
@@ -604,9 +604,9 @@ def build_mods(cfg: dict, token: str):
                 except: pass
 
     except Exception as e:
-        print(f"  [X] Falló la compilación o subida: {e}")
+        print(f"  [X] Fall-- la compilaci--n o subida: {e}")
     finally:
-        # Restaurar códigos fuente para evitar dejar IPs privadas
+        # Restaurar c--digos fuente para evitar dejar IPs privadas
         if original_server_java:
             print("  [>] Restaurando ModConfig.java...")
             with open(mod_config_java, 'w', encoding='utf-8') as f: f.write(original_server_java)
@@ -634,14 +634,14 @@ def main():
         mv, _ = _mod_current_version(os.path.join(CLIENT_DIR, 'gradle.properties'))
         print(f"  Mods     : v{mv}")
     except: pass
-    print("  ────────────────────────────────────────────────────────")
+    print("  ------------------------------------------------------------------------------------------------------------------------------------------------------------------------")
 
-    print("\n  ¿Qué deseas compilar y publicar?")
+    print("\n  --Qu-- deseas compilar y publicar?")
     print("  [1] Launcher (PyInstaller .exe)")
     print("  [2] App Flutter (.apk)")
     print("  [3] Mods MineBridge (Cliente y Servidor .jar)")
     print("  [4] Compilar Todo")
-    print("  [5] CONFIGURACIÓN (IP, Puerto, Credenciales, API Key)")
+    print("  [5] CONFIGURACI--N (IP, Puerto, Credenciales, API Key)")
     print("  [0] Cancelar")
 
     choice = input("\n  Selecciona [0-5]: ").strip()
@@ -650,30 +650,30 @@ def main():
     cfg = {}
     if choice == '5':
         configure_packager()
-        print("\n  Reiniciando con nueva configuración...")
+        print("\n  Reiniciando con nueva configuraci--n...")
         return main()
 
     if choice not in ('1', '2', '3', '4'):
-        print("  [X] Opción inválida"); sys.exit(1)
+        print("  [X] Opci--n inv--lida"); sys.exit(1)
 
     if not cfg: cfg = _load_api_config()
-    print(f"\n  ── Conectando a {cfg['api_url']} ──")
+    print(f"\n  ------ Conectando a {cfg['api_url']} ------")
     try:
         token = _get_token(cfg)
-        print("  [✓] Autenticado correctamente")
+        print("  [---] Autenticado correctamente")
     except RuntimeError as e:
-        print(f"\n  [X] ERROR DE CONEXIÓN/AUTH: {e}")
-        print("  [!] Verifica que el servidor esté encendido y que la IP en [5] CONFIGURACIÓN sea correcta.")
-        input("\n  Presiona Enter para volver al menú...")
+        print(f"\n  [X] ERROR DE CONEXI--N/AUTH: {e}")
+        print("  [!] Verifica que el servidor est-- encendido y que la IP en [5] CONFIGURACI--N sea correcta.")
+        input("\n  Presiona Enter para volver al men--...")
         return main()
 
     if choice in ('1', '4'): build_launcher(cfg, token)
     if choice in ('2', '4'): build_app(cfg, token)
     if choice in ('3', '4'): build_mods(cfg, token)
 
-    print("\n  ═════════════════════════════════════════════════════════")
-    print("  ¡Proceso finalizado! Todo está listo en la nube.")
-    print("  ═════════════════════════════════════════════════════════")
+    print("\n  ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------")
+    print("  --Proceso finalizado! Todo est-- listo en la nube.")
+    print("  ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------")
 
 if __name__ == '__main__':
     try: main()

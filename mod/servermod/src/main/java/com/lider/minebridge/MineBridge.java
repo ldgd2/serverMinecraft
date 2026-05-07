@@ -126,18 +126,17 @@ public class MineBridge implements ModInitializer {
     }
 
     private void detectPublicIp() {
-        new Thread(() -> {
+        com.lider.minebridge.networking.NetworkManager.getExecutor().execute(() -> {
             try {
-                URL url = new URL("https://checkip.amazonaws.com");
-                try (BufferedReader br = new BufferedReader(new InputStreamReader(url.openStream()))) {
+                java.net.URL url = new java.net.URL("https://checkip.amazonaws.com");
+                try (java.io.BufferedReader br = new java.io.BufferedReader(new java.io.InputStreamReader(url.openStream()))) {
                     String ip = br.readLine().trim();
-                    ModConfig.setServerIp(ip);
-            // LOGGER.info("Public Identity Detected: " + ip);
+                    com.lider.minebridge.config.ModConfig.setServerIp(ip);
                 }
             } catch (Exception e) {
                 LOGGER.error("Identity detection failed: " + e.getMessage());
             }
-        }).start();
+        });
     }
 
     public static BackendClient getBackendClient() {

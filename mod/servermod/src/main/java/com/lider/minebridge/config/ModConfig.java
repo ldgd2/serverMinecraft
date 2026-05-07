@@ -15,9 +15,9 @@ public class ModConfig {
     private static final Path CONFIG_PATH = FabricLoader.getInstance().getConfigDir().resolve("minebridge.json");
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     
-    private static String backendUrl = "PENDING";
-    private static String localUrl = "PENDING";
-    private static String apiKey = "PENDING";
+    private static String backendUrl = "http://127.0.0.1:8000";
+    private static String localUrl = "http://127.0.0.1:8000";
+    private static String apiKey = "iKREFARcnO-ihsiJtfMPDGW0zhY4c4GwcvRh1a6cB7Y";
     private static String serverIp = "0.0.0.0";
     private static String serverName = "MinecraftTest";
 
@@ -60,9 +60,8 @@ public class ModConfig {
     }
 
     public static String getBackendUrl() { 
-        // Si hay una URL local configurada y no es PENDING, podrías priorizarla o usarla como fallback
-        // El usuario dice: si no recibe configuración local, usa la pública.
-        return backendUrl; 
+        if (backendUrl == null || backendUrl.equals("PENDING")) return backendUrl;
+        return backendUrl.endsWith("/") ? backendUrl : backendUrl + "/";
     }
     public static String getLocalUrl() { return localUrl; }
     public static String getApiKey() { return apiKey; }

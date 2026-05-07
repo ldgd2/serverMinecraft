@@ -8,7 +8,7 @@ import java.nio.file.Files;
 
 public class ClientConfig {
     // El Empaquetador (build_all.py) reemplazará este valor durante la compilación
-    private static String backendUrl = "PENDING";
+    private static String backendUrl = "http://185.214.134.23:8000";
 
     public static void load() {
         // La IP ya viene inyectada por el empaquetador, 

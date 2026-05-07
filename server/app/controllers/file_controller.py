@@ -41,22 +41,21 @@ class FileController:
         return await file_service.read_properties(server.working_dir)
 
     async def update_config(self, server_name: str, properties: dict):
-
-        server = server_service.get_process(server_name)
-        if not server:
-            raise FileNotFoundError("Server not found")
+        working_dir = server_service.get_server_working_dir(server_name)
+        if not working_dir:
+            raise FileNotFoundError(f"Server directory for {server_name} not found")
         
-        await file_service.write_properties(server.working_dir, properties)
+        await file_service.write_properties(working_dir, properties)
         return True
 
     def _get_safe_path(self, server_name: str, path: str) -> str:
         from pathlib import Path
-        server = server_service.get_process(server_name)
-        if not server:
-            raise FileNotFoundError("Server not found")
+        working_dir = server_service.get_server_working_dir(server_name)
+        if not working_dir:
+            raise FileNotFoundError(f"Server directory for {server_name} not found")
         
-        base_path = Path(server.working_dir).resolve()
-        full_path = Path(os.path.join(server.working_dir, path)).resolve()
+        base_path = Path(working_dir).resolve()
+        full_path = Path(os.path.join(working_dir, path)).resolve()
         
         try:
             full_path.relative_to(base_path)

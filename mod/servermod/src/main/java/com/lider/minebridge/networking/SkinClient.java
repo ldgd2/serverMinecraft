@@ -8,6 +8,7 @@ import com.mojang.authlib.properties.Property;
 import net.minecraft.network.packet.s2c.play.PlayerListS2CPacket;
 import net.minecraft.server.network.ServerPlayerEntity;
 
+import java.util.concurrent.CompletableFuture;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -16,45 +17,42 @@ import java.util.EnumSet;
 
 /**
  * Cliente para sincronizar skins directamente desde el Backend al GameProfile del jugador.
- * Optimizado para no bloquear el hilo principal del servidor.
+ * Optimizado para no bloquear el hilo principal del servidor utilizando NetworkManager.
  */
 public class SkinClient {
-    private static final HttpClient client = HttpClient.newBuilder()
-            .version(HttpClient.Version.HTTP_1_1)
-            .build();
-
-    private static final java.util.concurrent.ExecutorService skinExecutor = java.util.concurrent.Executors.newFixedThreadPool(1, r -> {
-        Thread t = new Thread(r, "MineBridge-Skin-Worker");
-        t.setPriority(Thread.MIN_PRIORITY);
-        return t;
-    });
+    private static final HttpClient client = NetworkManager.getHttpClient();
 
     public static void syncSkin(ServerPlayerEntity player) {
         syncSkin(player, null);
     }
 
     public static void syncSkin(ServerPlayerEntity player, Runnable onComplete) {
-        skinExecutor.submit(() -> {
+        NetworkManager.getExecutor().submit(() -> {
             performSync(player, onComplete);
         });
     }
 
     private static void performSync(ServerPlayerEntity player, Runnable onComplete) {
-        String baseUrl = ModConfig.getBackendUrl();
-        if (baseUrl == null || baseUrl.isEmpty() || baseUrl.equals("PENDING")) return;
-        
-        String url = (baseUrl.endsWith("/") ? baseUrl : baseUrl + "/") + "api/v1/players/skin/" + player.getName().getString();
+        CompletableFuture.supplyAsync(() -> {
+            try {
+                String baseUrl = ModConfig.getBackendUrl();
+                if (baseUrl == null || baseUrl.isEmpty() || baseUrl.equals("PENDING")) return null;
+                
+                String url = baseUrl + (baseUrl.endsWith("/") ? "" : "/") + "api/v1/players/skin/" + player.getName().getString();
 
-        client.sendAsync(
-            HttpRequest.newBuilder()
-                .uri(URI.create(url))
-                .header("X-API-Key", ModConfig.getApiKey())
-                .timeout(java.time.Duration.ofSeconds(2))
-                .GET()
-                .build(),
-            HttpResponse.BodyHandlers.ofString()
-        ).thenAccept(response -> {
-            if (response.statusCode() == 200) {
+                HttpRequest request = HttpRequest.newBuilder()
+                        .uri(URI.create(url))
+                        .header("X-API-Key", ModConfig.getApiKey())
+                        .timeout(java.time.Duration.ofSeconds(5))
+                        .GET()
+                        .build();
+
+                return client.send(request, HttpResponse.BodyHandlers.ofString());
+            } catch (Exception e) {
+                return null;
+            }
+        }, NetworkManager.getExecutor()).thenAccept(response -> {
+            if (response != null && response.statusCode() == 200) {
                 try {
                     JsonObject json = JsonParser.parseString(response.body()).getAsJsonObject();
                     String value = json.get("value").getAsString();

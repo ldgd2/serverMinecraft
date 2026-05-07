@@ -9,12 +9,10 @@ import java.net.http.HttpResponse;
 
 /**
  * Cliente para enviar eventos al backend de forma individual e inmediata.
- * Versión optimizada para reenvío de eventos del cliente y chat.
+ * Versión optimizada para reenvío de eventos del cliente y chat utilizando NetworkManager.
  */
 public class AchievementClient {
-    private static final HttpClient client = HttpClient.newBuilder()
-            .version(HttpClient.Version.HTTP_1_1)
-            .build();
+    private static final HttpClient client = NetworkManager.getHttpClient();
 
     // Cache para suprimir eventos repetidos en la misma sesión y ahorrar recursos
     private static final java.util.Set<String> sentEventsSession = java.util.concurrent.ConcurrentHashMap.newKeySet();
@@ -25,23 +23,17 @@ public class AchievementClient {
         return url.endsWith("/") ? url : url + "/";
     }
 
-    private static final java.util.concurrent.ExecutorService networkExecutor = java.util.concurrent.Executors.newSingleThreadExecutor(r -> {
-        Thread t = new Thread(r, "MineBridge-Network-Worker");
-        t.setPriority(Thread.MIN_PRIORITY);
-        return t;
-    });
-
     private static void sendRequest(String endpoint, JsonObject payload) {
         String base = getBaseUrl();
         if (base == null) return;
 
-        networkExecutor.submit(() -> {
+        NetworkManager.getExecutor().execute(() -> {
             try {
                 HttpRequest request = HttpRequest.newBuilder()
                         .uri(URI.create(base + endpoint))
                         .header("Content-Type", "application/json")
                         .header("X-API-Key", ModConfig.getApiKey())
-                        .timeout(java.time.Duration.ofSeconds(2))
+                        .timeout(java.time.Duration.ofSeconds(5))
                         .POST(HttpRequest.BodyPublishers.ofString(payload.toString()))
                         .build();
 
