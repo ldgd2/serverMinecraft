@@ -48,88 +48,98 @@ class _ServerDetailScreenState extends State<ServerDetailScreen> with SingleTick
 
   @override
   Widget build(BuildContext context) {
-    return McSliverScreenLayout(
-      backgroundGradientColors: _server.isOnline
-          ? [const Color(0xFF1a3a1a), AppColors.backgroundCard]
-          : [AppColors.backgroundElevated, AppColors.backgroundCard],
-      headerContent: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          Row(
+    return Consumer<ServerProvider>(
+      builder: (context, sp, child) {
+        // Obtenemos el servidor más actualizado desde el Provider
+        final currentServer = sp.servers.firstWhere(
+          (s) => s.name == widget.server.name, 
+          orElse: () => _server
+        );
+        
+        return McSliverScreenLayout(
+          backgroundGradientColors: currentServer.isOnline
+              ? [const Color(0xFF1a3a1a), AppColors.backgroundCard]
+              : [AppColors.backgroundElevated, AppColors.backgroundCard],
+          headerContent: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.end,
             children: [
-              Container(
-                width: 56, height: 56,
-                decoration: BoxDecoration(
-                  gradient: _server.isOnline ? AppColors.grassGradient : null,
-                  color: _server.isOnline ? null : AppColors.backgroundOverlay,
-                  borderRadius: BorderRadius.circular(14),
-                  boxShadow: _server.isOnline
-                      ? [BoxShadow(color: AppColors.grassGreen.withOpacity(0.4), blurRadius: 16)]
-                      : null,
-                ),
-                child: Icon(Icons.dns_rounded, size: 28, color: _server.isOnline ? Colors.white : AppColors.textMuted),
+              Row(
+                children: [
+                  Container(
+                    width: 56, height: 56,
+                    decoration: BoxDecoration(
+                      gradient: currentServer.isOnline ? AppColors.grassGradient : null,
+                      color: currentServer.isOnline ? null : AppColors.backgroundOverlay,
+                      borderRadius: BorderRadius.circular(14),
+                      boxShadow: currentServer.isOnline
+                          ? [BoxShadow(color: AppColors.grassGreen.withOpacity(0.4), blurRadius: 16)]
+                          : null,
+                    ),
+                    child: Icon(Icons.dns_rounded, size: 28, color: currentServer.isOnline ? Colors.white : AppColors.textMuted),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(currentServer.name, style: const TextStyle(color: AppColors.textPrimary, fontSize: 20, fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 4),
+                        ServerStatusBadge(status: currentServer.status, large: true),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(_server.name, style: const TextStyle(color: AppColors.textPrimary, fontSize: 20, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 4),
-                    ServerStatusBadge(status: _server.status, large: true),
-                  ],
-                ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  StatChip(icon: Icons.tag, value: 'v${currentServer.version}', color: AppColors.diamond),
+                  const SizedBox(width: 8),
+                  StatChip(icon: Icons.wifi, value: ':${currentServer.port}', color: AppColors.gold),
+                  const SizedBox(width: 8),
+                  StatChip(icon: Icons.memory, value: currentServer.ramFormatted, color: AppColors.emerald),
+                  const SizedBox(width: 8),
+                  StatChip(icon: Icons.people_outline, value: '${currentServer.maxPlayers} max', color: AppColors.lapis),
+                ],
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          Row(
+          tabBar: Container(
+            color: AppColors.backgroundCard,
+            child: TabBar(
+              controller: _tabController,
+              isScrollable: true,
+              indicatorColor: AppColors.grassGreen,
+              indicatorWeight: 2,
+              labelColor: AppColors.grassGreenLight,
+              unselectedLabelColor: AppColors.textMuted,
+              labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+              tabs: const [
+                Tab(icon: Icon(Icons.info_outline, size: 18), text: 'Info'),
+                Tab(icon: Icon(Icons.bolt, size: 18), text: 'Cmds'),
+                Tab(icon: Icon(Icons.terminal, size: 18), text: 'Console'),
+                Tab(icon: Icon(Icons.chat_bubble_outline, size: 18), text: 'Chat'),
+                Tab(icon: Icon(Icons.people_outline, size: 18), text: 'Players'),
+                Tab(icon: Icon(Icons.extension_outlined, size: 18), text: 'Mods'),
+                Tab(icon: Icon(Icons.settings_outlined, size: 18), text: 'Settings'),
+              ],
+            ),
+          ),
+          body: TabBarView(
+            controller: _tabController,
             children: [
-              StatChip(icon: Icons.tag, value: 'v${_server.version}', color: AppColors.diamond),
-              const SizedBox(width: 8),
-              StatChip(icon: Icons.wifi, value: ':${_server.port}', color: AppColors.gold),
-              const SizedBox(width: 8),
-              StatChip(icon: Icons.memory, value: _server.ramFormatted, color: AppColors.emerald),
-              const SizedBox(width: 8),
-              StatChip(icon: Icons.people_outline, value: '${_server.maxPlayers} max', color: AppColors.lapis),
+              _OverviewTab(server: currentServer),
+              _CommandsTab(server: currentServer),
+              _ConsoleTab(server: currentServer),
+              _ChatTab(server: currentServer),
+              _PlayersTab(server: currentServer),
+              _ModsTab(server: currentServer),
+              _SettingsTab(server: currentServer),
             ],
           ),
-        ],
-      ),
-      tabBar: Container(
-        color: AppColors.backgroundCard,
-        child: TabBar(
-          controller: _tabController,
-          isScrollable: true,
-          indicatorColor: AppColors.grassGreen,
-          indicatorWeight: 2,
-          labelColor: AppColors.grassGreenLight,
-          unselectedLabelColor: AppColors.textMuted,
-          labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-          tabs: const [
-            Tab(icon: Icon(Icons.info_outline, size: 18), text: 'Info'),
-            Tab(icon: Icon(Icons.bolt, size: 18), text: 'Cmds'),
-            Tab(icon: Icon(Icons.terminal, size: 18), text: 'Console'),
-            Tab(icon: Icon(Icons.chat_bubble_outline, size: 18), text: 'Chat'),
-            Tab(icon: Icon(Icons.people_outline, size: 18), text: 'Players'),
-            Tab(icon: Icon(Icons.extension_outlined, size: 18), text: 'Mods'),
-            Tab(icon: Icon(Icons.settings_outlined, size: 18), text: 'Settings'),
-          ],
-        ),
-      ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          _OverviewTab(server: _server),
-          _CommandsTab(server: _server),
-          _ConsoleTab(server: _server),
-          _ChatTab(server: _server),
-          _PlayersTab(server: _server),
-          _ModsTab(server: _server),
-          _SettingsTab(server: _server),
-        ],
-      ),
+        );
+      },
     );
   }
 }

@@ -112,10 +112,15 @@ class ServerController:
         
         if props_to_update:
             try:
-                from app.controllers.file_controller import file_controller
+                from app.controllers.file_controller import FileController
+                fc = FileController()
                 import asyncio
-                # Run in background to not block
-                asyncio.create_task(file_controller.update_config(name, props_to_update))
+                # Aseguramos que se ejecute en el loop actual
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    loop.create_task(fc.update_config(name, props_to_update))
+                else:
+                    asyncio.run(fc.update_config(name, props_to_update))
             except Exception as e:
                 print(f"WARN: Failed to sync properties for {name}: {e}")
 
