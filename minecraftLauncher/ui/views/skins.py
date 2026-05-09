@@ -228,6 +228,10 @@ class SkinsView(tk.Frame):
             # No-Premium: Equip local and ALSO upload to Backend
             self._status("Equipando y sincronizando con el servidor...", Colors.GRAY_TEXT)
             
+            # Si la skin seleccionada ya es la "actual" en config, forzamos el refresh en el servidor
+            # para asegurar que MineSkin genere una nueva firma si la anterior falló.
+            force = True # Por defecto al presionar el botón "Equipar" forzamos el refresh
+            
             def do_upload():
                 import base64
                 try:
@@ -242,10 +246,10 @@ class SkinsView(tk.Frame):
                     
                     from core.auth import AuthController
                     auth = AuthController()
-                    res = auth.update_skin_no_premium(token, skin_base64=b64_data)
+                    res = auth.update_skin_no_premium(token, skin_base64=b64_data, force_refresh=force)
                     
                     if res["status"] == "OK":
-                        self.after(0, lambda: self._status("Skin sincronizada con éxito!", Colors.PREMIUM_GREEN))
+                        self.after(0, lambda: self._status("¡Skin sincronizada con éxito!", Colors.PREMIUM_GREEN))
                     else:
                         self.after(0, lambda: self._status(f"Error sincronizando: {res['message']}", Colors.NOPREMIUM_RED))
                 except Exception as e:

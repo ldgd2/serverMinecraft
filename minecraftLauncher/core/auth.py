@@ -332,7 +332,7 @@ class AuthController:
             pass
         return []
 
-    def update_skin_no_premium(self, player_token, skin_base64=None, skin_value=None, skin_signature=None):
+    def update_skin_no_premium(self, player_token, skin_base64=None, skin_value=None, skin_signature=None, force_refresh=False):
         """Sincroniza la skin de un jugador No-Premium con el backend."""
         url = f"{self.api_url}/player-auth/update-skin"
         headers = {"Authorization": f"Bearer {player_token}"}
@@ -340,6 +340,7 @@ class AuthController:
         if skin_base64: payload["skin_base64"] = skin_base64
         if skin_value: payload["skin_value"] = skin_value
         if skin_signature: payload["skin_signature"] = skin_signature
+        if force_refresh: payload["force_refresh"] = True
         
         try:
             res = requests.post(url, json=payload, headers=headers, timeout=15)

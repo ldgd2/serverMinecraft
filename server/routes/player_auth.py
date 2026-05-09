@@ -239,6 +239,7 @@ class SkinUpdateRequest(BaseModel):
     skin_base64: Optional[str] = None
     skin_value: Optional[str] = None
     skin_signature: Optional[str] = None
+    force_refresh: Optional[bool] = False
 
 @router.post("/update-skin")
 def update_skin(data: SkinUpdateRequest, background_tasks: BackgroundTasks, current_player: PlayerAccount = Depends(get_current_player), db: Session = Depends(get_db)):
@@ -258,12 +259,13 @@ def update_skin(data: SkinUpdateRequest, background_tasks: BackgroundTasks, curr
         is_same_skin = (current_player.skin_base64 == data.skin_base64)
         has_signature = (current_player.skin_value is not None)
         
-        if is_same_skin and has_signature:
-            # Si es la misma y ya está firmada, no hacemos nada extra
-            pass
+        if is_same_skin and has_signature and not data.force_refresh:
+            # Si es la misma, ya está firmada y no se forzó el refresh, no hacemos nada extra
+            print(f"[Auth] Skin de {current_player.username} es idéntica y ya está firmada. Omitiendo proceso.")
         else:
             # Actualizamos la imagen raw inmediatamente (es rápido y sirve para las cabezas de la App)
-            current_player.skin_base64 = data.skin_base64
+            if data.skin_base64:
+                current_player.skin_base64 = data.skin_base64
             
             # IMPORTANTE: NO invalidamos skin_value/signature aquí.
             # Dejamos la vieja hasta que la nueva esté lista en el background.
