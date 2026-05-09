@@ -300,14 +300,15 @@ class AuthController:
                 data = res.json().get("data", {})
                 print(f"[Auth] Perfil cargado: {len(data.get('achievements', []))} logros.")
                 return data
-            elif res.status_code == 401:
-                print(f"[Auth] ERROR: Sesión inválida o expirada (401).")
-                return {"_error": "auth_failed"}
+            elif res.status_code in [401, 403]:
+                print(f"[Auth] ERROR: Sesión inválida o expirada ({res.status_code}).")
+                return {"_error": "auth_failed", "status": res.status_code}
             else:
                 print(f"[Auth] Error al obtener perfil: {res.status_code} - {res.text}")
+                return {"_error": "server_error", "status": res.status_code}
         except Exception as e:
             print(f"[Auth] Excepción al obtener perfil: {str(e)}")
-        return {}
+            return {"_error": "connection_error", "message": str(e)}
 
     def update_player_stats(self, player_token: str, server_name: str, **kwargs) -> bool:
         """Envía estadísticas acumuladas de una sesión al backend."""
@@ -350,60 +351,70 @@ class AuthController:
 
     def ensure_valid_session(self) -> str:
         """
-        Checks if the current player_token is valid.
-        If not, attempts auto-login (No-Premium) or Refresh (Premium).
-        Returns a valid token or empty string if it fails.
+        Verifica si el player_token actual sigue siendo válido.
+        Si no, intenta auto-login (No-Premium) o Refresh (Premium).
+        Retorna un token válido o cadena vacía si falla.
         """
         token = config.get("player_token")
         if not token:
             return ""
 
-        # 1. Test current token
+        # 1. Probar token actual
         profile = self.get_player_profile(token)
         if "_error" not in profile:
             return token
+        
+        # Si es error de conexión, no intentamos re-loguear (podría ser temporal)
+        if profile.get("_error") == "connection_error":
+            print("[Auth] Error de conexión al verificar sesión. Se mantiene el token actual.")
+            return token
 
-        print("[Auth] Session expired. Attempting auto-login...")
+        print(f"[Auth] Sesión expirada ({profile.get('_error')}). Intentando auto-login...")
 
         auth_type = config.get("auth_type")
         acc_type = config.get("account_type")
 
-        # 2. Attempt Auto-Login
-        if acc_type == "server" or auth_type == "nopremium":
-            username = config.get("username")
-            password = config.get("password")
-            if username and password:
-                print(f"[Auth] Auto-login No-Premium for {username}...")
-                res = self.login_no_premium(username, password)
-                if res.get("status") == "OK":
-                    new_token = res["data"]["token"]
-                    config.set("player_token", new_token)
-                    return new_token
+        # 2. Intento de Auto-Login
+        try:
+            if acc_type == "server" or auth_type == "nopremium":
+                username = config.get("username")
+                password = config.get("password")
+                if username and password:
+                    print(f"[Auth] Auto-login No-Premium para {username}...")
+                    res = self.login_no_premium(username, password)
+                    if res.get("status") == "OK":
+                        new_token = res["data"]["token"]
+                        config.set("player_token", new_token)
+                        print("[Auth] Auto-login No-Premium exitoso.")
+                        return new_token
 
-        elif acc_type == "premium" or auth_type == "premium":
-            from core.security import encrypt_data
-            from core.oauth import refresh_tokens
-            
-            ms_refresh_token = config.get("ms_refresh_token")
-            if ms_refresh_token:
-                print("[Auth] Refreshing Premium session...")
-                res = refresh_tokens(ms_refresh_token)
-                if res.get("status") == "OK":
-                    data = res["data"]
-                    # Update MSA token (encrypted in config)
-                    config.set("auth_token", encrypt_data(data["access_token"]))
-                    
-                    # Notify backend to get new LiderAuth token
-                    new_player_token = self.notify_premium_login_backend(
-                        data["name"], data["uuid"],
-                        data["access_token"], data["refresh_token"]
-                    )
-                    if new_player_token:
-                        config.set("player_token", new_player_token)
-                        config.set("ms_refresh_token", data["refresh_token"])
-                        return new_player_token
+            elif acc_type == "premium" or auth_type == "premium":
+                from core.security import encrypt_data
+                from core.oauth import refresh_tokens
+                
+                ms_refresh_token = config.get("ms_refresh_token")
+                if ms_refresh_token:
+                    print("[Auth] Refrescando sesión Premium...")
+                    res = refresh_tokens(ms_refresh_token)
+                    if res.get("status") == "OK":
+                        data = res["data"]
+                        # Actualizar token de MSA (encriptado en config)
+                        config.set("auth_token", encrypt_data(data["access_token"]))
+                        
+                        # Notificar al backend para obtener nuevo token de LiderAuth
+                        new_player_token = self.notify_premium_login_backend(
+                            data["name"], data["uuid"],
+                            data["access_token"], data["refresh_token"]
+                        )
+                        if new_player_token:
+                            config.set("player_token", new_player_token)
+                            config.set("ms_refresh_token", data["refresh_token"])
+                            print("[Auth] Refresh Premium exitoso.")
+                            return new_player_token
+        except Exception as e:
+            print(f"[Auth] Error crítico durante auto-login: {e}")
 
-        print("[Auth] Auto-login failed.")
+        print("[Auth] El auto-login falló.")
         return ""
 
     def upload_skin(self, skin_path, variant="classic"):

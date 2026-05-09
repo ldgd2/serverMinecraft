@@ -26,31 +26,37 @@ def get_skin_base64_from_skinrestorer(db: Session, player_name: str) -> Optional
 def set_skin_in_skinrestorer(db: Session, player_name: str, skin_value: str, signature: str = "") -> bool:
     """
     Actualiza la skin usando SQLAlchemy ORM y la sesion actual.
+    Utiliza un punto de guardado (savepoint) para no romper la transaccion principal si falla.
     """
     try:
-        skin_name = f"custom_{player_name}"
+        # Usamos begin_nested() para crear un SAVEPOINT en la base de datos.
+        # Si algo falla dentro (ej. es una Vista no editable), el rollback solo afecta al savepoint.
+        with db.begin_nested():
+            skin_name = f"custom_{player_name}"
 
-        # 1. Upsert Skin
-        skin = db.query(SkinRestorerSkin).filter(SkinRestorerSkin.Name == skin_name).first()
-        if not skin:
-            skin = SkinRestorerSkin(Name=skin_name)
-            db.add(skin)
+            # 1. Upsert Skin
+            skin = db.query(SkinRestorerSkin).filter(SkinRestorerSkin.Name == skin_name).first()
+            if not skin:
+                skin = SkinRestorerSkin(Name=skin_name)
+                db.add(skin)
 
-        skin.Value = skin_value
-        skin.Signature = signature
-        skin.Timestamp = "none"
+            skin.Value = skin_value
+            skin.Signature = signature
+            skin.Timestamp = "none"
 
-        # 2. Upsert Player mapping
-        player_map = db.query(SkinRestorerPlayer).filter(SkinRestorerPlayer.Nick == player_name).first()
-        if not player_map:
-            player_map = SkinRestorerPlayer(Nick=player_name)
-            db.add(player_map)
+            # 2. Upsert Player mapping
+            player_map = db.query(SkinRestorerPlayer).filter(SkinRestorerPlayer.Nick == player_name).first()
+            if not player_map:
+                player_map = SkinRestorerPlayer(Nick=player_name)
+                db.add(player_map)
 
-        player_map.Skin = skin_name
-        db.flush()  # Sincronizar con la DB sin cerrar la transaccion principal
+            player_map.Skin = skin_name
+            db.flush()  # Forzamos el envío a la DB para capturar errores aquí mismo
+            
         return True
     except Exception as e:
-        print(f"Error actualizando SkinRestorer ORM: {e}")
+        # Aquí capturamos errores como "cannot insert into view" sin que muera la transacción principal
+        print(f"⚠️ Aviso: No se pudo sincronizar directamente con las tablas de SkinRestorer: {e}")
         return False
 
 

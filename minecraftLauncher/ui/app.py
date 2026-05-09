@@ -56,8 +56,27 @@ class LauncherApp(tk.Tk):
         if config.get("logged_in"):
             self.show_home_view()
             self.after(500, self.check_birthday_events)
+            self.after(1000, self._background_auto_login)
         else:
             self.show_login_view()
+
+    def _background_auto_login(self):
+        """Checks and renews session silently on startup."""
+        import threading
+        from core.auth import AuthController
+        
+        def run():
+            auth = AuthController()
+            # ensure_valid_session ya intenta auto-login si el token expiró
+            valid_token = auth.ensure_valid_session()
+            if not valid_token and config.get("logged_in"):
+                print("[Launcher] La sesión expiró y el auto-login falló. Redirigiendo a Login.")
+                self.after(0, self.logout)
+            elif valid_token:
+                # Si se renovó el token, refrescamos la vista home por si acaso
+                self.after(0, self.home_view.sync_launch_settings)
+        
+        threading.Thread(target=run, daemon=True).start()
 
         # Optional: Discord RPC (non-fatal)
         try:
