@@ -5,7 +5,7 @@ This is separate from the admin /auth/ routes.
 """
 import uuid
 import datetime
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, BackgroundTasks
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional, List
@@ -21,6 +21,12 @@ from app.services.auth_service import get_password_hash, verify_password, create
 from core.responses import APIResponse
 
 router = APIRouter(prefix="/player-auth", tags=["Player Auth"])
+
+# Cache de actualizaciones de skin en curso para evitar duplicados simultáneos
+_active_skin_updates = set()
+import threading
+_skin_lock = threading.Lock()
+
 
 # ─── Schemas ─────────────────────────────────────────────────────────────────
 
@@ -235,31 +241,43 @@ class SkinUpdateRequest(BaseModel):
     skin_signature: Optional[str] = None
 
 @router.post("/update-skin")
-def update_skin(data: SkinUpdateRequest, current_player: PlayerAccount = Depends(get_current_player), db: Session = Depends(get_db)):
+def update_skin(data: SkinUpdateRequest, background_tasks: BackgroundTasks, current_player: PlayerAccount = Depends(get_current_player), db: Session = Depends(get_db)):
     """Update the skin for the current player and synchronize across all server profiles."""
     
     # Si se proporciona una nueva skin en base64 (PNG raw)
     if data.skin_base64:
-        current_player.skin_base64 = data.skin_base64
-        # IMPORTANTE: Invalidar la firma vieja porque la imagen ha cambiado.
-        # Si no lo hacemos, el juego seguirá mostrando la skin vieja mientras exista un skin_value.
-        current_player.skin_value = None
-        current_player.skin_signature = None
+        # 1. Control de concurrencia: Evitar múltiples peticiones simultáneas del mismo jugador
+        with _skin_lock:
+            if current_player.username in _active_skin_updates:
+                raise HTTPException(
+                    status_code=429, 
+                    detail="Ya hay una actualización de skin en curso para tu cuenta. Por favor espera un minuto a que MineSkin termine de procesarla."
+                )
+
+        # 2. Verificar si la skin es diferente a la actual o si no tenemos firma
+        is_same_skin = (current_player.skin_base64 == data.skin_base64)
+        has_signature = (current_player.skin_value is not None)
         
-        # Intentar obtener una firma válida de Mojang vía MineSkin
-        # Esto permite que otros jugadores vean la skin in-game en servidores No-Premium.
-        try:
-            from core.skin_utils import upload_to_mineskin
-            print(f"Sincronizando nueva skin para {current_player.username} con MineSkin...")
-            signed_data = upload_to_mineskin(data.skin_base64)
-            if signed_data:
-                current_player.skin_value = signed_data.get("value")
-                current_player.skin_signature = signed_data.get("signature")
-                print(f"✅ Skin firmada correctamente para {current_player.username}")
-            else:
-                print(f"⚠️ MineSkin no pudo procesar la skin para {current_player.username}")
-        except Exception as e:
-            print(f"❌ Error al conectar con MineSkin: {e}")
+        if is_same_skin and has_signature:
+            # Si es la misma y ya está firmada, no hacemos nada extra
+            pass
+        else:
+            # Actualizamos la imagen raw inmediatamente (es rápido y sirve para las cabezas de la App)
+            current_player.skin_base64 = data.skin_base64
+            
+            # IMPORTANTE: NO invalidamos skin_value/signature aquí.
+            # Dejamos la vieja hasta que la nueva esté lista en el background.
+            # Así el jugador no se queda con skin predeterminada si entra al juego de inmediato.
+            
+            db.commit() # Guardamos el cambio de imagen base inmediatamente
+            
+            # 3. Delegar el proceso de firma (MineSkin) al background
+            background_tasks.add_task(
+                _process_skin_update_background,
+                current_player.id,
+                data.skin_base64,
+                current_player.username
+            )
 
     # Si el launcher ya envía la data firmada (ej. si el launcher mismo hiciera el proceso)
     if data.skin_value: current_player.skin_value = data.skin_value
@@ -267,7 +285,7 @@ def update_skin(data: SkinUpdateRequest, current_player: PlayerAccount = Depends
     
     current_player.skin_last_update = datetime.datetime.utcnow()
     
-    # 1. Generar la cabeza (Head) para la App y Web inmediatamente
+    # 3. Generar la cabeza (Head) para la App y Web inmediatamente (es rápido)
     if data.skin_base64:
         try:
             import os
@@ -275,22 +293,25 @@ def update_skin(data: SkinUpdateRequest, current_player: PlayerAccount = Depends
             from io import BytesIO
             import base64 as b64
             
-            # Decodificar PNG
             skin_bytes = b64.b64decode(data.skin_base64)
             skin_img = Image.open(BytesIO(skin_bytes)).convert('RGBA')
-            
-            # Cortar cara (8,8 -> 16,16) y casco (40,8 -> 48,16)
             face = skin_img.crop((8, 8, 16, 16)).resize((64, 64), Image.NEAREST)
             helmet = skin_img.crop((40, 8, 48, 16)).resize((64, 64), Image.NEAREST)
             final_head = Image.alpha_composite(face, helmet)
             
             os.makedirs("static/heads", exist_ok=True)
-            # Guardamos la versión fija y también borramos posibles versiones con hash antiguas
             final_head.save(f"static/heads/{current_player.username}.png")
         except Exception as e:
             print(f"Error generating head for {current_player.username}: {e}")
 
-    # 2. Sincronizar con PlayerDetail en todos los servidores
+    # Sincronización básica inicial (sin firma aún si es nueva)
+    _sync_player_details(current_player, db)
+    db.commit()
+
+    return APIResponse(status="success", message="Skin update initiated. Synchronization will complete in background.")
+
+def _sync_player_details(current_player: PlayerAccount, db: Session):
+    """Sincroniza los valores de skin actuales con PlayerDetail en todos los servidores."""
     from sqlalchemy import func
     players = db.query(Player).filter(
         (Player.uuid == current_player.uuid) | (func.lower(Player.name) == func.lower(current_player.username))
@@ -302,14 +323,58 @@ def update_skin(data: SkinUpdateRequest, current_player: PlayerAccount = Depends
             p.detail = PlayerDetail(player_id=p.id)
             db.add(p.detail)
         
-        # Sincronizamos los valores finales ya procesados
         p.detail.skin_base64 = current_player.skin_base64
         p.detail.skin_value = current_player.skin_value
         p.detail.skin_signature = current_player.skin_signature
         p.detail.skin_last_update = current_player.skin_last_update
 
-    db.commit()
-    return APIResponse(status="success", message="Skin updated, signed and synchronized")
+    # 2. Sincronización directa con tablas de SkinRestorer (si existen en la misma DB)
+    if current_player.skin_value:
+        try:
+            from core.skinrestorer_bridge import set_skin_in_skinrestorer
+            set_skin_in_skinrestorer(db, current_player.username, current_player.skin_value, current_player.skin_signature or "")
+        except Exception as e:
+            print(f"⚠️ Error sincronizando con tablas de SkinRestorer: {e}")
+
+def _process_skin_update_background(player_id: int, skin_base64: str, username: str):
+    """Tarea asíncrona para firmar la skin con MineSkin y sincronizar servidores."""
+    from database.connection import SessionLocal
+    db = SessionLocal()
+    try:
+        # Control de concurrencia in-memory
+        player_key = username
+        with _skin_lock:
+            if player_key in _active_skin_updates:
+                return
+            _active_skin_updates.add(player_key)
+        
+        try:
+            from core.skin_utils import upload_to_mineskin
+            print(f"Sincronizando nueva skin para {username} con MineSkin (Background)...")
+            signed_data = upload_to_mineskin(skin_base64)
+            
+            if signed_data:
+                player = db.query(PlayerAccount).filter(PlayerAccount.id == player_id).first()
+                if player:
+                    player.skin_value = signed_data.get("value")
+                    player.skin_signature = signed_data.get("signature")
+                    player.skin_last_update = datetime.datetime.utcnow()
+                    
+                    # Sincronizar todos los servidores con la nueva firma
+                    _sync_player_details(player, db)
+                    db.commit()
+                    print(f"✅ Skin firmada exitosamente y sincronizada para {username}")
+                else:
+                    print(f"⚠️ Jugador {username} (ID {player_id}) no encontrado al terminar skin update")
+            else:
+                print(f"⚠️ MineSkin no pudo procesar la skin para {username}. Se mantendrá la skin anterior si existía.")
+        finally:
+            with _skin_lock:
+                _active_skin_updates.discard(player_key)
+    except Exception as e:
+        print(f"❌ Error en background skin update para {username}: {e}")
+    finally:
+        db.close()
 
 
 @router.get("/profile")

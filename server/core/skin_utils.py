@@ -52,7 +52,14 @@ def upload_to_mineskin(base64_png: str) -> dict:
                 'value': texture.get('value'),
                 'signature': texture.get('signature')
             }
+        
+        # Log error details
+        try:
+            err_detail = resp.json().get('error', resp.text)
+        except:
+            err_detail = resp.text
+        print(f"[SkinUtils] MineSkin Error {resp.status_code}: {err_detail}")
         return None
     except Exception as e:
-        print(f"[SkinUtils] Error en MineSkin: {e}")
+        print(f"[SkinUtils] Excepción en MineSkin: {e}")
         return None
