@@ -9,7 +9,7 @@ import net.minecraft.util.Identifier;
 public record UpdateCountdownPayload(int seconds) implements CustomPayload {
     public static final CustomPayload.Id<UpdateCountdownPayload> ID = new CustomPayload.Id<>(Identifier.of("minebridge", "update_countdown"));
     public static final PacketCodec<RegistryByteBuf, UpdateCountdownPayload> CODEC = PacketCodec.tuple(
-            PacketCodecs.INTEGER, UpdateCountdownPayload::seconds,
+            PacketCodecs.VAR_INT, UpdateCountdownPayload::seconds,
             UpdateCountdownPayload::new
     );
 

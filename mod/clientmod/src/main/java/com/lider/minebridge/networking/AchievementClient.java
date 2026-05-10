@@ -1,7 +1,7 @@
 package com.lider.minebridge.networking;
 
 import com.lider.minebridge.client.AchievementToast;
-import com.lider.minebridge.networking.payload.AchievementUnlockPayload;
+import com.lider.minebridge.achievements.networking.AchievementUnlockPayload;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.text.Text;
@@ -19,9 +19,9 @@ public class AchievementClient {
     public static final int COLOR_LEGENDARY = 0xFFAA00;
     public static final int COLOR_MYTHIC = 0xAA0000;
 
-    public static void triggerAchievement(String achievementId) {
+    public static void triggerAchievement(String achievementId, String title) {
         if (ClientPlayNetworking.canSend(AchievementUnlockPayload.ID)) {
-            ClientPlayNetworking.send(new AchievementUnlockPayload(achievementId));
+            ClientPlayNetworking.send(new AchievementUnlockPayload(achievementId, title));
         }
     }
 
@@ -30,7 +30,7 @@ public class AchievementClient {
         UNLOCKED_SESSION.add(key);
 
         // 1. Enviar al servidor
-        triggerAchievement(key);
+        triggerAchievement(key, title);
 
         // 2. Mostrar Toast local
         MinecraftClient client = MinecraftClient.getInstance();
@@ -38,6 +38,10 @@ public class AchievementClient {
             int color = getColorForKey(key);
             client.getToastManager().add(new AchievementToast(Text.of(title), Text.of(description), color));
         }
+    }
+
+    public static java.util.concurrent.CompletableFuture<com.google.gson.JsonArray> getAchievements(String uuid) {
+        return BackendClient.getJsonArray("api/players/achievements/?uuid=" + uuid);
     }
 
     private static int getColorForKey(String key) {

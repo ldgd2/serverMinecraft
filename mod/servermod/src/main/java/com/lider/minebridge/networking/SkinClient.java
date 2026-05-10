@@ -55,8 +55,8 @@ public class SkinClient {
             if (response != null && response.statusCode() == 200) {
                 try {
                     JsonObject json = JsonParser.parseString(response.body()).getAsJsonObject();
-                    String value = json.get("value").getAsString();
-                    String signature = json.get("signature").getAsString();
+                    String value = json.has("value") && !json.get("value").isJsonNull() ? json.get("value").getAsString() : "";
+                    String signature = json.has("signature") && !json.get("signature").isJsonNull() ? json.get("signature").getAsString() : "";
 
                     if (value != null && !value.isEmpty()) {
                         MineBridge.getServer().execute(() -> {

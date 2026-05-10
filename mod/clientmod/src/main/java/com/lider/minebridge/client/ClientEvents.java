@@ -1,6 +1,6 @@
 package com.lider.minebridge.client;
 
-import com.lider.minebridge.networking.payload.AchievementUnlockPayload;
+import com.lider.minebridge.achievements.networking.AchievementUnlockPayload;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.event.player.UseEntityCallback;
@@ -17,7 +17,7 @@ import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import org.lwjgl.glfw.GLFW;
-import com.lider.minebridge.networking.payload.MarketplaceRequestPayload;
+import com.lider.minebridge.marketplace.networking.MarketplaceRequestPayload;
 import net.minecraft.client.gui.screen.Screen;
 
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
@@ -95,19 +95,9 @@ public class ClientEvents {
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             if (client.player == null) return;
 
-            // --- Tecla Marketplace (Independiente de isActive) ---
+            // --- Tecla Launcher Central (M) ---
             while (marketplaceKey.wasPressed()) {
-                if (Screen.hasShiftDown()) {
-                    // Abrir PERFIL DE VENDEDOR (Shift + M)
-                    MinecraftClient.getInstance().setScreen(new com.lider.minebridge.client.ui.MarketplaceProfileScreen());
-                } else {
-                    // Abrir pantalla de MERCADO GLOBAL (M)
-                    com.lider.minebridge.networking.TradeClient.getOpenTrades().thenAccept(trades -> {
-                        MinecraftClient.getInstance().execute(() -> {
-                            MinecraftClient.getInstance().setScreen(new com.lider.minebridge.client.ui.MarketplaceGlobalScreen(trades));
-                        });
-                    });
-                }
+                MinecraftClient.getInstance().setScreen(new com.lider.minebridge.client.ui.MainLauncherScreen());
             }
 
             if (!isActive) return;

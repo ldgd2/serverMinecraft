@@ -24,6 +24,25 @@ public class BackendClient {
     private final ConcurrentLinkedQueue<JsonObject> batchStats = new ConcurrentLinkedQueue<>();
     private final ConcurrentLinkedQueue<JsonObject> batchChats = new ConcurrentLinkedQueue<>();
 
+    public static CompletableFuture<com.google.gson.JsonArray> getJsonArray(String url) {
+        java.net.http.HttpRequest request = java.net.http.HttpRequest.newBuilder()
+            .uri(java.net.URI.create(url))
+            .GET()
+            .build();
+        return NetworkManager.getHttpClient().sendAsync(request, java.net.http.HttpResponse.BodyHandlers.ofString())
+            .thenApply(res -> new com.google.gson.Gson().fromJson(res.body(), com.google.gson.JsonArray.class));
+    }
+
+    public static CompletableFuture<Boolean> postJson(String url, JsonObject data) {
+        java.net.http.HttpRequest request = java.net.http.HttpRequest.newBuilder()
+            .uri(java.net.URI.create(url))
+            .header("Content-Type", "application/json")
+            .POST(java.net.http.HttpRequest.BodyPublishers.ofString(data.toString()))
+            .build();
+        return NetworkManager.getHttpClient().sendAsync(request, java.net.http.HttpResponse.BodyHandlers.ofString())
+            .thenApply(res -> res.statusCode() == 200 || res.statusCode() == 201);
+    }
+
     public BackendClient(String baseUrl, String localUrl, String apiKey) {
         this.baseUrl = (baseUrl == null || baseUrl.isEmpty() || baseUrl.equals("PENDING")) ? null : (baseUrl.endsWith("/") ? baseUrl : baseUrl + "/");
         this.localUrl = (localUrl == null || localUrl.isEmpty() || localUrl.equals("PENDING")) ? null : (localUrl.endsWith("/") ? localUrl : localUrl + "/");

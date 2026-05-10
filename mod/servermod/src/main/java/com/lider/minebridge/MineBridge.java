@@ -4,19 +4,19 @@ import com.lider.minebridge.commands.ModCommands;
 import com.lider.minebridge.config.ModConfig;
 import com.lider.minebridge.events.ServerEvents;
 import com.lider.minebridge.networking.BackendClient;
-import net.fabricmc.api.EnvType;
+import com.lider.minebridge.marketplace.MarketplaceModule;
+import com.lider.minebridge.achievements.AchievementModule;
+import com.lider.minebridge.networking.payload.UpdateCountdownPayload;
+import com.lider.minebridge.networking.payload.SyncSkinPayload;
 import net.fabricmc.api.ModInitializer;
-import net.fabricmc.loader.api.FabricLoader;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
-import com.lider.minebridge.networking.payload.AchievementUnlockPayload;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.util.Identifier;
+import com.lider.minebridge.networking.payload.SyncBackendUrlPayload;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.net.URL;
 
 public class MineBridge implements ModInitializer {
     public static final String MOD_ID = "minebridge";
@@ -25,29 +25,25 @@ public class MineBridge implements ModInitializer {
     private static MinecraftServer serverInstance;
     private static BackendClient backendClient;
 
-    public static final net.minecraft.screen.ScreenHandlerType<com.lider.minebridge.marketplace.MarketplaceCreationScreenHandler> MARKETPLACE_CREATION_HANDLER = 
-        net.minecraft.registry.Registry.register(net.minecraft.registry.Registries.SCREEN_HANDLER, Identifier.of(MOD_ID, "creation"), 
-        new net.minecraft.screen.ScreenHandlerType<>(com.lider.minebridge.marketplace.MarketplaceCreationScreenHandler::new, net.minecraft.resource.featuretoggle.FeatureSet.empty()));
-
-    public static final net.minecraft.screen.ScreenHandlerType<com.lider.minebridge.marketplace.MarketplaceTransactionScreenHandler> MARKETPLACE_TRANSACTION_HANDLER = 
-        net.minecraft.registry.Registry.register(net.minecraft.registry.Registries.SCREEN_HANDLER, Identifier.of(MOD_ID, "transaction"), 
-        new net.fabricmc.fabric.api.screenhandler.v1.ExtendedScreenHandlerType<>(
-            (syncId, inv, data) -> new com.lider.minebridge.marketplace.MarketplaceTransactionScreenHandler(syncId, inv, data.tradeId(), data.req1(), data.req2()),
-            com.lider.minebridge.networking.payload.TransactionScreenDataPayload.CODEC
-        ));
-
     @Override
     public void onInitialize() {
-        // Register custom payloads
-        PayloadTypeRegistry.playC2S().register(AchievementUnlockPayload.ID, AchievementUnlockPayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(com.lider.minebridge.networking.payload.UpdateCountdownPayload.ID, com.lider.minebridge.networking.payload.UpdateCountdownPayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(com.lider.minebridge.networking.payload.SyncSkinPayload.ID, com.lider.minebridge.networking.payload.SyncSkinPayload.CODEC);
-        PayloadTypeRegistry.playC2S().register(com.lider.minebridge.networking.payload.MarketplaceRequestPayload.ID, com.lider.minebridge.networking.payload.MarketplaceRequestPayload.CODEC);
-        PayloadTypeRegistry.playC2S().register(com.lider.minebridge.networking.payload.OpenCreationMenuPayload.ID, com.lider.minebridge.networking.payload.OpenCreationMenuPayload.CODEC);
-        PayloadTypeRegistry.playC2S().register(com.lider.minebridge.networking.payload.OpenTransactionMenuPayload.ID, com.lider.minebridge.networking.payload.OpenTransactionMenuPayload.CODEC);
-        PayloadTypeRegistry.playC2S().register(com.lider.minebridge.networking.payload.CompleteTradePayload.ID, com.lider.minebridge.networking.payload.CompleteTradePayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(com.lider.minebridge.networking.payload.TransactionScreenDataPayload.ID, com.lider.minebridge.networking.payload.TransactionScreenDataPayload.CODEC);
+        // --- Carga de Módulos (Modularización Premium) ---
+        MarketplaceModule.initCommon();
+        AchievementModule.initCommon();
         
+        // Registros Globales Genéricos
+        PayloadTypeRegistry.playS2C().register(UpdateCountdownPayload.ID, UpdateCountdownPayload.CODEC);
+        PayloadTypeRegistry.playS2C().register(SyncSkinPayload.ID, SyncSkinPayload.CODEC);
+        PayloadTypeRegistry.playS2C().register(SyncBackendUrlPayload.ID, SyncBackendUrlPayload.CODEC);
+
+        ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
+            String url = ModConfig.getLocalUrl() != null && !ModConfig.getLocalUrl().contains("PENDING") 
+                         ? ModConfig.getLocalUrl() : ModConfig.getBackendUrl();
+            if (url != null && !url.contains("PENDING")) {
+                ServerPlayNetworking.send(handler.player, new SyncBackendUrlPayload(url));
+            }
+        });
+
         ServerLifecycleEvents.SERVER_STARTING.register(server -> {
             serverInstance = server;
         });
@@ -60,54 +56,7 @@ public class MineBridge implements ModInitializer {
         ServerEvents.init();
         ModCommands.init();
 
-        net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.registerGlobalReceiver(com.lider.minebridge.networking.payload.MarketplaceRequestPayload.ID, (payload, context) -> {
-            context.server().execute(() -> {
-                com.google.gson.JsonArray trades = com.google.gson.JsonParser.parseString(payload.tradeData()).getAsJsonArray();
-                com.lider.minebridge.marketplace.MarketplaceManager.openMarketplace(context.player(), trades);
-            });
-        });
-
-        net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.registerGlobalReceiver(com.lider.minebridge.networking.payload.OpenCreationMenuPayload.ID, (payload, context) -> {
-            context.server().execute(() -> {
-                com.lider.minebridge.marketplace.MarketplaceManager.openCreationMenu(context.player());
-            });
-        });
-
-        net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.registerGlobalReceiver(com.lider.minebridge.networking.payload.OpenTransactionMenuPayload.ID, (payload, context) -> {
-            context.server().execute(() -> {
-                com.lider.minebridge.marketplace.MarketplaceManager.openTransactionMenu(context.player(), payload.tradeId());
-            });
-        });
-
-        net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.registerGlobalReceiver(com.lider.minebridge.networking.payload.CompleteTradePayload.ID, (payload, context) -> {
-            context.server().execute(() -> {
-                com.lider.minebridge.marketplace.MarketplaceManager.completeTradeOnServer(context.player(), payload.tradeId());
-            });
-        });
-
-        // Register payload receiver
-        net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.registerGlobalReceiver(AchievementUnlockPayload.ID, (payload, context) -> {
-            context.server().execute(() -> {
-                String key = payload.achievementKey();
-                String playerName = context.player().getName().getString();
-                
-                // Anunciar al chat global (El servidor solo anuncia)
-                context.server().getPlayerManager().broadcast(
-                    net.minecraft.text.Text.of("§6[Logro] §f" + playerName + " ha desbloqueado: §e" + key.replace("_", " ").toUpperCase()),
-                    false
-                );
-
-                if (backendClient != null) {
-                    com.lider.minebridge.networking.AchievementClient.sendEvent(
-                        context.player().getUuidAsString(),
-                        key,
-                        1
-                    );
-                }
-            });
-        });
-
-        LOGGER.info("MineBridge Modular - Initialization Complete");
+        LOGGER.info("MineBridge Modular - Server Initialization Complete");
     }
 
     private void detectPublicIp() {

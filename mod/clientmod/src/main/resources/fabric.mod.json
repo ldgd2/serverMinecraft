@@ -15,7 +15,7 @@
   "icon": "assets/minebridge/icon.png",
   "environment": "*",
   "entrypoints": {
-    "main": [
+    "client": [
       "com.lider.minebridge.MineBridgeClient"
     ]
   },
