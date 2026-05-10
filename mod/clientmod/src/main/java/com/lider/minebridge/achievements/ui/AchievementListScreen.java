@@ -11,13 +11,19 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class AchievementListScreen extends Screen {
-    private final JsonArray data;
+    private JsonArray data = new JsonArray();
+    private boolean loading = true;
     private static final int PANEL_WIDTH = 280;
     private static final int PANEL_HEIGHT = 200;
+
+    public AchievementListScreen() {
+        super(Text.of("§e§lMIS LOGROS"));
+    }
 
     public AchievementListScreen(JsonArray data) {
         super(Text.of("§e§lMIS LOGROS"));
         this.data = data;
+        this.loading = false;
     }
 
     @Override
@@ -26,8 +32,20 @@ public class AchievementListScreen extends Screen {
         int centerX = this.width / 2;
         int centerY = this.height / 2;
 
-        this.addDrawableChild(ButtonWidget.builder(Text.of("§cRegresar"), button -> this.close())
-            .dimensions(centerX - 40, centerY + 80, 80, 20).build());
+        if (loading) {
+            String uuid = net.minecraft.client.MinecraftClient.getInstance().getSession().getUuidOrNull().toString();
+            com.lider.minebridge.networking.AchievementClient.getAchievements(uuid).thenAccept(res -> {
+                this.data = res;
+                this.loading = false;
+            }).exceptionally(ex -> {
+                this.loading = false;
+                return null;
+            });
+        }
+
+        this.addDrawableChild(ButtonWidget.builder(Text.of("§cRegresar"), button -> {
+            net.minecraft.client.MinecraftClient.getInstance().setScreen(new com.lider.minebridge.client.ui.MainLauncherScreen());
+        }).dimensions(centerX - 40, centerY + 80, 80, 20).build());
     }
 
     @Override
@@ -49,7 +67,9 @@ public class AchievementListScreen extends Screen {
         context.drawCenteredTextWithShadow(this.textRenderer, this.title, centerX, y1 + 8, 0xFFFFFF);
 
         // Dibujar lista de logros
-        if (data == null || data.size() == 0) {
+        if (loading) {
+            context.drawCenteredTextWithShadow(this.textRenderer, "§eCargando logros...", centerX, centerY, 0xFFFFFF);
+        } else if (data == null || data.size() == 0) {
             context.drawCenteredTextWithShadow(this.textRenderer, "§7No tienes logros aún...", centerX, centerY, 0xAAAAAA);
         } else {
             for (int i = 0; i < Math.min(data.size(), 6); i++) {

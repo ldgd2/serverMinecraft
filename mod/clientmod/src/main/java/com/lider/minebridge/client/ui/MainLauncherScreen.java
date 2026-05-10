@@ -30,16 +30,7 @@ public class MainLauncherScreen extends Screen {
 
         // Botón 1: Mercado Global
         this.addDrawableChild(ButtonWidget.builder(Text.of("§6⚖ Mercado Global"), button -> {
-            System.out.println("[MineBridge] Solicitando Mercado Global...");
-            TradeClient.getOpenTrades().thenAccept(trades -> {
-                System.out.println("[MineBridge] Mercado recibido: " + (trades != null ? trades.size() : "NULL"));
-                MinecraftClient.getInstance().execute(() -> {
-                    MinecraftClient.getInstance().setScreen(new MarketplaceGlobalScreen(trades));
-                });
-            }).exceptionally(ex -> {
-                System.err.println("[MineBridge] Error al cargar mercado: " + ex.getMessage());
-                return null;
-            });
+            MinecraftClient.getInstance().setScreen(new MarketplaceGlobalScreen());
         }).dimensions(centerX - 100, centerY - 40, 200, 20).build());
 
         // Botón 2: Mi Perfil
@@ -49,17 +40,7 @@ public class MainLauncherScreen extends Screen {
 
         // Botón 3: Logros
         this.addDrawableChild(ButtonWidget.builder(Text.of("§e🏆 Ver Mis Logros"), button -> {
-            System.out.println("[MineBridge] Solicitando Logros...");
-            String uuid = MinecraftClient.getInstance().getSession().getUuidOrNull().toString();
-            AchievementClient.getAchievements(uuid).thenAccept(data -> {
-                System.out.println("[MineBridge] Logros recibidos: " + (data != null ? data.size() : "NULL"));
-                MinecraftClient.getInstance().execute(() -> {
-                    MinecraftClient.getInstance().setScreen(new AchievementListScreen(data));
-                });
-            }).exceptionally(ex -> {
-                System.err.println("[MineBridge] Error al cargar logros: " + ex.getMessage());
-                return null;
-            });
+            MinecraftClient.getInstance().setScreen(new AchievementListScreen());
         }).dimensions(centerX - 100, centerY + 20, 200, 20).build());
 
         // Botón Cerrar

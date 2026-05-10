@@ -10,13 +10,19 @@ import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.text.Text;
 
 public class MarketplaceGlobalScreen extends Screen {
-    private final JsonArray trades;
+    private JsonArray trades = new JsonArray();
+    private boolean loading = true;
     private static final int PANEL_WIDTH = 320;
     private static final int PANEL_HEIGHT = 220;
+
+    public MarketplaceGlobalScreen() {
+        super(Text.of("§6§lMERCADO GLOBAL"));
+    }
 
     public MarketplaceGlobalScreen(JsonArray trades) {
         super(Text.of("§6§lMERCADO GLOBAL"));
         this.trades = trades;
+        this.loading = false;
     }
 
     @Override
@@ -25,8 +31,19 @@ public class MarketplaceGlobalScreen extends Screen {
         int centerX = this.width / 2;
         int centerY = this.height / 2;
 
-        this.addDrawableChild(ButtonWidget.builder(Text.of("§7Regresar"), button -> this.close())
-            .dimensions(centerX - 40, centerY + 95, 80, 20).build());
+        if (loading) {
+            TradeClient.getOpenTrades().thenAccept(data -> {
+                this.trades = data;
+                this.loading = false;
+            }).exceptionally(ex -> {
+                this.loading = false;
+                return null;
+            });
+        }
+
+        this.addDrawableChild(ButtonWidget.builder(Text.of("§7Regresar"), button -> {
+            MinecraftClient.getInstance().setScreen(new com.lider.minebridge.client.ui.MainLauncherScreen());
+        }).dimensions(centerX - 40, centerY + 95, 80, 20).build());
     }
 
     @Override
@@ -44,10 +61,13 @@ public class MarketplaceGlobalScreen extends Screen {
         // Fondo y Borde Dorado
         context.fill(x1 - 2, y1 - 2, x2 + 2, y2 + 2, 0xFFFFD700); 
         context.fill(x1, y1, x2, y2, 0xFF121212);
+        // Cabecera
         context.fill(x1, y1, x2, y1 + 25, 0xFF2A2A2A);
         context.drawCenteredTextWithShadow(this.textRenderer, this.title, centerX, y1 + 8, 0xFFFFFF);
 
-        if (trades == null || trades.size() == 0) {
+        if (loading) {
+            context.drawCenteredTextWithShadow(this.textRenderer, "§eCargando ofertas...", centerX, centerY, 0xFFFFFF);
+        } else if (trades == null || trades.size() == 0) {
             context.drawCenteredTextWithShadow(this.textRenderer, "§7No hay ofertas activas en este momento.", centerX, centerY, 0xAAAAAA);
         } else {
             for (int i = 0; i < Math.min(trades.size(), 7); i++) {

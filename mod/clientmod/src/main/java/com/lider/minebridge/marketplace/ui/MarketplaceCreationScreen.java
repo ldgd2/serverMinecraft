@@ -37,11 +37,11 @@ public class MarketplaceCreationScreen extends HandledScreen<MarketplaceCreation
         this.addDrawableChild(ButtonWidget.builder(Text.of("§6§lPUBLICAR"), button -> {
             ClientPlayNetworking.send(new PublishTradePayload(this.titleField.getText()));
             this.close();
-        }).dimensions(this.x + 110, this.y + 195, 76, 16).build());
+        }).dimensions(this.x + 103, this.y + 198, 76, 16).build());
 
         // Botón Cancelar
         this.addDrawableChild(ButtonWidget.builder(Text.of("§7Cancelar"), button -> this.close())
-            .dimensions(this.x + 10, this.y + 195, 60, 16).build());
+            .dimensions(this.x + 17, this.y + 198, 60, 16).build());
     }
 
     @Override
@@ -71,16 +71,16 @@ public class MarketplaceCreationScreen extends HandledScreen<MarketplaceCreation
 
         // 4. Mapeo de Slots (Pixel Perfect con el Servidor)
         // Oferta (Izquierda)
-        drawSlotGrid(context, this.x + 18, this.y + 40, 3, 3);
+        drawSlotGrid(context, this.x + 34, this.y + 40, 3, 3);
         // Pedido (Derecha)
-        drawSlotGrid(context, this.x + 106, this.y + 40, 3, 3);
+        drawSlotGrid(context, this.x + 108, this.y + 40, 3, 3);
         // Inventario Jugador
-        drawSlotGrid(context, this.x + 8, this.y + 112, 9, 3);
+        drawSlotGrid(context, this.x + 17, this.y + 112, 9, 3);
         // Hotbar
-        drawSlotGrid(context, this.x + 8, this.y + 172, 9, 1);
+        drawSlotGrid(context, this.x + 17, this.y + 172, 9, 1);
         
         // Flecha indicadora central
-        context.drawText(this.textRenderer, "➡", this.x + 88, this.y + 55, 0x666666, false);
+        context.drawText(this.textRenderer, "➡", this.x + 94, this.y + 55, 0x666666, false);
     }
 
     private void drawBorder(DrawContext context, int x, int y, int w, int h, int color) {
@@ -110,8 +110,8 @@ public class MarketplaceCreationScreen extends HandledScreen<MarketplaceCreation
 
     @Override
     protected void drawForeground(DrawContext context, int mouseX, int mouseY) {
-        context.drawText(this.textRenderer, "§7Tú Ofreces", 18, 28, 0xAAAAAA, false);
-        context.drawText(this.textRenderer, "§7Tú Pides", 106, 28, 0xAAAAAA, false);
-        context.drawText(this.textRenderer, "§8" + this.playerInventoryTitle.getString(), 8, 100, 0x777777, false);
+        context.drawText(this.textRenderer, "§7Tú Ofreces", 34, 28, 0xAAAAAA, false);
+        context.drawText(this.textRenderer, "§7Tú Pides", 108, 28, 0xAAAAAA, false);
+        context.drawText(this.textRenderer, "§8" + this.playerInventoryTitle.getString(), 17, 100, 0x777777, false);
     }
 }

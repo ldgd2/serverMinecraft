@@ -37,8 +37,9 @@ public class MineBridge implements ModInitializer {
         PayloadTypeRegistry.playS2C().register(SyncBackendUrlPayload.ID, SyncBackendUrlPayload.CODEC);
 
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
-            String url = ModConfig.getLocalUrl() != null && !ModConfig.getLocalUrl().contains("PENDING") 
-                         ? ModConfig.getLocalUrl() : ModConfig.getBackendUrl();
+            // Enviamos siempre la URL PÚBLICA a los jugadores.
+            // El localUrl es solo para que el mod del servidor hable con su backend local.
+            String url = ModConfig.getBackendUrl();
             if (url != null && !url.contains("PENDING")) {
                 ServerPlayNetworking.send(handler.player, new SyncBackendUrlPayload(url));
             }
