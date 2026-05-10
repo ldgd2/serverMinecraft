@@ -77,6 +77,9 @@ DEFAULT_CONFIG = {
     "auto_sync_mods":   True,
     "log_level":        "INFO",     # "DEBUG" | "INFO" | "WARNING"
     "jvm_mode":         "manual",   # "auto" | "manual"
+    "client_cpu_isolation": True,
+    "client_cpu_cores":     2,
+    "minebridge_mod_version": "0.0.0",
 }
 
 # Keys that must never be written to disk in plain-text

@@ -46,6 +46,7 @@ public class MineBridge implements ModInitializer {
         PayloadTypeRegistry.playC2S().register(com.lider.minebridge.networking.payload.OpenCreationMenuPayload.ID, com.lider.minebridge.networking.payload.OpenCreationMenuPayload.CODEC);
         PayloadTypeRegistry.playC2S().register(com.lider.minebridge.networking.payload.OpenTransactionMenuPayload.ID, com.lider.minebridge.networking.payload.OpenTransactionMenuPayload.CODEC);
         PayloadTypeRegistry.playC2S().register(com.lider.minebridge.networking.payload.CompleteTradePayload.ID, com.lider.minebridge.networking.payload.CompleteTradePayload.CODEC);
+        PayloadTypeRegistry.playS2C().register(com.lider.minebridge.networking.payload.TransactionScreenDataPayload.ID, com.lider.minebridge.networking.payload.TransactionScreenDataPayload.CODEC);
         
         ServerLifecycleEvents.SERVER_STARTING.register(server -> {
             serverInstance = server;
@@ -104,22 +105,6 @@ public class MineBridge implements ModInitializer {
                     );
                 }
             });
-        });
-
-        // Registro de comandos
-        net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
-            dispatcher.register(net.minecraft.server.command.CommandManager.literal("minebridge")
-                .requires(source -> source.hasPermissionLevel(2))
-                .then(net.minecraft.server.command.CommandManager.literal("status")
-                    .executes(context -> {
-                        String status = (backendClient != null && backendClient.isWebSocketConnected()) ? "§aCONECTADO" : "§cDESCONECTADO";
-                        String url = (backendClient != null) ? backendClient.getActiveUrl() : "N/A";
-                        context.getSource().sendFeedback(() -> net.minecraft.text.Text.of("§6[MineBridge] §fEstado: " + status), false);
-                        context.getSource().sendFeedback(() -> net.minecraft.text.Text.of("§6[MineBridge] §fBackend: §e" + url), false);
-                        return 1;
-                    })
-                )
-            );
         });
 
         LOGGER.info("MineBridge Modular - Initialization Complete");

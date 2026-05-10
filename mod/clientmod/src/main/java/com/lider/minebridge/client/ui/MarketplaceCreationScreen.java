@@ -14,12 +14,12 @@ import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 
 public class MarketplaceCreationScreen extends HandledScreen<MarketplaceCreationScreenHandler> {
-    private static final int PANEL_WIDTH = 176;
-    private static final int PANEL_HEIGHT = 188;
+    private static final Identifier TEXTURE = Identifier.of("minecraft", "textures/gui/container/generic_54.png");
 
     public MarketplaceCreationScreen(MarketplaceCreationScreenHandler handler, PlayerInventory inventory, Text title) {
         super(handler, inventory, title);
-        this.backgroundHeight = PANEL_HEIGHT;
+        this.backgroundWidth = 176;
+        this.backgroundHeight = 188;
         this.playerInventoryTitleY = this.backgroundHeight - 94;
     }
 
@@ -28,8 +28,8 @@ public class MarketplaceCreationScreen extends HandledScreen<MarketplaceCreation
         super.init();
         this.titleX = (this.backgroundWidth - this.textRenderer.getWidth(this.title)) / 2;
 
-        // Botón Publicar - Movido hacia abajo
-        this.addDrawableChild(ButtonWidget.builder(Text.of("§a§lPUBLICAR"), button -> {
+        // Botón Publicar - Estilo Minecraft
+        this.addDrawableChild(ButtonWidget.builder(Text.of("§2§lPUBLICAR"), button -> {
             ItemStack selling = this.handler.getTradeInventory().getStack(0);
             ItemStack asking1 = this.handler.getTradeInventory().getStack(1);
             ItemStack asking2 = this.handler.getTradeInventory().getStack(2);
@@ -59,11 +59,7 @@ public class MarketplaceCreationScreen extends HandledScreen<MarketplaceCreation
             );
             
             this.close();
-        }).dimensions(this.x + this.backgroundWidth / 2 - 40, this.y + 164, 80, 18).build());
-
-        // Botón X estilizado
-        this.addDrawableChild(ButtonWidget.builder(Text.of("§cX"), b -> this.close())
-            .dimensions(this.x + this.backgroundWidth - 16, this.y + 4, 12, 12).build());
+        }).dimensions(this.x + 58, this.y + 50, 60, 18).build());
     }
 
     @Override
@@ -71,32 +67,23 @@ public class MarketplaceCreationScreen extends HandledScreen<MarketplaceCreation
         int i = this.x;
         int j = this.y;
         
-        // Panel fondo (Premium Dark)
-        context.fill(i - 1, j - 1, i + this.backgroundWidth + 1, j + this.backgroundHeight + 1, 0xFF555555);
-        context.fill(i, j, i + this.backgroundWidth, j + this.backgroundHeight, 0xFF181818);
+        // Dibujar textura de contenedor
+        context.drawTexture(TEXTURE, i, j, 0, 0, this.backgroundWidth, 71);
+        context.drawTexture(TEXTURE, i, j + 71, 0, 126, this.backgroundWidth, 117);
         
-        // Cabecera
-        context.fill(i, j, i + this.backgroundWidth, j + 22, 0xFF252525);
-
-        // Cajas de slots con bordes y etiquetas
-        drawSlotBox(context, i + 40, j + 40, 0x40FF0000, "PEDIDO"); // Pedido 1
-        drawSlotBox(context, i + 66, j + 40, 0x40FF0000, null); // Pedido 2
+        // Dibujar slots con etiquetas
+        drawLabeledSlot(context, i + 34, j + 27, "§2VENTA");
+        drawLabeledSlot(context, i + 96, j + 27, "§cPRECIO");
+        drawLabeledSlot(context, i + 122, j + 27, null);
         
         // Flecha central
-        context.drawText(this.textRenderer, "§6§l➡", i + 92, j + 44, 0xFFFFFF, false);
-        
-        drawSlotBox(context, i + 120, j + 40, 0x4000FF00, "VENTA"); // Venta
-        
-        context.drawTextWithShadow(this.textRenderer, "Inventario", i + 8, j + 72, 0xAAAAAA);
+        context.drawText(this.textRenderer, "§6➡", i + 70, j + 32, 0xFFFFFF, false);
     }
 
-    private void drawSlotBox(DrawContext context, int x, int y, int color, String label) {
-        context.fill(x - 1, y - 1, x + 19, y + 19, 0xFF888888); // Borde
-        context.fill(x, y, x + 18, y + 18, 0xFF000000); // Fondo
-        context.fill(x, y, x + 18, y + 18, color); // Tinte
-        
+    private void drawLabeledSlot(DrawContext context, int x, int y, String label) {
+        context.drawTexture(TEXTURE, x, y, 7, 17, 18, 18);
         if (label != null) {
-            context.drawText(this.textRenderer, "§e" + label, x, y - 10, 0xFFFFFF, false);
+            context.drawCenteredTextWithShadow(this.textRenderer, label, x + 9, y - 10, 0xFFFFFF);
         }
     }
 
@@ -109,13 +96,13 @@ public class MarketplaceCreationScreen extends HandledScreen<MarketplaceCreation
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        context.fill(0, 0, this.width, this.height, 0xFF000000); // Fondo sólido negro
+        this.renderBackground(context, mouseX, mouseY, delta);
         super.render(context, mouseX, mouseY, delta);
         this.drawMouseoverTooltip(context, mouseX, mouseY);
     }
 
     @Override
     public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta) {
-        // Cero borroso
+        super.renderBackground(context, mouseX, mouseY, delta);
     }
 }

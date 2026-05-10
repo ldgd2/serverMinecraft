@@ -116,6 +116,10 @@ def setup_profile(modloader, version):
         minecraft_directory = config.get("minecraft_dir")
         download_offline_skins_mod(minecraft_directory)
 
+    # 2. Sincronizar mods desde el almacén maestro
+    from core.updater import inject_mod_to_profile
+    inject_mod_to_profile(profile_path)
+
     return profile_path
 
 
@@ -183,6 +187,11 @@ def launch_minecraft(version_id, callback_dict=None):
                     c_paus = config.get("jvm_max_pause", 50)
                     jvm_args_list.append(f"-XX:MaxGCPauseMillis={c_paus}")
                 jvm_args_list.append("-XX:+AlwaysPreTouch")
+
+            # CPU Core Isolation flags
+            if config.get("client_cpu_isolation"):
+                cores = int(config.get("client_cpu_cores") or 2)
+                jvm_args_list.append(f"-XX:ActiveProcessorCount={cores}")
 
         # Local Skin Server for Offline Skins
         local_skin_server = None
@@ -359,6 +368,29 @@ def launch_minecraft(version_id, callback_dict=None):
                     startupinfo=startupinfo,
                     text=True
                 )
+                
+                # --- CPU Core Isolation (Affinity) ---
+                if config.get("client_cpu_isolation"):
+                    try:
+                        import psutil
+                        p = psutil.Process(process.pid)
+                        total_cpus = psutil.cpu_count()
+                        num_cores = int(config.get("client_cpu_cores") or 2)
+                        
+                        # Estrategia: Saltamos el núcleo 0 (SO) y empezamos desde el final
+                        # para evitar colisionar con los servidores que empiezan desde el núcleo 1.
+                        # Si hay pocos núcleos, simplemente usamos lo que haya disponible saltando el 0.
+                        if total_cpus > 1:
+                            # Ejemplo: 8 núcleos. Usar cores=[6, 7] si num_cores=2.
+                            start_core = max(1, total_cpus - num_cores)
+                            cores = list(range(start_core, total_cpus))
+                            p.cpu_affinity(cores)
+                            if callback_dict and 'log' in callback_dict:
+                                callback_dict['log'](f"[Launch] CPU Isolation: Cliente asignado a núcleos {cores}")
+                    except Exception as e:
+                        if callback_dict and 'log' in callback_dict:
+                            callback_dict['log'](f"[Launch] Advertencia Core Isolation: {e}")
+
                 if callback_dict and 'log' in callback_dict:
                     callback_dict['log'](f"[Launch] PROCESO INICIADO (PID: {process.pid})")
             except OSError as e:

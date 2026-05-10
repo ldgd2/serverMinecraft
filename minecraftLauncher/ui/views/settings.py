@@ -242,6 +242,10 @@ class SettingsView(tk.Frame):
         )
         self.inputs["java_path"].pack(fill="x", pady=10)
 
+        # CPU Core Isolation
+        self._create_toggle(frame, "client_cpu_isolation", "Aislamiento de Núcleos (CPU)", "Reserva núcleos específicos para el juego, saltando el núcleo 0 (SO). Evita tirones si tienes servidores abiertos.")
+        self._create_stepper(frame, "client_cpu_cores", "Cantidad de Núcleos", 1, 8, 1, "{} Cores", "Cuántos núcleos dedicar al cliente. Recomendado: 2-4.")
+
         # ── JVM Builder ──
         lbl_jvm = tk.Label(frame, text="Argumentos JVM (Lanzador)", font=mc_font(12, bold=True), fg=Colors.WHITE, bg=Colors.PANEL_DARK, anchor="w")
         lbl_jvm.pack(fill="x", pady=(10, 5))

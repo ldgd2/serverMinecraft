@@ -83,18 +83,26 @@ class UpdatesView(tk.Frame):
 
         self.check_btn = MinecraftButton(
             btn_frame,
-            text="🔍  Buscar actualizaciones",
-            width=240, height=42, font_size=12,
+            text="Buscar actualizaciones",
+            width=220, height=42, font_size=11,
             command=self._do_check
         )
-        self.check_btn.pack(side="left", padx=8)
+        self.check_btn.pack(side="left", padx=5)
+
+        self.sync_btn = MinecraftButton(
+            btn_frame,
+            text="Sincronizar Mods",
+            width=200, height=42, font_size=11,
+            command=self._do_force_sync
+        )
+        self.sync_btn.pack(side="left", padx=5)
 
         MinecraftButton(
             btn_frame,
             text="← Volver",
-            width=140, height=42, font_size=12,
+            width=100, height=42, font_size=11,
             command=self._go_back
-        ).pack(side="left", padx=8)
+        ).pack(side="left", padx=5)
 
         # ── Changelog area ────────────────────────────────────────────────────
         tk.Label(panel, text="Historial", font=mc_font(11, bold=True),
@@ -131,6 +139,42 @@ class UpdatesView(tk.Frame):
         pct = value / 100.0
         self._progress_bar_internal.place(relx=0, rely=0, relwidth=pct, relheight=1)
         self.update_idletasks()
+
+    def _do_force_sync(self):
+        """Sincroniza manualmente los mods del almacén a todos los perfiles."""
+        self._set_status("Sincronizando mods en todos los perfiles...", Colors.YELLOW)
+        self.sync_btn.configure_state(True)
+        self.sync_btn.set_text("Sincronizando...")
+        
+        def _sync_worker():
+            import os
+            import minecraft_launcher_lib
+            from core.updater import inject_mod_to_profile
+            
+            base_dir = config.get("minecraft_dir") or minecraft_launcher_lib.utils.get_minecraft_directory()
+            profiles_dir = os.path.join(base_dir, "profiles")
+            
+            count = 0
+            if os.path.exists(profiles_dir):
+                profiles = [p for p in os.listdir(profiles_dir) if os.path.isdir(os.path.join(profiles_dir, p))]
+                for i, prof in enumerate(profiles):
+                    prof_path = os.path.join(profiles_dir, prof)
+                    inject_mod_to_profile(prof_path)
+                    count += 1
+                    # Update progress if many profiles
+                    if len(profiles) > 1:
+                        self.after(0, lambda p=int((i+1)*100/len(profiles)): self._set_progress(p))
+            
+            self.after(0, lambda: self._on_sync_done(count))
+
+        self._show_progress()
+        threading.Thread(target=_sync_worker, daemon=True).start()
+
+    def _on_sync_done(self, count):
+        self._hide_progress()
+        self.sync_btn.configure_state(False)
+        self.sync_btn.set_text("🔄  Sincronizar Mods")
+        self._set_status(f"✓ Sincronizados {count} perfiles correctamente.", Colors.PREMIUM_GREEN)
 
     # ── Check for updates ─────────────────────────────────────────────────────
 

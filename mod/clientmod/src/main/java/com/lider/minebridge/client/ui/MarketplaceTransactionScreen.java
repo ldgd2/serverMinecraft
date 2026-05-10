@@ -16,6 +16,7 @@ public class MarketplaceTransactionScreen extends HandledScreen<MarketplaceTrans
 
     public MarketplaceTransactionScreen(MarketplaceTransactionScreenHandler handler, PlayerInventory inventory, Text title) {
         super(handler, inventory, title);
+        this.backgroundWidth = 176;
         this.backgroundHeight = 166;
         this.playerInventoryTitleY = this.backgroundHeight - 94;
     }
@@ -25,25 +26,13 @@ public class MarketplaceTransactionScreen extends HandledScreen<MarketplaceTrans
         super.init();
         this.titleX = (this.backgroundWidth - this.textRenderer.getWidth(this.title)) / 2;
 
-        // Botón Confirmar Pago
-        this.addDrawableChild(ButtonWidget.builder(Text.of("§6§lCONFIRMAR PAGO"), button -> {
-            ItemStack payment = this.handler.getInventory().getStack(0);
-            if (payment.isEmpty()) {
-                MinecraftClient.getInstance().player.sendMessage(Text.of("§cDebes poner el pago en el slot."), false);
-                return;
-            }
-
-            // Enviamos un paquete al servidor para que él verifique el slot y complete el trade
+        // Botón Confirmar Pago - Estilo Minecraft pero destacado
+        this.addDrawableChild(ButtonWidget.builder(Text.of("§6§lCONFIRMAR"), button -> {
             if (net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.canSend(com.lider.minebridge.networking.payload.CompleteTradePayload.ID)) {
                 net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.send(new com.lider.minebridge.networking.payload.CompleteTradePayload(this.handler.getTradeId()));
             }
-            
             this.close();
-        }).dimensions(this.x + this.backgroundWidth / 2 - 60, this.y + 60, 120, 20).build());
-
-        // Botón X para cerrar
-        this.addDrawableChild(ButtonWidget.builder(Text.of("§cX"), b -> this.close())
-            .dimensions(this.x + this.backgroundWidth - 15, this.y + 5, 12, 12).build());
+        }).dimensions(this.x + 62, this.y + 48, 52, 20).build());
     }
 
     @Override
@@ -51,56 +40,49 @@ public class MarketplaceTransactionScreen extends HandledScreen<MarketplaceTrans
         int i = this.x;
         int j = this.y;
         
-        // Panel fondo (Premium Dark)
-        context.fill(i - 1, j - 1, i + this.backgroundWidth + 1, j + this.backgroundHeight + 1, 0xFF555555);
-        context.fill(i, j, i + this.backgroundWidth, j + this.backgroundHeight, 0xFF181818);
+        // Dibujar textura de contenedor (Cofre)
+        context.drawTexture(TEXTURE, i, j, 0, 0, this.backgroundWidth, 71);
+        context.drawTexture(TEXTURE, i, j + 71, 0, 126, this.backgroundWidth, 96);
         
-        // Cabecera
-        context.fill(i, j, i + this.backgroundWidth, j + 22, 0xFF252525);
-
-        // Slots de pago
-        int slotX1 = i + 71;
-        int slotX2 = i + 97;
-        int slotY = j + 40;
-
-        drawPaymentSlot(context, slotX1, slotY, this.handler.getReq1(), "ITEM 1");
-        drawPaymentSlot(context, slotX2, slotY, this.handler.getReq2(), "ITEM 2");
+        // Dibujar slots resaltados para el pago
+        drawSlotHighlight(context, i + 34, j + 27, this.handler.getReq1());
+        drawSlotHighlight(context, i + 60, j + 27, this.handler.getReq2());
         
-        context.drawCenteredTextWithShadow(this.textRenderer, "§6§lCOLOCA EL PAGO EXACTO", i + this.backgroundWidth / 2, j + 28, 0xFFFFFF);
-        context.drawTextWithShadow(this.textRenderer, "Inventario", i + 8, j + 72, 0xAAAAAA);
+        // Flecha de intercambio
+        context.drawText(this.textRenderer, "§6§l➡", i + 100, j + 32, 0xFFFFFF, false);
+        
+        // Slot de resultado (visual)
+        context.drawTexture(TEXTURE, i + 124, j + 27, 7, 17, 18, 18);
     }
 
-    private void drawPaymentSlot(DrawContext context, int x, int y, ItemStack ghost, String label) {
-        // Borde y fondo
-        context.fill(x - 2, y - 2, x + 20, y + 20, 0xFFFFAA00); // Borde dorado
-        context.fill(x - 1, y - 1, x + 19, y + 19, 0xFF000000); // Fondo negro
+    private void drawSlotHighlight(DrawContext context, int x, int y, ItemStack req) {
+        context.drawTexture(TEXTURE, x, y, 7, 17, 18, 18); // Dibujar un slot vacío
         
-        if (!ghost.isEmpty()) {
+        if (!req.isEmpty()) {
             context.getMatrices().push();
             context.getMatrices().translate(0, 0, 100);
             
-            // Ítem fantasma (Tinte naranja para indicar "falta esto")
-            context.drawItem(ghost, x, y);
-            context.fill(x, y, x + 18, y + 18, 0x80555555); // Oscurecer
+            // Ítem fantasma indicando el requisito
+            context.drawItem(req, x + 1, y + 1);
+            context.fill(x + 1, y + 1, x + 17, y + 17, 0xAA222222); 
             
-            // Cantidad requerida en rojo/amarillo
-            String count = "x" + ghost.getCount();
-            context.drawTextWithShadow(this.textRenderer, "§c" + count, x + 18 - this.textRenderer.getWidth(count), y + 12, 0xFFFFFF);
+            String count = String.valueOf(req.getCount());
+            context.drawTextWithShadow(this.textRenderer, "§e" + count, x + 17 - this.textRenderer.getWidth(count), y + 10, 0xFFFFFF);
             
             context.getMatrices().pop();
-        } else {
-            // Slot bloqueado/no necesario
-            context.fill(x, y, x + 18, y + 18, 0x80333333);
         }
     }
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        context.fill(0, 0, this.width, this.height, 0xCC000000); 
+        // Fondo desenfocado clásico de Minecraft
+        this.renderBackground(context, mouseX, mouseY, delta);
         super.render(context, mouseX, mouseY, delta);
         this.drawMouseoverTooltip(context, mouseX, mouseY);
     }
 
     @Override
-    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta) {}
+    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta) {
+        super.renderBackground(context, mouseX, mouseY, delta);
+    }
 }

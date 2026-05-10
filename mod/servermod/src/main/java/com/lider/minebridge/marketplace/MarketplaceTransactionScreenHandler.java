@@ -23,8 +23,8 @@ public class MarketplaceTransactionScreenHandler extends ScreenHandler {
         this.req2 = req2;
         
         // Slots de PAGO (Donde el comprador pone lo que se pide)
-        this.addSlot(new Slot(inventory, 0, 71, 40));
-        this.addSlot(new Slot(inventory, 1, 97, 40));
+        this.addSlot(new Slot(inventory, 0, 35, 28));
+        this.addSlot(new Slot(inventory, 1, 61, 28));
 
         // Player Inventory
         for (int i = 0; i < 3; i++) {

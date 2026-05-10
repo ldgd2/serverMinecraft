@@ -18,11 +18,11 @@ public class MarketplaceCreationScreenHandler extends ScreenHandler {
         super(net.minecraft.registry.Registries.SCREEN_HANDLER.get(net.minecraft.util.Identifier.of("minebridge", "creation")), syncId); 
         
         // Slot de VENTA (Item real que se entregará al completar)
-        this.addSlot(new Slot(inventory, 0, 44, 35));
+        this.addSlot(new Slot(inventory, 0, 35, 28));
         
         // Slots de PEDIDO (Items de referencia)
-        this.addSlot(new Slot(inventory, 1, 100, 35));
-        this.addSlot(new Slot(inventory, 2, 126, 35));
+        this.addSlot(new Slot(inventory, 1, 97, 28));
+        this.addSlot(new Slot(inventory, 2, 123, 28));
 
         // Player Inventory
         for (int i = 0; i < 3; i++) {

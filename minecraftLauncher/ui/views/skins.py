@@ -208,12 +208,7 @@ class SkinsView(tk.Frame):
         self._highlight_selected()
         self._refresh_preview()
         
-        # Para No-Premium, intentamos sincronizar al seleccionar para que sea más intuitivo
-        auth_type = config.get("auth_type")
-        if auth_type != "premium":
-            self._equip_selected()
-        else:
-            self._status("Skin seleccionada. Presiona 'Equipar' para subir a Mojang.", Colors.GRAY_TEXT)
+        self._status("Skin seleccionada. Presiona 'Equipar' para sincronizar con el servidor.", Colors.GRAY_TEXT)
 
     def _equip_selected(self):
         path = config.get("skin_path")

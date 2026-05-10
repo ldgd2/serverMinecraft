@@ -149,9 +149,9 @@ public class ClientEvents {
             }
 
             // ==========================================
-            // CHEQUEOS PESADOS (1 Vez por Segundo = 20 Ticks)
+            // CHEQUEOS PESADOS (Cada 5 Segundos = 100 Ticks)
             // ==========================================
-            if (tickCounter % 20 == 0) {
+            if (tickCounter % 100 == 0) {
                 // 1. XP Level
                 if (!unlockedAchievementsSession.contains("die_with_100_lvl") && client.player.experienceLevel >= 100) {
                     triggerAchievement("die_with_100_lvl", "¡Nivel 100!", "Llegaste al nivel 100 de XP.");
@@ -198,9 +198,15 @@ public class ClientEvents {
                     if (weaponCount == 9) triggerAchievement("IMMINENT_MASSACRE", "Masacre Inminente", "Un arsenal de dolor listo en tus manos.");
                 }
 
-                // 5. Jugadores Cercanos (MEME_ANTOJEN)
+                // 5. Jugadores Cercanos (MEME_ANTOJEN) - Optimizado
                 if (!unlockedAchievementsSession.contains("MEME_ANTOJEN") && client.player.getMainHandStack().getItem() == net.minecraft.item.Items.CAKE && client.world != null) {
-                    long nearby = client.world.getPlayers().stream().filter(p -> p != client.player && p.squaredDistanceTo(client.player) < 64.0).count();
+                    int nearby = 0;
+                    for (net.minecraft.entity.player.PlayerEntity p : client.world.getPlayers()) {
+                        if (p != client.player && p.squaredDistanceTo(client.player) < 64.0) {
+                            nearby++;
+                            if (nearby >= 5) break;
+                        }
+                    }
                     if (nearby >= 5) triggerAchievement("MEME_ANTOJEN", "¡Antojen!", "Sosteniendo pastel ante 5 personas.");
                 }
             }

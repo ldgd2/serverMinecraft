@@ -36,12 +36,12 @@ SPECIAL_ACHIEVEMENTS = [
     AchievementDefinition("MAINTENANCE_JOIN", "Ansiedad social", "Entra al servidor en los primeros 60 segundos tras un reinicio.", AchievementCategory.SPECIAL, {"join_after_restart": 1}, rarity=0.11),
 
     # --- CURIOSIDADES ---
-    AchievementDefinition("DRAGON_EGG", "El fin justifica los medios", "Consigue el Huevo de Dragon.", AchievementCategory.SPECIAL, {"has_dragon_egg": 1}, rarity=0.84),
+    AchievementDefinition("has_dragon_egg", "El fin justifica los medios", "Consigue el Huevo de Dragon.", AchievementCategory.SPECIAL, {"has_dragon_egg": 1}, rarity=0.84),
     AchievementDefinition("GOD_OF_WAR", "God of war", "Elimina a 1,000 entidades hostiles.", AchievementCategory.SPECIAL, {"hostile_kills": 1000}, rarity=0.60),
     AchievementDefinition("MOUNT_MASTER", "Montaras", "Recorre 10,000 bloques montado en un animal.", AchievementCategory.SPECIAL, {"distance_mounted": 10000}, rarity=0.84),
     AchievementDefinition("HUNGER_GAMES", "Los juegos del hambre", "Gana tu primer evento de supervivencia o torneo PVP.", AchievementCategory.SPECIAL, {"tournaments_won": 1}, rarity=0.08),
-    AchievementDefinition("WHAT_NOW", "Y que hago con esto", "Consigue una Patata Venenosa.", AchievementCategory.SPECIAL, {"item_acquired:minecraft:poisonous_potato": 1}, rarity=0.13),
-    AchievementDefinition("WTF_IS_THAT", "Que diablos es eso", "Encuentra una Oveja Rosa de forma natural.", AchievementCategory.SPECIAL, {"pink_sheep_found": 1}, rarity=0.06),
+    AchievementDefinition("item_acquired:minecraft:poisonous_potato", "Y que hago con esto", "Consigue una Patata Venenosa.", AchievementCategory.SPECIAL, {"item_acquired:minecraft:poisonous_potato": 1}, rarity=0.13),
+    AchievementDefinition("pink_sheep_found", "Que diablos es eso", "Encuentra una Oveja Rosa de forma natural.", AchievementCategory.SPECIAL, {"pink_sheep_found": 1}, rarity=0.06),
     AchievementDefinition("YOU_ARE_GOOD", "Ya sos bien", "Alcanza el nivel 100 de experiencia.", AchievementCategory.SPECIAL, {"xp_level": 100}, rarity=0.36),
     AchievementDefinition("EVEREST", "El monte everest no tiene nada malo contra de mi", "Alcanza la altura maxima del mundo (Y=320).", AchievementCategory.SPECIAL, {"max_height_reached": 1}, rarity=0.07),
     AchievementDefinition("FEAR_PARALYSIS", "Estaba paralizado con mucho miedo y no me podia mover", "Se afectado por el efecto de Oscuridad del Warden.", AchievementCategory.SPECIAL, {"warden_darkness_effect": 1}, rarity=0.86),
@@ -70,7 +70,7 @@ SPECIAL_ACHIEVEMENTS = [
     # --- NUEVAS ADICIONES ---
     AchievementDefinition("MEME_POBRES", "ya comieron pobres?", "Consume un Filete (Steak) frente a otro jugador.", AchievementCategory.SPECIAL, {"eat_steak_near_player": 1}, rarity=0.69),
     AchievementDefinition("MEME_VIBORA", "si fuera una vibora ya te hubiera picado", "Encuentra tu primer Tesoro Enterrado.", AchievementCategory.SPECIAL, {"buried_treasure_found": 1}, rarity=0.73),
-    AchievementDefinition("MEME_SUPER_POLLO", "un super?", "Ten un stack (64) de Pollo Cocinado en el inventario.", AchievementCategory.SPECIAL, {"cooked_chicken_stack": 1}, rarity=0.66),
+    AchievementDefinition("cooked_chicken_stack", "un super?", "Ten un stack (64) de Pollo Cocinado en el inventario.", AchievementCategory.SPECIAL, {"cooked_chicken_stack": 1}, rarity=0.66),
     
     # --- EDGY & CULTURA DE INTERNET ---
     AchievementDefinition("MEME_SKILL_ISSUE", "Skill Issue", "Muere contra un Baby Zombie usando armadura de Netherite completa.", AchievementCategory.COMBAT, {"skill_issue_death": 1}, rarity=0.73),
@@ -93,7 +93,7 @@ SPECIAL_ACHIEVEMENTS = [
 
     # --- CITAS Y SARCASMO ---
     AchievementDefinition("MEME_WOLF", "El lobo no es un león, pero no actúa en el circo.", "Domestica a tu primer lobo.", AchievementCategory.SPECIAL, {"tame_wolf": 1}, rarity=0.70),
-    AchievementDefinition("MEME_CROSS", "llevando mi cruz", "Muere teniendo un Tótem en el inventario (pero no en la mano).", AchievementCategory.SPECIAL, {"die_with_totem_in_inv": 1}, rarity=0.70),
+    AchievementDefinition("die_with_totem_in_inv", "llevando mi cruz", "Muere teniendo un Tótem en el inventario (pero no en la mano).", AchievementCategory.SPECIAL, {"die_with_totem_in_inv": 1}, rarity=0.70),
     AchievementDefinition("MEME_TNT_CRAFT", "no debi inventar el", "Fabrica tu primer bloque de TNT.", AchievementCategory.SPECIAL, {"craft_tnt": 1}, rarity=0.65),
     AchievementDefinition("MEME_TRIPLE_THREAT", "Hay tres cosas que salen siempre", "Muere rodeado por un creeper, un zombie y un esqueleto.", AchievementCategory.SPECIAL, {"triple_threat_death": 1}, rarity=0.66),
     AchievementDefinition("MEME_FIRST_NIGHT", "He pasado una noche estupenda, pero no ha sido ésta.", "Sobrevive tu primera noche en el mundo.", AchievementCategory.SPECIAL, {"survive_first_night": 1}, rarity=0.67),
@@ -113,7 +113,7 @@ SPECIAL_ACHIEVEMENTS = [
     # --- ACTITUD Y DESAFÍO ---
     AchievementDefinition("MEME_GG", "GG", "Escribe 'GG' tras eliminar a un jefe (Boss).", AchievementCategory.SPECIAL, {"gg_after_boss": 1}, rarity=0.66),
     AchievementDefinition("MEME_ALL_AGAINST_ME", "Todos contra yo solo", "Muere tras ser atacado por 3 o más jugadores a la vez.", AchievementCategory.SOCIAL, {"died_to_team": 1}, rarity=0.71),
-    AchievementDefinition("MEME_ONLY_A_GAME", "solo es un juego.....", "Muere teniendo nivel 100 o más de experiencia.", AchievementCategory.SPECIAL, {"die_with_100_lvl": 1}, rarity=0.75),
+    AchievementDefinition("die_with_100_lvl", "solo es un juego.....", "Muere teniendo nivel 100 o más de experiencia.", AchievementCategory.SPECIAL, {"die_with_100_lvl": 1}, rarity=0.75),
     AchievementDefinition("MEME_TRY_AGAIN", "hazlo otra vez, a lo mejor esta vez sí", "Muere por la misma causa 3 veces seguidas en 5 minutos.", AchievementCategory.SPECIAL, {"repeat_death_streak": 1}, rarity=0.66),
     AchievementDefinition("MEME_NO_EGGS", "no hay huevos", "Ataca al Warden con tus propias manos.", AchievementCategory.SPECIAL, {"punch_warden": 1}, rarity=0.87),
 
@@ -124,6 +124,18 @@ SPECIAL_ACHIEVEMENTS = [
     AchievementDefinition("BLOOD_SWEAT", "Sudor y Sangre", "Corriendo por tu vida, hambriento y moribundo.", AchievementCategory.SPECIAL, {"BLOOD_SWEAT": 1}, hidden=True, rarity=0.88),
     AchievementDefinition("IMMINENT_MASSACRE", "Masacre Inminente", "Un arsenal de dolor listo en tus manos.", AchievementCategory.SPECIAL, {"IMMINENT_MASSACRE": 1}, hidden=True, rarity=0.80),
     AchievementDefinition("HARVEST_SOULS", "Cosecha de Almas", "El lamento de 500 almas liberadas por tu pico.", AchievementCategory.SPECIAL, {"HARVEST_SOULS": 1}, hidden=True, rarity=0.95),
+    
+    # --- LOGROS DEL CLIENTE (MOD) ---
+    AchievementDefinition("DIAMOND_HUNTER", "Cazador de Diamantes", "Has picado 10 diamantes.", AchievementCategory.MINING, {"diamonds_mined": 10}, rarity=0.10),
+    AchievementDefinition("wandering_trader_trade", "Negociante", "Comerciaste con el errante.", AchievementCategory.SOCIAL, {"wandering_trader_trade": 1}, rarity=0.15),
+    AchievementDefinition("item_enchanted", "Poder Arcano", "Has encantado un ítem.", AchievementCategory.ENCHANTING, {"item_enchanted": 1}, rarity=0.20),
+    AchievementDefinition("anvil_use", "Forjador", "Has usado el yunque.", AchievementCategory.ARCHITECTURE, {"anvil_use": 1}, rarity=0.18),
+    AchievementDefinition("enter_dimension:minecraft:the_end", "El Fin de los Tiempos", "Has llegado al End.", AchievementCategory.DIMENSIONS, {"enter_dimension:minecraft:the_end": 1}, rarity=0.30),
+    AchievementDefinition("enter_dimension:minecraft:the_nether", "Inframundo", "Has llegado al Nether.", AchievementCategory.DIMENSIONS, {"enter_dimension:minecraft:the_nether": 1}, rarity=0.15),
+    AchievementDefinition("ARCH_1", "Arquitecto Novel", "Has colocado 1000 bloques.", AchievementCategory.ARCHITECTURE, {"blocks_placed": 1000}, rarity=0.12),
+    AchievementDefinition("ARCH_2", "Maestro Constructor", "Has colocado 10000 bloques.", AchievementCategory.ARCHITECTURE, {"blocks_placed": 10000}, rarity=0.35),
+    AchievementDefinition("TECH_1", "Iniciación Técnica", "Has colocado 500 componentes de Redstone.", AchievementCategory.REDSTONE, {"redstone_placed": 500}, rarity=0.25),
+    AchievementDefinition("TECH_2", "Ingeniero Industrial", "Has colocado 2500 componentes de Redstone.", AchievementCategory.REDSTONE, {"redstone_placed": 2500}, rarity=0.55),
     
     # --- VETERANIA EXTREMA ---
     AchievementDefinition("TIME_LEGEND", "Leyenda Viviente", "Has dedicado 1,000 horas de tiempo real al servidor.", AchievementCategory.VETERAN, {"playtime_seconds": 3600000}, rarity=0.97),

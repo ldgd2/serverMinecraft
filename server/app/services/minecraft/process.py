@@ -144,9 +144,9 @@ class MinecraftProcess:
                 "-XX:MaxTenuringThreshold=1",
                 "-Dusing.aikars.flags=https://mcflags.emc.gs",
                 "-Daikars.new.flags=true",
-                f"-XX:ActiveProcessorCount={int(self.cpu_cores)}",
-                f"-Dcom.ishland.c2me.common.threading.globalExecutorParallelism={int(self.cpu_cores)}",
-                f"-Dcom.ishland.c2me.common.threading.backgroundExecutorParallelism={int(self.cpu_cores)}"
+                f"-XX:ActiveProcessorCount={max(1, int(self.cpu_cores))}",
+                f"-Dcom.ishland.c2me.common.threading.globalExecutorParallelism={max(1, int(self.cpu_cores))}",
+                f"-Dcom.ishland.c2me.common.threading.backgroundExecutorParallelism={max(1, int(self.cpu_cores))}"
             ]
             for flag in aikar_flags:
                 new_lines.append(f"{flag}\n")
@@ -182,6 +182,11 @@ class MinecraftProcess:
              is_modern_forge = False
 
         if not is_modern_forge:
+             # Calculate optimal G1 region size based on RAM
+             region_size = "8M"
+             if self.ram_mb >= 4000: region_size = "16M"
+             if self.ram_mb >= 8000: region_size = "32M"
+             
              cmd = [
                 "java",
                 f"-Xmx{self.ram_mb}M",
@@ -193,7 +198,7 @@ class MinecraftProcess:
                 "-XX:+DisableExplicitGC",
                 "-XX:G1NewSizePercent=30",
                 "-XX:G1MaxNewSizePercent=40",
-                "-XX:G1HeapRegionSize=8M",
+                f"-XX:G1HeapRegionSize={region_size}",
                 "-XX:G1ReservePercent=20",
                 "-XX:G1HeapWastePercent=5",
                 "-XX:G1MixedGCCountTarget=4",
@@ -203,9 +208,9 @@ class MinecraftProcess:
                 "-XX:SurvivorRatio=32",
                 "-XX:+PerfDisableSharedMem",
                 "-XX:MaxTenuringThreshold=1",
-                f"-XX:ActiveProcessorCount={int(self.cpu_cores)}",
-                f"-Dcom.ishland.c2me.common.threading.globalExecutorParallelism={int(self.cpu_cores)}",
-                f"-Dcom.ishland.c2me.common.threading.backgroundExecutorParallelism={int(self.cpu_cores)}",
+                f"-XX:ActiveProcessorCount={max(1, int(self.cpu_cores))}",
+                f"-Dcom.ishland.c2me.common.threading.globalExecutorParallelism={max(1, int(self.cpu_cores))}",
+                f"-Dcom.ishland.c2me.common.threading.backgroundExecutorParallelism={max(1, int(self.cpu_cores))}",
                 "-jar",
                 self.jar_path,
                 "nogui"
@@ -223,19 +228,36 @@ class MinecraftProcess:
             )
             print(f"DEBUG: Process started with PID {self.process.pid}")
             
-            # --- Set CPU Affinity ---
+            # --- Set CPU Affinity (Smart Core Isolation) ---
             try:
                 p = psutil.Process(self.process.pid)
                 total_cpus = psutil.cpu_count()
-                # Si cpu_cores es 0 o >= total_cpus, mejor no poner afinidad y dejar que el OS decida
-                if 0 < self.cpu_cores < total_cpus:
+                
+                if total_cpus > 1:
+                    # Usamos una variable de clase para rotar núcleos entre servidores
+                    if not hasattr(MinecraftProcess, "_last_assigned_core"):
+                        # Empezamos en el Núcleo 1, dejando el Núcleo 0 para el SO y tareas críticas
+                        MinecraftProcess._last_assigned_core = 0 
+                    
                     cores_to_use = max(1, int(self.cpu_cores))
-                    p.cpu_affinity(list(range(cores_to_use)))
-                    print(f"INFO: Set CPU affinity for {self.name} to {cores_to_use} cores")
+                    assigned_cores = []
+                    
+                    for _ in range(cores_to_use):
+                        # Incrementar y rotar (saltando el 0 si hay suficientes núcleos)
+                        MinecraftProcess._last_assigned_core += 1
+                        if MinecraftProcess._last_assigned_core >= total_cpus:
+                            # Volver al 1 (siempre intentamos dejar el 0 libre)
+                            MinecraftProcess._last_assigned_core = 1 if total_cpus > 2 else 0
+                        
+                        assigned_cores.append(MinecraftProcess._last_assigned_core)
+                    
+                    p.cpu_affinity(assigned_cores)
+                    print(f"INFO: CPU Isolation for {self.name}: Bounded to Cores {assigned_cores} (Total CPUs: {total_cpus})")
                 else:
-                    print(f"INFO: Using default OS scheduling for {self.name} (Cores: {total_cpus})")
+                    print(f"INFO: Only 1 CPU available. No isolation possible for {self.name}")
+                    
             except Exception as e:
-                print(f"WARN: Failed to set CPU affinity: {e}")
+                print(f"WARN: Failed to set CPU affinity for {self.name}: {e}")
             
             # --- Persist PID ---
             pid_file = os.path.join(self.working_dir, "server.pid")
@@ -689,8 +711,20 @@ class MinecraftProcess:
             await self.write(f"tp @a {target_username}")
             print(f"INFO: Teleported everyone to {target_username} on {self.name}")
         else:
+            # OPTIMIZACIÓN: Escribir todos los comandos y hacer un solo drain para evitar lag por I/O
+            if self.process and self.process.stdin:
+                try:
+                    for player in players:
+                        if player.lower() != target_username.lower():
+                            self.process.stdin.write(f"tp {player} {target_username}\n".encode())
+                    await self.process.stdin.drain()
+                    print(f"INFO: Teleported {len(players)} players to {target_username} (batch optimized) on {self.name}")
+                    return True
+                except Exception as e:
+                    print(f"WARN: Optimized batch TP failed: {e}")
+            
+            # Fallback uno a uno
             for player in players:
-                # Evitar TP a sí mismo (para no saturar la consola)
                 if player.lower() != target_username.lower():
                     await self.write(f"tp {player} {target_username}")
             print(f"INFO: Teleported {len(players)} players to {target_username} on {self.name}")
