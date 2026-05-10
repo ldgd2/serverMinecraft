@@ -22,7 +22,11 @@ async def publish_trade(data: dict, db: Session = Depends(get_db)):
     asking = data.get("asking")
     
     # 1. Quitar items al VENDEDOR
-    await server_controller.send_command("MinecraftTest", f'clear {seller_name} {selling["id"]} {selling["count"]}')
+    if isinstance(selling, list):
+        for item in selling:
+            await server_controller.send_command("MinecraftTest", f'clear {seller_name} {item["id"]} {item["count"]}')
+    else:
+        await server_controller.send_command("MinecraftTest", f'clear {seller_name} {selling["id"]} {selling["count"]}')
 
     new_trade = Trade(
         seller_uuid=data.get("seller_uuid", "unknown"),

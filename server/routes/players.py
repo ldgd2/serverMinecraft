@@ -250,6 +250,31 @@ async def get_player_skin_data(identifier: str, db: Session = Depends(get_db)):
         except: pass
 
     raise HTTPException(status_code=404, detail="Skin not found or not generated yet")
+    
+@router.get("/achievements")
+def get_player_achievements(uuid: str, db: Session = Depends(get_db)):
+    """
+    Endpoint para que el Mod (Fabric) obtenga los logros del jugador.
+    """
+    from database.models.players.player_achievement import PlayerAchievement
+    from database.models.players.player import Player
+    
+    # 1. Buscar jugador por UUID
+    player = db.query(Player).filter(Player.uuid == uuid).first()
+    if not player:
+        return APIResponse(status="success", data=[]) # No hay jugador, no hay logros
+        
+    # 2. Buscar logros por ID interno
+    achs = db.query(PlayerAchievement).filter(PlayerAchievement.player_id == player.id).all()
+    result = []
+    for a in achs:
+        result.append({
+            "id": a.achievement_id,
+            "title": a.name,
+            "description": a.description,
+            "unlocked_at": a.unlocked_at.isoformat() if a.unlocked_at else None
+        })
+    return APIResponse(status="success", data=result)
 
 
 @router.get("/skin/{identifier}/hash", summary="Hash ligero de la skin (para caché del cliente)")

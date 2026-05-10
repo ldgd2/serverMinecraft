@@ -32,7 +32,8 @@ public class AchievementListScreen extends Screen {
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        this.renderBackground(context, mouseX, mouseY, delta);
+        // Fondo semi-transparente oscuro (Sólido, sin blur)
+        context.fill(0, 0, this.width, this.height, 0x99000000);
         
         int centerX = this.width / 2;
         int centerY = this.height / 2;

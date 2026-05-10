@@ -13,11 +13,12 @@ import java.util.concurrent.CompletableFuture;
  */
 public class BackendClient {
     private static final Gson gson = new Gson();
-    private static String activeUrl = "http://localhost:8000/";
+    private static String activeUrl = "http://localhost:8000/api/v1/";
 
     public static void updateUrl(String url) {
         if (url == null) return;
-        activeUrl = url.endsWith("/") ? url : url + "/";
+        String base = url.endsWith("/") ? url : url + "/";
+        activeUrl = base + "api/v1/";
     }
 
     public static CompletableFuture<JsonArray> getJsonArray(String endpoint) {
@@ -27,7 +28,18 @@ public class BackendClient {
             .GET()
             .build();
         return NetworkManager.getHttpClient().sendAsync(request, HttpResponse.BodyHandlers.ofString())
-            .thenApply(res -> gson.fromJson(res.body(), JsonArray.class));
+            .thenApply(res -> {
+                try {
+                    JsonObject root = gson.fromJson(res.body(), JsonObject.class);
+                    if (root.has("data") && root.get("data").isJsonArray()) {
+                        return root.getAsJsonArray("data");
+                    }
+                    return new JsonArray();
+                } catch (Exception e) {
+                    System.err.println("[MineBridge] Error parseando JSON: " + e.getMessage());
+                    return new JsonArray();
+                }
+            });
     }
 
     public static CompletableFuture<Boolean> postJson(String endpoint, JsonObject data) {

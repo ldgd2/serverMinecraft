@@ -8,10 +8,10 @@ import java.util.concurrent.CompletableFuture;
  * Cliente de Red específico para el Módulo Marketplace.
  */
 public class TradeClient {
-    private static final String API_URL = "api/trades/";
+    private static final String API_URL = "trades/";
 
     public static CompletableFuture<JsonArray> getOpenTrades() {
-        return com.lider.minebridge.networking.BackendClient.getJsonArray(API_URL);
+        return com.lider.minebridge.networking.BackendClient.getJsonArray(API_URL + "open");
     }
 
     public static CompletableFuture<Boolean> publishTrade(String sellerUuid, String sellerName, String title, JsonObject selling, com.google.gson.JsonElement asking) {
@@ -21,7 +21,7 @@ public class TradeClient {
         json.addProperty("title", title);
         json.add("selling", selling);
         json.add("asking", asking);
-        return com.lider.minebridge.networking.BackendClient.postJson(API_URL, json);
+        return com.lider.minebridge.networking.BackendClient.postJson(API_URL + "publish", json);
     }
 
     public static CompletableFuture<Boolean> cancelTrade(int tradeId) {

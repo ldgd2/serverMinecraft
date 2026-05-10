@@ -30,7 +30,17 @@ public class BackendClient {
             .GET()
             .build();
         return NetworkManager.getHttpClient().sendAsync(request, java.net.http.HttpResponse.BodyHandlers.ofString())
-            .thenApply(res -> new com.google.gson.Gson().fromJson(res.body(), com.google.gson.JsonArray.class));
+            .thenApply(res -> {
+                try {
+                    com.google.gson.JsonObject root = new com.google.gson.Gson().fromJson(res.body(), com.google.gson.JsonObject.class);
+                    if (root.has("data") && root.get("data").isJsonArray()) {
+                        return root.getAsJsonArray("data");
+                    }
+                    return new com.google.gson.JsonArray();
+                } catch (Exception e) {
+                    return new com.google.gson.JsonArray();
+                }
+            });
     }
 
     public static CompletableFuture<Boolean> postJson(String url, JsonObject data) {

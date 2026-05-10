@@ -66,7 +66,7 @@ public class MarketplaceManager {
             player.getUuidAsString(),
             player.getName().getString(),
             title,
-            sellingArray.size() == 1 ? sellingArray.get(0).getAsJsonObject() : null, 
+            sellingArray, // Enviamos el array completo
             askingArray
         ).thenAccept(success -> {
             MineBridge.getServer().execute(() -> {
