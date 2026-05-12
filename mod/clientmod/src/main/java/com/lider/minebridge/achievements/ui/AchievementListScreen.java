@@ -49,10 +49,13 @@ public class AchievementListScreen extends Screen {
     }
 
     @Override
+    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta) {
+        com.lider.minebridge.ui.framework.UIBackgrounds.renderStandard(context, this.width, this.height);
+    }
+
+    @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        // Fondo semi-transparente oscuro (Sólido, sin blur)
-        context.fill(0, 0, this.width, this.height, 0x99000000);
-        
+        super.render(context, mouseX, mouseY, delta);
         int centerX = this.width / 2;
         int centerY = this.height / 2;
         int x1 = centerX - (PANEL_WIDTH / 2);

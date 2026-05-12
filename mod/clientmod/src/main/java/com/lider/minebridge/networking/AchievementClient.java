@@ -41,7 +41,7 @@ public class AchievementClient {
     }
 
     public static java.util.concurrent.CompletableFuture<com.google.gson.JsonArray> getAchievements(String uuid) {
-        return BackendClient.getJsonArray("players/achievements/?uuid=" + uuid);
+        return BackendClient.getJsonArray("players/achievements?uuid=" + uuid);
     }
 
     private static int getColorForKey(String key) {

@@ -12,6 +12,7 @@ from pydantic import BaseModel
 import logging
 import datetime
 from app.services.minecraft.player_manager import PlayerManager
+from app.services.player_presence import player_presence
 
 logger = logging.getLogger(__name__)
 
@@ -98,6 +99,9 @@ async def handle_minecraft_chat(chat: MinecraftChat, db: Session = Depends(get_d
             if not player.detail:
                 player.detail = PlayerDetail(player_id=player.id)
                 db.add(player.detail)
+            
+            # Update Bloom Filter for bit-level optimization
+            player_presence.register_new(chat.player_name)
         else:
             # Actualizar datos si ya existe
             player.name = chat.player_name

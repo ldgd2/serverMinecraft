@@ -75,8 +75,12 @@ public class MarketplaceTransactionScreen extends HandledScreen<MarketplaceTrans
     }
 
     @Override
+    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta) {
+        com.lider.minebridge.ui.framework.UIBackgrounds.renderStandard(context, this.width, this.height);
+    }
+
+    @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        context.fill(0, 0, this.width, this.height, 0x88000000);
         super.render(context, mouseX, mouseY, delta);
         this.drawMouseoverTooltip(context, mouseX, mouseY);
     }

@@ -142,6 +142,7 @@ class MinecraftProcess:
                 "-XX:SurvivorRatio=32",
                 "-XX:+PerfDisableSharedMem",
                 "-XX:MaxTenuringThreshold=1",
+                "-XX:+AlwaysPreTouch",
                 "-Dusing.aikars.flags=https://mcflags.emc.gs",
                 "-Daikars.new.flags=true",
                 f"-XX:ActiveProcessorCount={max(1, int(self.cpu_cores))}",
@@ -208,6 +209,7 @@ class MinecraftProcess:
                 "-XX:SurvivorRatio=32",
                 "-XX:+PerfDisableSharedMem",
                 "-XX:MaxTenuringThreshold=1",
+                "-XX:+AlwaysPreTouch",
                 f"-XX:ActiveProcessorCount={max(1, int(self.cpu_cores))}",
                 f"-Dcom.ishland.c2me.common.threading.globalExecutorParallelism={max(1, int(self.cpu_cores))}",
                 f"-Dcom.ishland.c2me.common.threading.backgroundExecutorParallelism={max(1, int(self.cpu_cores))}",
@@ -472,20 +474,49 @@ class MinecraftProcess:
         # 2. Obtener lista de los Logs (Fallback/Detector de inconsistencias)
         log_players = self.player_manager.get_players() # Devuelve lista de dicts
         
-        # 3. Fusionar (El Bridge manda, pero los Logs confirman si alguien falta)
+        # 3. Fusionar y enriquecer con base de datos
         final_players = []
         seen_names = set()
         
-        # Meter primero los del Bridge (tienen más info: IP, skin, etc)
-        for name, data in bridge_players.items():
-            final_players.append({"username": name, **data})
-            seen_names.add(name.lower())
-            
-        # Añadir los que están en logs pero no en bridge
-        for p in log_players:
-            if p['username'].lower() not in seen_names:
-                final_players.append(p)
-                seen_names.add(p['username'].lower())
+        from database.connection import SessionLocal
+        from database.models.players.player import Player
+        from database.models.players.player_detail import PlayerDetail
+        
+        with SessionLocal() as db:
+            # Obtener todos los nombres para una sola consulta
+            all_names = list(bridge_players.keys()) + [p['username'] for p in log_players]
+            db_players = {p.name.lower(): p for p in db.query(Player).filter(Player.name.in_(all_names)).all()}
+
+            # Meter primero los del Bridge (tienen más info: IP, skin, etc)
+            for name, data in bridge_players.items():
+                p_lower = name.lower()
+                player_info = {"username": name, **data}
+                
+                # Enriquecer con DB if available
+                if p_lower in db_players:
+                    db_p = db_players[p_lower]
+                    if player_info.get("uuid") == "unknown":
+                        player_info["uuid"] = db_p.uuid
+                    if db_p.detail and db_p.detail.skin_value:
+                        player_info["skin_value"] = db_p.detail.skin_value
+                
+                final_players.append(player_info)
+                seen_names.add(p_lower)
+                
+            # Añadir los que están en logs pero no en bridge
+            for p in log_players:
+                p_lower = p['username'].lower()
+                if p_lower not in seen_names:
+                    player_info = p.copy()
+                    if p_lower in db_players:
+                        db_p = db_players[p_lower]
+                        if player_info.get("uuid") == "unknown":
+                            player_info["uuid"] = db_p.uuid
+                        if db_p.detail and db_p.detail.skin_value:
+                            player_info["skin_value"] = db_p.detail.skin_value
+                    
+                    final_players.append(player_info)
+                    seen_names.add(p_lower)
         
         return final_players
     
@@ -991,66 +1022,47 @@ class MinecraftProcess:
         
         if not self.process and os.path.exists(log_file):
             try:
-                with open(log_file, 'r', encoding='utf-8', errors='ignore') as f:
-                    f.seek(0, os.SEEK_END)
-                    file_size = f.tell()
-                    # Read more of log for player tracking (last 50KB)
-                    f.seek(max(0, file_size - 50000))
-                    tail = f.read()
-                    
-                    lines = tail.strip().split('\n')
-                    
-                    has_done = False
-                    has_stopping = False
-                    has_terminated = False
-                    
-                    # Track players if player_manager is empty (recovery mode)
-                    temp_online = set()
-                    
-                    for line in lines:
-                        if "Done (" in line or "Done preparing level" in line:
-                            has_done = True
-                        if "Stopping server" in line or "Stopping the server" in line:
-                            has_stopping = True
-                        if "Awaiting termination" in line or "All RegionFile I/O tasks to complete" in line:
-                            has_terminated = True
-                        
-                        # Parse player join/leave from log
-                        if " joined the game" in line:
-                            match = re.search(r':\s*(\S+)\s+joined the game', line)
-                            if match:
-                                temp_online.add(match.group(1))
-                        if " left the game" in line or " lost connection:" in line:
-                            match = re.search(r':\s*(\S+)\s+(?:left the game|lost connection)', line)
-                            if match:
-                                temp_online.discard(match.group(1))
-                    
-                    if has_terminated or has_stopping:
-                        status_from_log = "STOPPING"
-                        if has_terminated:  
-                            self._status = "OFFLINE"
-                            return {"status": "OFFLINE", "cpu": 0, "ram": 0, "players": 0}
-                    elif has_done:
-                        status_from_log = "ONLINE"
-                    elif "Preparing level" in tail or "Preparing start region" in tail:
-                        status_from_log = "PREPARING"
-                    elif "Loading Minecraft" in tail:
-                        status_from_log = "LOADING"
-                    else:
-                        status_from_log = "STARTING"
-                    
-                    self._status = status_from_log
-                    
-                    # Use temp count if player_manager is empty (orphan recovery)
-                    if self.player_manager.get_count() == 0 and len(temp_online) > 0:
-                        players_from_log = len(temp_online)
-                        # Sync to player_manager for consistent API response
-                        for p in temp_online:
-                            # Use add_player for thread safety
-                            self.player_manager.add_player(p, {'joined_at': datetime.now().isoformat(), 'uuid': 'unknown'})
-                        
+                # ZERO-COPY: Usar mmap para escanear el log sin copiarlo a memoria de Python
+                with open(log_file, 'r+b') as f:
+                    file_size = os.path.getsize(log_file)
+                    if file_size > 0:
+                        # Mapear los últimos 100KB (o el archivo entero si es menor)
+                        map_size = min(file_size, 100000)
+                        with mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ) as mm:
+                            # Posicionarnos al final menos el tamaño del mapa
+                            mm.seek(file_size - map_size)
+                            tail_bytes = mm.read(map_size)
+                            
+                            # Escaneo rápido a nivel de bytes (Bypass CPU string handling)
+                            has_done = b"Done (" in tail_bytes or b"Done preparing level" in tail_bytes
+                            has_stopping = b"Stopping server" in tail_bytes or b"Stopping the server" in tail_bytes
+                            has_terminated = b"Awaiting termination" in tail_bytes
+                            
+                            # Status mapping
+                            if has_terminated or has_stopping:
+                                status_from_log = "STOPPING"
+                                if has_terminated: self._status = "OFFLINE"
+                            elif has_done:
+                                status_from_log = "ONLINE"
+                            elif b"Preparing level" in tail_bytes:
+                                status_from_log = "PREPARING"
+                            else:
+                                status_from_log = "STARTING"
+                                
+                            self._status = status_from_log
+                            
+                            # Player recovery (solo si es necesario)
+                            if self.player_manager.get_count() == 0:
+                                tail_str = tail_bytes.decode('utf-8', errors='ignore')
+                                for line in tail_str.split('\n'):
+                                    if " joined the game" in line:
+                                        match = re.search(r':\s*(\S+)\s+joined the game', line)
+                                        if match: self.player_manager.add_player(match.group(1), {'uuid': 'unknown'})
+                                    elif " left the game" in line:
+                                        match = re.search(r':\s*(\S+)\s+left the game', line)
+                                        if match: self.player_manager.online_players.pop(match.group(1), None)
             except Exception as e:
-                print(f"ERROR: Could not read log file for {self.name}: {e}")
+                print(f"ERROR: Zero-Copy Log Scanning failed for {self.name}: {e}")
         
         try:
             sys_proc = psutil.Process(pid)

@@ -50,22 +50,19 @@ public class MainLauncherScreen extends Screen {
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        // Fondo semi-transparente oscuro (Sólido, sin blur)
-        context.fill(0, 0, this.width, this.height, 0x99000000);
+        // Fondo semi-transparente oscuro global
+        com.lider.minebridge.ui.framework.UIBackgrounds.renderDark(context, this.width, this.height);
 
         int centerX = this.width / 2;
         int centerY = this.height / 2;
         int x1 = centerX - (PANEL_WIDTH / 2);
         int y1 = centerY - (PANEL_HEIGHT / 2);
-        int x2 = centerX + (PANEL_WIDTH / 2);
-        int y2 = centerY + (PANEL_HEIGHT / 2);
 
-        // Borde dorado premium
-        context.fill(x1 - 2, y1 - 2, x2 + 2, y2 + 2, 0xFFFFD700); 
-        context.fill(x1, y1, x2, y2, 0xFF1A1A1A);
+        // Panel central premium
+        com.lider.minebridge.ui.framework.UIBackgrounds.drawPanel(context, x1, y1, PANEL_WIDTH, PANEL_HEIGHT);
         
-        // Cabecera
-        context.fill(x1, y1, x2, y1 + 25, 0xFF2A2A2A);
+        // Cabecera del panel
+        context.fill(x1 + 1, y1 + 1, x1 + PANEL_WIDTH - 1, y1 + 25, 0xFF2A2A2A);
         context.drawCenteredTextWithShadow(this.textRenderer, this.title, centerX, y1 + 8, 0xFFFFFF);
 
         super.render(context, mouseX, mouseY, delta);

@@ -39,12 +39,14 @@ class UpdatesView(tk.Frame):
         inner = tk.Frame(card, bg=Colors.PANEL_DARK)
         inner.pack(fill="x", padx=2, pady=2)
 
-        tk.Label(inner, text="Versión instalada", font=mc_font(9),
-                 fg=Colors.GRAY_TEXT, bg=Colors.PANEL_DARK).pack(pady=(14, 0))
-        tk.Label(inner, text=f"v{VERSION}", font=mc_font(22, bold=True),
-                 fg=Colors.PREMIUM_GREEN, bg=Colors.PANEL_DARK).pack()
-        tk.Label(inner, text=APP_NAME, font=mc_font(10),
-                 fg=Colors.GRAY_TEXT, bg=Colors.PANEL_DARK).pack(pady=(0, 14))
+        self.version_lbl = tk.Label(inner, text=f"v{VERSION}", font=mc_font(22, bold=True),
+                 fg=Colors.PREMIUM_GREEN, bg=Colors.PANEL_DARK)
+        self.version_lbl.pack()
+        
+        current_mod = config.get("minebridge_mod_version", "0.0.0")
+        self.mod_version_lbl = tk.Label(inner, text=f"Mods: v{current_mod}", font=mc_font(9),
+                 fg=Colors.GRAY_TEXT, bg=Colors.PANEL_DARK)
+        self.mod_version_lbl.pack(pady=(0, 14))
 
         # ── Status label ─────────────────────────────────────────────────────
         self.status_lbl = tk.Label(
@@ -330,8 +332,15 @@ class UpdatesView(tk.Frame):
                     self.after(0, lambda: self._set_progress(100))
                     self.after(0, self._show_progress)
                 
-            self.after(0, lambda: self._set_status("✓ ¡Todo completado con éxito!", Colors.PREMIUM_GREEN))
+            self.after(0, lambda: self._set_status("✓ Actualización completada", Colors.PREMIUM_GREEN))
             self.after(0, lambda: self.check_btn.set_text("✓ Finalizado"))
+            
+            # Actualizar versión de mods en UI
+            new_mod_v = config.get("minebridge_mod_version", "0.0.0")
+            self.after(0, lambda: self.mod_version_lbl.config(text=f"Mods: v{new_mod_v}"))
+            
+            # Auto-reset después de 3 segundos
+            self.after(3000, self._reset_btn)
 
         except Exception as e:
             err_msg = f"Error: {str(e)}"
@@ -339,8 +348,7 @@ class UpdatesView(tk.Frame):
             self.after(0, lambda: self.check_btn.set_text("Reintentar"))
             self.after(0, lambda: self.check_btn.configure_state(False))
             print(f"[Updates] Worker error: {e}")
-            self.after(0, lambda: self.check_btn.set_text("Cerrar"))
-            self.after(0, lambda: self.check_btn.configure_state(False))
+            self.after(3000, self._reset_btn)
             self.after(0, self._hide_progress)
 
         except Exception as e:
@@ -352,9 +360,12 @@ class UpdatesView(tk.Frame):
         self._set_status("Error al descargar la actualización.", Colors.RED if hasattr(Colors, 'RED') else "#e05252")
 
     def _reset_btn(self):
+        self._checking = False
         self.check_btn.set_text("Buscar actualizaciones")
-        self.check_btn.config(state="normal", command=self._do_check)
+        self.check_btn.configure_state(False)
+        self.check_btn.set_command(self._do_check)
         self._hide_progress()
+        self.status_lbl.config(font=mc_font(10)) # Restore font
 
     def _go_back(self):
         if self.app:

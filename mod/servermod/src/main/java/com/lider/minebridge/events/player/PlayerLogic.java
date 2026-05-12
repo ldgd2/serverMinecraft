@@ -17,8 +17,26 @@ public class PlayerLogic {
 
     private static final ConcurrentHashMap<String, Integer> chatMessagesSession = new ConcurrentHashMap<>();
     private static final ConcurrentHashMap<String, Integer> deathsTotalSession = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<String, Boolean> verifiedPlayers = new ConcurrentHashMap<>();
 
     public static void init() {
+        // Receptor de Handshake de Seguridad
+        net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.registerGlobalReceiver(com.lider.minebridge.networking.payload.ModHandshakePayload.ID, (payload, context) -> {
+            String name = context.player().getName().getString();
+            String token = payload.token();
+            
+            com.lider.minebridge.networking.SecurityClient.verifyPlayerSession(name, token).thenAccept(success -> {
+                if (success) {
+                    verifiedPlayers.put(name, true);
+                    MineBridge.LOGGER.info("[Security] Player " + name + " verified successfully via Mod.");
+                } else {
+                    MineBridge.LOGGER.warn("[Security] Player " + name + " failed mod verification.");
+                    context.player().getServer().execute(() -> {
+                        context.player().networkHandler.disconnect(Text.literal("§cError de Autenticación:\n§7No se pudo validar tu sesión con el Mod."));
+                    });
+                }
+            });
+        });
         ServerMessageEvents.CHAT_MESSAGE.register((message, sender, params) -> {
             String uuid = sender.getUuidAsString();
             String content = message.getContent().getString();
@@ -40,9 +58,27 @@ public class PlayerLogic {
             
             AchievementClient.sendJoinEvent(uuid, name, ip);
             AchievementClient.sendChatMessage(uuid, name, "se ha unido.", "join");
+
+            // --- SEGURIDAD: Iniciar Proceso de Verificación ---
+            // 1. Enviar petición de Handshake
+            net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(player, new com.lider.minebridge.networking.payload.ModHandshakePayload("request"));
+
+            // 2. Programar Kick si no se verifica en 10 segundos
+            com.lider.minebridge.networking.NetworkManager.getScheduler().schedule(() -> {
+                if (!verifiedPlayers.getOrDefault(name, false)) {
+                    server.execute(() -> {
+                        if (player.networkHandler.isConnected()) {
+                            MineBridge.LOGGER.warn("[Security] Kicking " + name + " - Mod Handshake Timeout");
+                            player.networkHandler.disconnect(Text.literal("§cAcceso Denegado:\n§7Debes usar el Launcher oficial con el Mod instalado."));
+                        }
+                    });
+                }
+            }, 10, java.util.concurrent.TimeUnit.SECONDS);
         });
 
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
+            String name = handler.getPlayer().getName().getString();
+            verifiedPlayers.remove(name);
             onPlayerLeaveCleanup(handler.getPlayer().getUuidAsString());
         });
     }

@@ -11,7 +11,7 @@ public record TransactionScreenDataPayload(int tradeId, String requirementsJson)
     
     public static final PacketCodec<RegistryByteBuf, TransactionScreenDataPayload> CODEC = PacketCodec.tuple(
             PacketCodecs.VAR_INT, TransactionScreenDataPayload::tradeId,
-            PacketCodecs.STRING, TransactionScreenDataPayload::requirementsJson,
+            PacketCodecs.string(1024 * 1024), TransactionScreenDataPayload::requirementsJson,
             TransactionScreenDataPayload::new
     );
 

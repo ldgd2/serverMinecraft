@@ -29,15 +29,24 @@ public class MarketplaceDetailScreen extends Screen {
         super(Text.of("§6§lDetalle del Trato"));
         this.trade = trade;
         this.tradeId = trade.get("id").getAsInt();
-        this.sellingStack = parseJsonItem(trade.getAsJsonObject("selling"));
+        
+        // Manejar 'selling' (puede ser array u objeto)
+        com.google.gson.JsonElement sellingElem = trade.get("selling");
+        if (sellingElem != null && sellingElem.isJsonArray()) {
+            com.google.gson.JsonArray arr = sellingElem.getAsJsonArray();
+            this.sellingStack = arr.size() > 0 ? parseJsonItem(arr.get(0).getAsJsonObject()) : ItemStack.EMPTY;
+        } else {
+            this.sellingStack = parseJsonItem(sellingElem != null ? sellingElem.getAsJsonObject() : null);
+        }
 
+        // Manejar 'asking' (puede ser array u objeto)
         com.google.gson.JsonElement askingElement = trade.get("asking");
-        if (askingElement.isJsonArray()) {
+        if (askingElement != null && askingElement.isJsonArray()) {
             com.google.gson.JsonArray array = askingElement.getAsJsonArray();
             this.askingStack1 = array.size() > 0 ? parseJsonItem(array.get(0).getAsJsonObject()) : ItemStack.EMPTY;
             this.askingStack2 = array.size() > 1 ? parseJsonItem(array.get(1).getAsJsonObject()) : ItemStack.EMPTY;
         } else {
-            this.askingStack1 = parseJsonItem(askingElement.getAsJsonObject());
+            this.askingStack1 = parseJsonItem(askingElement != null ? askingElement.getAsJsonObject() : null);
             this.askingStack2 = ItemStack.EMPTY;
         }
     }
@@ -69,9 +78,13 @@ public class MarketplaceDetailScreen extends Screen {
     }
 
     @Override
-    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        context.fill(0, 0, this.width, this.height, 0xAA000000);
+    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta) {
+        com.lider.minebridge.ui.framework.UIBackgrounds.renderStandard(context, this.width, this.height);
+    }
 
+    @Override
+    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
+        super.render(context, mouseX, mouseY, delta);
         int centerX = this.width / 2;
         int centerY = this.height / 2;
         int w = 240;

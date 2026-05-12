@@ -17,6 +17,7 @@ from database.connection import SessionLocal, get_db
 from database.models.base import Base
 from database.models.version import Version
 from app.services.minecraft import server_service
+from app.services.player_presence import player_presence
 from database.schemas import VersionResponse
 from typing import List
 from routes.auth import get_current_user
@@ -177,6 +178,12 @@ async def startup_event():
     try:
         print("Loading servers from database...")
         server_service.load_servers_from_db(db)
+        
+        # Initialize Bloom Filter with all player accounts
+        from database.models.players.player_account import PlayerAccount
+        all_players = db.query(PlayerAccount.username).all()
+        player_presence.initialize([p[0] for p in all_players])
+        
     except Exception as e:
         print(f"Error loading servers: {e}")
         import traceback

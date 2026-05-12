@@ -20,10 +20,13 @@ public class ServerRestartScreen extends Screen {
     }
 
     @Override
+    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta) {
+        com.lider.minebridge.ui.framework.UIBackgrounds.renderWarning(context, this.width, this.height);
+    }
+
+    @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        // Fondo rojo traslúcido para urgencia
-        context.fill(0, 0, this.width, this.height, 0x44FF0000);
-        
+        super.render(context, mouseX, mouseY, delta);        
         int centerX = this.width / 2;
         int centerY = this.height / 2;
         int panelW = 200;
@@ -31,16 +34,13 @@ public class ServerRestartScreen extends Screen {
         // 1. Alerta Central
         AlertComponent.draw(context, this.textRenderer, 
             AlertComponent.AlertType.RESTART, 
-            "El servidor se reiniciará en " + secondsLeft + "s", 
+            "El servidor se reiniciará en " + secondsLeft + "s",
+            "Guarda tus pertenencias inmediatamente",
             centerX - (panelW / 2), centerY - 40, panelW);
         
         // 2. Barra de Progreso (Modular)
         float progress = Math.max(0, Math.min(1.0f, secondsLeft / 60.0f)); // Asumiendo aviso de 1min
         ProgressBarWidget.draw(context, centerX - 80, centerY + 20, 160, 10, progress, 0xFFFF5555);
-        
-        LabelWidget.drawCentered(context, this.textRenderer, 
-            Text.of("§7Guarda tus pertenencias inmediatamente"), 
-            centerX, centerY + 35, 0xFFFFFF);
 
         super.render(context, mouseX, mouseY, delta);
     }

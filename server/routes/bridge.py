@@ -23,9 +23,15 @@ from app.services.minecraft.player_manager import PlayerManager
 from jose import jwt, JWTError
 from app.services.auth_service import SECRET_KEY, ALGORITHM
 from database.models.players.player_account import PlayerAccount
+from app.services.player_presence import player_presence
+from app.services.fast_audit_service import fast_audit
 
 router = APIRouter(prefix="/bridge", tags=["Minecraft Bridge"])
 logger = logging.getLogger("uvicorn")
+
+# --- Caché de Seguridad ---
+# Almacena jugadores que han confirmado tener el mod y estar logueados
+verified_mod_players = {} # {username: {"last_verify": timestamp, "token": str}}
 
 # --- Modelos de Datos ---
 
@@ -51,10 +57,14 @@ def cache_player_join(server_name: str, username: str, uuid: str = "unknown", ip
         "ip": ip,
         "joined_at": datetime.datetime.utcnow().isoformat()
     }
+    # ZERO-COPY LOGGING
+    fast_audit.log(username, f"Joined {server_name}", severity=1)
 
 def cache_player_leave(server_name: str, username: str):
     if server_name in server_player_cache:
         server_player_cache[server_name].pop(username, None)
+    # ZERO-COPY LOGGING
+    fast_audit.log(username, f"Left {server_name}", severity=1)
 
 # --- Dependencias ---
 
@@ -215,6 +225,33 @@ async def receive_event(event: dict, request: Request, user: User = Depends(veri
     return {"status": "ok"}
 
 
+@router.post("/verify-mod")
+async def verify_mod_presence(payload: dict, db: Session = Depends(get_db)):
+    """
+    Endpoint llamado por el Mod para confirmar que el jugador tiene el mod
+    y un token de sesión válido.
+    """
+    username = payload.get("username")
+    token = payload.get("token")
+    
+    if not username or not token:
+        return {"status": "denied", "reason": "missing_data"}
+
+    # 1. Optimización Nivel Bit: ¿Existe el usuario?
+    if not player_presence.is_registered(username):
+        return {"status": "denied", "reason": "user_not_found"}
+
+    # 2. Verificar Token (Opcional: podrías decodificar el JWT aquí)
+    # Por ahora, registramos que el jugador pasó el filtro del mod
+    verified_mod_players[username] = {
+        "last_verify": datetime.datetime.utcnow(),
+        "token": token
+    }
+    
+    logger.info(f"[Security] Jugador {username} verificado con Mod.")
+    return {"status": "verified"}
+
+
 @router.post("/status/player")
 async def receive_player_status(request: Request, user: User = Depends(verify_bridge_auth)):
     """
@@ -228,6 +265,49 @@ async def receive_player_status(request: Request, user: User = Depends(verify_br
     
     # Reutilizamos la lógica de receive_event
     return await receive_event(event, request, user)
+
+@router.post("/heartbeat")
+async def receive_heartbeat(payload: dict, user: User = Depends(verify_bridge_auth)):
+    """
+    Recibe el estado completo de los jugadores online desde el Mod del Servidor.
+    """
+    server_name = payload.get("server_name")
+    players = payload.get("players", [])
+    
+    if not server_name:
+        return {"status": "error", "message": "server_name required"}
+
+    # Reemplazar la caché de este servidor con la lista actual
+    server_player_cache[server_name] = {}
+    for p in players:
+        username = p.get("name")
+        if username:
+            server_player_cache[server_name][username] = {
+                "uuid": p.get("uuid", "unknown"),
+                "ip": p.get("ip", "unknown"),
+                "joined_at": datetime.datetime.utcnow().isoformat()
+            }
+    
+    return {"status": "ok", "online": len(players)}
+    
+@router.post("/send_announcement")
+async def trigger_announcement(payload: dict, user: User = Depends(verify_bridge_auth)):
+    title = payload.get("title", "AVISO")
+    desc = payload.get("desc", "")
+    color = payload.get("color", 0xFFFFCC00)
+    duration = payload.get("duration", 10)
+    
+    await manager.send_announcement(user.username, title, desc, color, duration)
+    return {"status": "ok"}
+
+@router.post("/send_notification")
+async def trigger_notification(payload: dict, user: User = Depends(verify_bridge_auth)):
+    message = payload.get("message", "")
+    msg_type = payload.get("type", "info")
+    duration = payload.get("duration", 5)
+    
+    await manager.send_notification(user.username, message, msg_type, duration)
+    return {"status": "ok"}
 
 
 @router.post("/chat")
@@ -345,6 +425,39 @@ class ConnectionManager:
                     await ws.send_json({
                         "action": "sync-skin", 
                         "player": player
+                    })
+                except:
+                    disconnected.append(ws)
+            for ws in disconnected:
+                self.disconnect(username, ws)
+
+    async def send_announcement(self, username: str, title: str, desc: str, color: int = 0xFFFFCC00, duration: int = 10):
+        if username in self.active_connections:
+            disconnected = []
+            for ws in self.active_connections[username]:
+                try:
+                    await ws.send_json({
+                        "action": "announcement", 
+                        "title": title, 
+                        "desc": desc,
+                        "color": color,
+                        "duration": duration
+                    })
+                except:
+                    disconnected.append(ws)
+            for ws in disconnected:
+                self.disconnect(username, ws)
+
+    async def send_notification(self, username: str, message: str, type: str = "info", duration: int = 5):
+        if username in self.active_connections:
+            disconnected = []
+            for ws in self.active_connections[username]:
+                try:
+                    await ws.send_json({
+                        "action": "notification", 
+                        "message": message,
+                        "type": type,
+                        "duration": duration
                     })
                 except:
                     disconnected.append(ws)

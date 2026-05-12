@@ -17,7 +17,6 @@ import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import org.lwjgl.glfw.GLFW;
-import com.lider.minebridge.marketplace.networking.MarketplaceRequestPayload;
 import net.minecraft.client.gui.screen.Screen;
 
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
@@ -79,6 +78,7 @@ public class ClientEvents {
         });
 
         com.lider.minebridge.client.gui.UpdateTimerHud.register();
+        com.lider.minebridge.client.gui.CustomOverlayHud.register();
 
         net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.registerGlobalReceiver(com.lider.minebridge.networking.payload.UpdateCountdownPayload.ID, (payload, context) -> {
             context.client().execute(() -> {
@@ -89,6 +89,18 @@ public class ClientEvents {
         net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.registerGlobalReceiver(com.lider.minebridge.networking.payload.SyncSkinPayload.ID, (payload, context) -> {
             context.client().execute(() -> {
                 com.lider.minebridge.client.ClientSkinManager.updateSkin(payload.playerId(), payload.value(), payload.signature());
+            });
+        });
+
+        net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.registerGlobalReceiver(com.lider.minebridge.networking.payload.ShowAlertPayload.ID, (payload, context) -> {
+            context.client().execute(() -> {
+                com.lider.minebridge.client.gui.CustomOverlayHud.showAnnouncement(payload.title(), payload.description(), payload.color(), payload.durationSeconds());
+            });
+        });
+
+        net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.registerGlobalReceiver(com.lider.minebridge.networking.payload.ShowNotificationPayload.ID, (payload, context) -> {
+            context.client().execute(() -> {
+                com.lider.minebridge.client.gui.CustomOverlayHud.showNotification(payload.message(), payload.type(), payload.durationSeconds());
             });
         });
 
@@ -104,6 +116,7 @@ public class ClientEvents {
             
             tickCounter++;
             com.lider.minebridge.client.gui.UpdateTimerHud.tick();
+            com.lider.minebridge.client.gui.CustomOverlayHud.tick();
             
             // ==========================================
             // CHEQUEOS LIGEROS (Cada Tick)

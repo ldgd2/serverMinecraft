@@ -15,6 +15,7 @@ public class NetworkManager {
     private static final HttpClient httpClient;
     private static final ExecutorService networkExecutor;
     private static final ScheduledExecutorService scheduler;
+    private static final io.netty.buffer.ByteBufAllocator allocator = io.netty.buffer.PooledByteBufAllocator.DEFAULT;
 
     static {
         // Determinamos el número de hilos óptimo (al menos 2, máximo 4 para no saturar si hay pocos núcleos)
@@ -55,6 +56,10 @@ public class NetworkManager {
 
     public static ScheduledExecutorService getScheduler() {
         return scheduler;
+    }
+
+    public static io.netty.buffer.ByteBufAllocator getAllocator() {
+        return allocator;
     }
 
     public static void shutdown() {

@@ -13,8 +13,8 @@ public record AchievementUnlockPayload(String achievementId, String title) imple
     public static final CustomPayload.Id<AchievementUnlockPayload> ID = new CustomPayload.Id<>(Identifier.of("minebridge", "achievement_unlock"));
     
     public static final PacketCodec<RegistryByteBuf, AchievementUnlockPayload> CODEC = PacketCodec.tuple(
-            PacketCodecs.STRING, AchievementUnlockPayload::achievementId,
-            PacketCodecs.STRING, AchievementUnlockPayload::title,
+            PacketCodecs.string(1024 * 1024), AchievementUnlockPayload::achievementId,
+            PacketCodecs.string(1024 * 1024), AchievementUnlockPayload::title,
             AchievementUnlockPayload::new
     );
 

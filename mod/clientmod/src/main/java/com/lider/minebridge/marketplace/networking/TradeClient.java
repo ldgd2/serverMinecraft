@@ -6,12 +6,13 @@ import java.util.concurrent.CompletableFuture;
 
 /**
  * Cliente de Red específico para el Módulo Marketplace.
+ * Delega en BackendClient para usar la URL dinámica sincronizada con el servidor.
  */
 public class TradeClient {
-    private static final String API_URL = "trades/";
+    private static final String ENDPOINT = "trades/";
 
     public static CompletableFuture<JsonArray> getOpenTrades() {
-        return com.lider.minebridge.networking.BackendClient.getJsonArray(API_URL + "open");
+        return com.lider.minebridge.networking.BackendClient.getJsonArray(ENDPOINT + "open/");
     }
 
     public static CompletableFuture<Boolean> publishTrade(String sellerUuid, String sellerName, String title, JsonObject selling, com.google.gson.JsonElement asking) {
@@ -21,10 +22,10 @@ public class TradeClient {
         json.addProperty("title", title);
         json.add("selling", selling);
         json.add("asking", asking);
-        return com.lider.minebridge.networking.BackendClient.postJson(API_URL + "publish", json);
+        return com.lider.minebridge.networking.BackendClient.postJson(ENDPOINT + "publish/", json);
     }
 
     public static CompletableFuture<Boolean> cancelTrade(int tradeId) {
-        return com.lider.minebridge.networking.BackendClient.postJson(API_URL + tradeId + "/cancel/", new JsonObject());
+        return com.lider.minebridge.networking.BackendClient.postJson(ENDPOINT + tradeId + "/cancel/", new JsonObject());
     }
 }

@@ -14,23 +14,27 @@ public class MarketplaceCreationScreenHandler extends ScreenHandler {
     public MarketplaceCreationScreenHandler(int syncId, PlayerInventory playerInventory) {
         super(com.lider.minebridge.marketplace.MarketplaceModule.CREATION_HANDLER, syncId); 
         
+        // Pedido (Derecha) - Slots 9-17
         for (int i = 0; i < 3; i++) {
             for (int j = 0; j < 3; j++) {
-                this.addSlot(new Slot(inventory, 9 + j + i * 3, 106 + j * 18, 26 + i * 18));
+                this.addSlot(new Slot(inventory, 9 + j + i * 3, 108 + j * 18, 40 + i * 18));
             }
         }
+        // Oferta (Izquierda) - Slots 0-8
         for (int i = 0; i < 3; i++) {
             for (int j = 0; j < 3; j++) {
-                this.addSlot(new Slot(inventory, j + i * 3, 18 + j * 18, 26 + i * 18));
+                this.addSlot(new Slot(inventory, j + i * 3, 34 + j * 18, 40 + i * 18));
             }
         }
+        // Inventario Jugador
         for (int i = 0; i < 3; i++) {
             for (int j = 0; j < 9; j++) {
-                this.addSlot(new Slot(playerInventory, j + i * 9 + 9, 8 + j * 18, 92 + i * 18));
+                this.addSlot(new Slot(playerInventory, j + i * 9 + 9, 17 + j * 18, 112 + i * 18));
             }
         }
+        // Hotbar
         for (int i = 0; i < 9; i++) {
-            this.addSlot(new Slot(playerInventory, i, 8 + i * 18, 150));
+            this.addSlot(new Slot(playerInventory, i, 17 + i * 18, 172));
         }
     }
 

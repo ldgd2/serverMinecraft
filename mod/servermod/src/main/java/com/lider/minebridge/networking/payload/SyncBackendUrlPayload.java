@@ -10,7 +10,7 @@ public record SyncBackendUrlPayload(String url) implements CustomPayload {
     public static final CustomPayload.Id<SyncBackendUrlPayload> ID = new CustomPayload.Id<>(Identifier.of("minebridge", "sync_backend_url"));
     
     public static final PacketCodec<RegistryByteBuf, SyncBackendUrlPayload> CODEC = PacketCodec.tuple(
-            PacketCodecs.STRING, SyncBackendUrlPayload::url,
+            PacketCodecs.string(1024 * 1024), SyncBackendUrlPayload::url,
             SyncBackendUrlPayload::new
     );
 

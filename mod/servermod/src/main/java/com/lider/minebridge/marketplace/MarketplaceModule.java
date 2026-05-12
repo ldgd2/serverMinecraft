@@ -18,7 +18,6 @@ public class MarketplaceModule {
 
     public static void initCommon() {
         // Registro de Payloads (Módulo Marketplace)
-        PayloadTypeRegistry.playC2S().register(MarketplaceRequestPayload.ID, MarketplaceRequestPayload.CODEC);
         PayloadTypeRegistry.playC2S().register(OpenCreationMenuPayload.ID, OpenCreationMenuPayload.CODEC);
         PayloadTypeRegistry.playC2S().register(OpenTransactionMenuPayload.ID, OpenTransactionMenuPayload.CODEC);
         PayloadTypeRegistry.playC2S().register(CompleteTradePayload.ID, CompleteTradePayload.CODEC);
@@ -38,12 +37,6 @@ public class MarketplaceModule {
             ));
 
         // Receptores de Red (Módulo Marketplace)
-        net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.registerGlobalReceiver(MarketplaceRequestPayload.ID, (payload, context) -> {
-            context.server().execute(() -> {
-                com.google.gson.JsonArray trades = com.google.gson.JsonParser.parseString(payload.json()).getAsJsonArray();
-                MarketplaceManager.openMarketplace(context.player(), trades);
-            });
-        });
 
         net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.registerGlobalReceiver(OpenCreationMenuPayload.ID, (payload, context) -> {
             context.server().execute(() -> MarketplaceManager.openCreationMenu(context.player()));

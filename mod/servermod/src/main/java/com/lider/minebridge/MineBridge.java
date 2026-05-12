@@ -8,11 +8,12 @@ import com.lider.minebridge.marketplace.MarketplaceModule;
 import com.lider.minebridge.achievements.AchievementModule;
 import com.lider.minebridge.networking.payload.UpdateCountdownPayload;
 import com.lider.minebridge.networking.payload.SyncSkinPayload;
+import com.lider.minebridge.networking.payload.SyncBackendUrlPayload;
+import com.lider.minebridge.networking.NetworkManager;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.minecraft.server.MinecraftServer;
-import com.lider.minebridge.networking.payload.SyncBackendUrlPayload;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import org.slf4j.Logger;
@@ -20,13 +21,31 @@ import org.slf4j.LoggerFactory;
 
 public class MineBridge implements ModInitializer {
     public static final String MOD_ID = "minebridge";
-    public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
+    public static final Logger LOGGER = LoggerFactory.getLogger("MineBridge");
     
-    private static MinecraftServer serverInstance;
+    private static MinecraftServer server;
     private static BackendClient backendClient;
+    private static long lastTickTime = System.currentTimeMillis();
 
     @Override
     public void onInitialize() {
+        // --- WATCHDOG: Monitoreo de Salud del Servidor (Zero-Copy Performance) ---
+        NetworkManager.getScheduler().scheduleAtFixedRate(() -> {
+            long now = System.currentTimeMillis();
+            long diff = now - lastTickTime;
+            if (diff > 5000 && server != null && server.isRunning()) {
+                LOGGER.warn("[Watchdog] SEVERO LAG DETECTADO: El servidor no ha tickeado en " + (diff / 1000) + "s. Posible bloqueo del hilo principal.");
+            }
+        }, 5, 2, java.util.concurrent.TimeUnit.SECONDS);
+
+        net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents.START_SERVER_TICK.register(srv -> {
+            lastTickTime = System.currentTimeMillis();
+        });
+
+        ServerLifecycleEvents.SERVER_STARTING.register(srv -> {
+            server = srv;
+        });
+
         // --- Carga de Módulos (Modularización Premium) ---
         MarketplaceModule.initCommon();
         AchievementModule.initCommon();
@@ -35,6 +54,12 @@ public class MineBridge implements ModInitializer {
         PayloadTypeRegistry.playS2C().register(UpdateCountdownPayload.ID, UpdateCountdownPayload.CODEC);
         PayloadTypeRegistry.playS2C().register(SyncSkinPayload.ID, SyncSkinPayload.CODEC);
         PayloadTypeRegistry.playS2C().register(SyncBackendUrlPayload.ID, SyncBackendUrlPayload.CODEC);
+        PayloadTypeRegistry.playS2C().register(com.lider.minebridge.networking.payload.ShowAlertPayload.ID, com.lider.minebridge.networking.payload.ShowAlertPayload.CODEC);
+        PayloadTypeRegistry.playS2C().register(com.lider.minebridge.networking.payload.ShowNotificationPayload.ID, com.lider.minebridge.networking.payload.ShowNotificationPayload.CODEC);
+        
+        // Security Handshake
+        PayloadTypeRegistry.playS2C().register(com.lider.minebridge.networking.payload.ModHandshakePayload.ID, com.lider.minebridge.networking.payload.ModHandshakePayload.CODEC);
+        PayloadTypeRegistry.playC2S().register(com.lider.minebridge.networking.payload.ModHandshakePayload.ID, com.lider.minebridge.networking.payload.ModHandshakePayload.CODEC);
 
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
             // Enviamos siempre la URL PÚBLICA a los jugadores.
@@ -56,6 +81,7 @@ public class MineBridge implements ModInitializer {
 
         ServerEvents.init();
         ModCommands.init();
+        com.lider.minebridge.networking.HeartbeatTask.start();
 
         LOGGER.info("MineBridge Modular - Server Initialization Complete");
     }

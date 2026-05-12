@@ -22,15 +22,15 @@ public class AlertComponent {
         AlertType(int color, String titlePrefix) { this.color = color; this.titlePrefix = titlePrefix; }
     }
 
-    public static void draw(DrawContext context, TextRenderer renderer, AlertType type, String message, int x, int y, int width) {
-        int height = 50;
+    public static void draw(DrawContext context, TextRenderer renderer, AlertType type, String title, String desc, int x, int y, int width) {
+        int height = 60;
         
-        // 1. Fondo del Panel
-        PanelComponent.draw(context, x, y, width, height);
+        // 1. Fondo Glass Inmersivo (Con el color del tipo)
+        com.lider.minebridge.ui.framework.UIGradients.drawGlassPanel(context, x, y, width, height, type.color | 0xAA000000);
         
-        // 2. Icono y Título
-        int iconX = x + 8;
-        int iconY = y + 8;
+        // 2. Icono y Título Centrados
+        int iconX = x + (width / 2) - (renderer.getWidth(type.titlePrefix + ": " + title) / 2) - 10;
+        int iconY = y + 10;
         
         switch(type) {
             case RESTART -> IconWidget.drawClock(context, iconX, iconY);
@@ -39,9 +39,16 @@ public class AlertComponent {
             case SUCCESS -> IconWidget.drawSuccess(context, iconX, iconY);
         }
         
-        LabelWidget.draw(context, renderer, "§l" + type.titlePrefix, iconX + 12, iconY, type.color, false);
+        LabelWidget.draw(context, renderer, "§l" + type.titlePrefix + ": §f" + title, iconX + 14, iconY, type.color, true);
         
-        // 3. Mensaje (Cuerpo)
-        LabelWidget.draw(context, renderer, "§7" + message, x + 10, y + 25, 0xFFFFFF, false);
+        // 3. Separador sutil
+        context.fill(x + 10, y + 28, x + width - 10, y + 29, 0x44FFFFFF);
+        
+        // 4. Descripción Centrada
+        int descWidth = renderer.getWidth(desc);
+        LabelWidget.draw(context, renderer, "§7" + desc, x + (width / 2) - (descWidth / 2), y + 36, 0xCCCCCC, false);
+        
+        // 5. Glow inferior animado (Efecto línea de progreso de tiempo)
+        context.fill(x, y + height - 2, x + width, y + height, type.color);
     }
 }

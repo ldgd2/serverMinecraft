@@ -298,6 +298,10 @@ class _CommandsTab extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 20),
+        const SectionHeader(title: 'CUSTOM MESSAGING'),
+        const SizedBox(height: 10),
+        _MessagingSection(server: server),
+        const SizedBox(height: 20),
         const SectionHeader(title: 'SECURITY'),
         const SizedBox(height: 10),
         Row(
@@ -312,6 +316,189 @@ class _CommandsTab extends StatelessWidget {
           child: _CmdListTile(label: 'Check Server TPS (Lag)', icon: Icons.speed, type: 'check_tps'),
         ),
       ],
+    );
+  }
+}
+
+class _MessagingSection extends StatefulWidget {
+  final ServerModel server;
+  const _MessagingSection({required this.server});
+
+  @override
+  State<_MessagingSection> createState() => _MessagingSectionState();
+}
+
+class _MessagingSectionState extends State<_MessagingSection> {
+  final _titleCtrl = TextEditingController();
+  final _descCtrl = TextEditingController();
+  final _noteCtrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _titleCtrl.dispose();
+    _descCtrl.dispose();
+    _noteCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        // Announcement Card
+        McCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.campaign, color: AppColors.gold, size: 20),
+                  SizedBox(width: 8),
+                  Text('Global Announcement', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
+                ],
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _titleCtrl,
+                decoration: const InputDecoration(hintText: 'Title (e.g. MAINTENANCE)', isDense: true),
+                style: const TextStyle(fontSize: 13),
+                onChanged: (_) => setState(() {}),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _descCtrl,
+                decoration: const InputDecoration(hintText: 'Description...', isDense: true),
+                style: const TextStyle(fontSize: 13),
+                onChanged: (_) => setState(() {}),
+              ),
+              const SizedBox(height: 16),
+              // --- Preview In-Game (Mimic) ---
+              const Text('PREVIEW:', style: TextStyle(color: AppColors.textMuted, fontSize: 10, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 6),
+              _buildInGameAlertPreview(),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: McButton(
+                  label: 'Broadcast Announcement',
+                  icon: Icons.send,
+                  color: AppColors.gold,
+                  onPressed: () {
+                    final title = _titleCtrl.text.trim();
+                    final desc = _descCtrl.text.trim();
+                    if (title.isEmpty) return;
+                    context.read<ServerProvider>().sendCommand(widget.server.name, '!announce $title | $desc');
+                    _titleCtrl.clear();
+                    _descCtrl.clear();
+                    setState(() {});
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Announcement sent!')));
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        // Notification Card
+        McCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.notifications_active, color: AppColors.diamond, size: 20),
+                  SizedBox(width: 8),
+                  Text('Quick Notification', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _noteCtrl,
+                      decoration: const InputDecoration(hintText: 'Short message...', isDense: true),
+                      style: const TextStyle(fontSize: 13),
+                      onChanged: (_) => setState(() {}),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    icon: const Icon(Icons.send, color: AppColors.diamond),
+                    onPressed: () {
+                      final msg = _noteCtrl.text.trim();
+                      if (msg.isEmpty) return;
+                      context.read<ServerProvider>().sendCommand(widget.server.name, '!notify $msg');
+                      _noteCtrl.clear();
+                      setState(() {});
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Notification sent!')));
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              // --- Notification Preview ---
+              _buildInGameNotePreview(),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildInGameAlertPreview() {
+    final title = _titleCtrl.text.isEmpty ? 'ANNOUNCEMENT TITLE' : _titleCtrl.text;
+    final desc = _descCtrl.text.isEmpty ? 'Description will appear here...' : _descCtrl.text;
+    
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.8),
+        borderRadius: BorderRadius.circular(8),
+        border: const Border(
+          bottom: BorderSide(color: AppColors.gold, width: 2),
+          top: BorderSide(color: Colors.white24),
+          left: BorderSide(color: Colors.white24),
+          right: BorderSide(color: Colors.white24),
+        ),
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.info, color: AppColors.gold, size: 14),
+              const SizedBox(width: 6),
+              Text('AVISO: $title', style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+            ],
+          ),
+          const Divider(color: Colors.white12, height: 16),
+          Text(desc, style: const TextStyle(color: Colors.white70, fontSize: 11)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInGameNotePreview() {
+    final msg = _noteCtrl.text.isEmpty ? 'Notification message...' : _noteCtrl.text;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.6),
+        borderRadius: BorderRadius.circular(6),
+        border: const Border(
+          left: BorderSide(color: AppColors.diamond, width: 3),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.info_outline, color: AppColors.diamond, size: 14),
+          const SizedBox(width: 8),
+          Text(msg, style: const TextStyle(color: Colors.white, fontSize: 11)),
+        ],
+      ),
     );
   }
 }

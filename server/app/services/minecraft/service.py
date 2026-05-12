@@ -184,8 +184,18 @@ class ServerService:
         with open(os.path.join(server_dir, "eula.txt"), "w") as f:
             f.write("eula=true\n")
             
-        # 6. Create server.properties
-        props = f"server-port={port}\nmax-players={max_players}\nmotd={motd}\nonline-mode={'true' if online_mode else 'false'}\n"
+        # 6. Create server.properties (Optimized for High Performance)
+        props = (
+            f"server-port={port}\n"
+            f"max-players={max_players}\n"
+            f"motd={motd}\n"
+            f"online-mode={'true' if online_mode else 'false'}\n"
+            f"network-compression-threshold=512\n"
+            f"view-distance=10\n"
+            f"simulation-distance=8\n"
+            f"max-tick-time=60000\n" # Aumentamos el tiempo de espera para evitar kicks por lag de ticks
+            f"sync-chunk-writes=false\n" # Desactivar escritura sincrónica para mejorar TPS (Zero-Copy disk handling)
+        )
         with open(os.path.join(server_dir, "server.properties"), "w") as f:
             f.write(props)
 

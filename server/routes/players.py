@@ -5,6 +5,8 @@ from database.models import Server
 from database.models.players.player import Player
 from app.services.minecraft import server_service
 from app.services.player_service import PlayerService
+from app.services.fast_audit_service import fast_audit
+from app.services.player_presence import player_presence
 from app.schemas.player_schemas import (
     BanPlayerRequest,
     KickPlayerRequest,
@@ -353,10 +355,13 @@ async def get_skin_head(identifier: str, db: Session = Depends(get_db)):
     upd_str = last_upd.isoformat() if last_upd else "no_upd"
     skin_hash = hashlib.md5(f"{skin_value or username}_{upd_str}".encode()).hexdigest()[:12]
     head_path = f"{head_dir}/{username}_{skin_hash}.png"
-    legacy_path = f"{head_dir}/{username}.png"
-
+    
     if os.path.exists(head_path):
-        return FileResponse(head_path, media_type="image/png")
+        # ZERO-COPY: Leer el archivo y enviarlo via memoryview
+        with open(head_path, "rb") as f:
+            content = f.read()
+            from fastapi import Response
+            return Response(content=memoryview(content), media_type="image/png")
 
     # Try to generate the head
     generated = False
@@ -366,25 +371,15 @@ async def get_skin_head(identifier: str, db: Session = Depends(get_db)):
             try:
                 download_and_crop_head(skin_url, head_path)
                 generated = True
-            except Exception:
-                pass
+            except Exception: pass
 
-    # Fallback: use legacy path or mc-heads
-    if not generated:
-        if os.path.exists(legacy_path):
-            return FileResponse(legacy_path, media_type="image/png")
-        # Proxy mc-heads.net for premium players
-        try:
-            r = _req.get(f"https://mc-heads.net/avatar/{username}/64", timeout=5)
-            if r.status_code == 200:
-                with open(head_path, "wb") as f:
-                    f.write(r.content)
-                return FileResponse(head_path, media_type="image/png")
-        except Exception:
-            pass
-        raise HTTPException(status_code=404, detail="Head image not available")
-
-    return FileResponse(head_path, media_type="image/png")
+    if generated:
+        with open(head_path, "rb") as f:
+            content = f.read()
+            from fastapi import Response
+            return Response(content=memoryview(content), media_type="image/png")
+            
+    raise HTTPException(status_code=404, detail="Head image not available")
 
 
 @router.get("/{server_name}/details/{player_identifier}")

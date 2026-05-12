@@ -168,9 +168,44 @@ class ServerController:
 
     async def send_command(self, name: str, command: str):
         process = server_service.get_process(name)
+        if not process:
+            return False
+
+        # Intercept Special "Premium" Commands from CMD
+        clean_cmd = command.lstrip('/')
+        
+        if clean_cmd.startswith("!announce "):
+            parts = clean_cmd[10:].split("|", 1)
+            title = parts[0].strip()
+            desc = parts[1].strip() if len(parts) > 1 else ""
+            
+            from routes.bridge import manager
+            # We don't have the user object here easily, but we can try to find who owns this server
+            from database.connection import SessionLocal
+            from database.models import User
+            with SessionLocal() as db:
+                server_obj = db.query(Server).filter(Server.name == name).first()
+                user_obj = db.query(User).filter(User.id == server_obj.user_id).first() if server_obj else None
+                if user_obj:
+                    await manager.send_announcement(user_obj.username, title, desc)
+                    BitacoraService.add_log_background(user_obj.username, "SERVER_ANNOUNCE", f"Sent announcement to {name}: {title}")
+                    return True
+        
+        elif clean_cmd.startswith("!notify "):
+            msg = clean_cmd[8:].strip()
+            from routes.bridge import manager
+            from database.connection import SessionLocal
+            from database.models import User
+            with SessionLocal() as db:
+                server_obj = db.query(Server).filter(Server.name == name).first()
+                user_obj = db.query(User).filter(User.id == server_obj.user_id).first() if server_obj else None
+                if user_obj:
+                    await manager.send_notification(user_obj.username, msg)
+                    BitacoraService.add_log_background(user_obj.username, "SERVER_NOTIFY", f"Sent notification to {name}: {msg}")
+                    return True
+
         if process:
             # Strip leading slash if present (commands via stdin shouldn't have it)
-            clean_cmd = command.lstrip('/')
             await process.write(clean_cmd)
             BitacoraService.add_log_background("ADMIN", "SERVER_COMMAND", f"Sent command to {name}: {clean_cmd}")
             return True

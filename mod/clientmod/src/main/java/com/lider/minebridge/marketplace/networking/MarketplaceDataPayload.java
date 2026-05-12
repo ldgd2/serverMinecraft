@@ -13,7 +13,7 @@ public record MarketplaceDataPayload(String tradesJson) implements CustomPayload
     public static final CustomPayload.Id<MarketplaceDataPayload> ID = new CustomPayload.Id<>(Identifier.of("minebridge", "marketplace_data"));
     
     public static final PacketCodec<RegistryByteBuf, MarketplaceDataPayload> CODEC = PacketCodec.tuple(
-            PacketCodecs.STRING, MarketplaceDataPayload::tradesJson,
+            PacketCodecs.string(1024 * 1024), MarketplaceDataPayload::tradesJson,
             MarketplaceDataPayload::new
     );
 

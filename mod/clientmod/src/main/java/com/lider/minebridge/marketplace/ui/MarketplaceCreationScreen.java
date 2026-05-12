@@ -36,7 +36,6 @@ public class MarketplaceCreationScreen extends HandledScreen<MarketplaceCreation
         // Botón Publicar
         this.addDrawableChild(ButtonWidget.builder(Text.of("§6§lPUBLICAR"), button -> {
             ClientPlayNetworking.send(new PublishTradePayload(this.titleField.getText()));
-            this.close();
         }).dimensions(this.x + 103, this.y + 198, 76, 16).build());
 
         // Botón Cancelar
@@ -59,11 +58,13 @@ public class MarketplaceCreationScreen extends HandledScreen<MarketplaceCreation
     }
 
     @Override
+    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta) {
+        com.lider.minebridge.ui.framework.UIBackgrounds.renderStandard(context, this.width, this.height);
+    }
+
+    @Override
     protected void drawBackground(DrawContext context, float delta, int mouseX, int mouseY) {
-        // 1. Fondo Oscuro Sólido (Sin Blur molesto)
-        context.fill(0, 0, this.width, this.height, 0x88000000); 
-        
-        // 2. Panel Principal
+        // 1. Panel Principal
         context.fill(this.x, this.y, this.x + this.backgroundWidth, this.y + this.backgroundHeight, 0xFF121212);
         
         // 3. Bordes Dorados de Precisión

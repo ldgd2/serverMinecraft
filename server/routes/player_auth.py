@@ -18,6 +18,7 @@ from database.models.server import Server
 from database.models.players.player_stat import PlayerStat
 from database.models.players.player_achievement import PlayerAchievement
 from app.services.auth_service import get_password_hash, verify_password, create_access_token, generate_offline_uuid
+from app.services.player_presence import player_presence
 from core.responses import APIResponse
 
 router = APIRouter(prefix="/player-auth", tags=["Player Auth"])
@@ -110,9 +111,12 @@ def register_player(data: PlayerRegisterRequest, db: Session = Depends(get_db)):
     if len(username) < 3 or len(username) > 16:
         raise HTTPException(status_code=400, detail="Username must be 3-16 characters")
 
-    existing = db.query(PlayerAccount).filter(PlayerAccount.username == username).first()
-    if existing:
-        raise HTTPException(status_code=400, detail="Username already taken")
+    # Fast check with Bloom Filter
+    if player_presence.is_registered(username):
+        # Double check with DB only if Bloom Filter says it might exist
+        existing = db.query(PlayerAccount).filter(PlayerAccount.username == username).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="Username already taken")
 
     account = PlayerAccount(
         username=username,
@@ -124,6 +128,9 @@ def register_player(data: PlayerRegisterRequest, db: Session = Depends(get_db)):
     db.add(account)
     db.commit()
     db.refresh(account)
+    
+    # Update Bloom Filter
+    player_presence.register_new(username)
 
     token = _create_player_token(account)
     return APIResponse(status="success", message="Account created", data={
@@ -139,6 +146,10 @@ def register_player(data: PlayerRegisterRequest, db: Session = Depends(get_db)):
 @router.post("/login")
 def login_player(data: PlayerLoginRequest, db: Session = Depends(get_db)):
     """Login for no-premium players."""
+    # Fast rejection with Bloom Filter
+    if not player_presence.is_registered(data.username):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+        
     account = db.query(PlayerAccount).filter(PlayerAccount.username == data.username).first()
     if not account or not account.hashed_password:
         raise HTTPException(status_code=401, detail="Invalid credentials")

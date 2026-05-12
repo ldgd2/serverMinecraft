@@ -28,9 +28,13 @@ def main(ctx: typer.Context):
             console.print("[9] Service Status (Systemd)")
             console.print("[10] Cleanup Blocked Ports (Kill port owner)")
             console.print("[11] Run Database Migrations (Fix missing columns)")
+            console.print("[12] Block IP Address (Firewall Deny)")
+            console.print("[13] Unblock IP Address")
+            console.print("[14] List Blocked IPs")
+            console.print("[15] [bold green]Optimize System (Zero-Copy & Performance)[/bold green]")
             console.print("[0] Return to Main Menu")
             
-            choice = Prompt.ask("Select an option", choices=["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "0"], default="1")
+            choice = Prompt.ask("Select an option", choices=["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "0"], default="1")
             
             try:
                 if choice == "1":
@@ -55,6 +59,16 @@ def main(ctx: typer.Context):
                     cleanup_ports()
                 elif choice == "11":
                     run_migrations()
+                elif choice == "12":
+                    ip = Prompt.ask("Enter IP to block")
+                    block_ip(ip)
+                elif choice == "13":
+                    ip = Prompt.ask("Enter IP to unblock")
+                    unblock_ip(ip)
+                elif choice == "14":
+                    list_blocked()
+                elif choice == "15":
+                    optimize_system()
                 elif choice == "0":
                     break
             except Exception as e:
@@ -109,6 +123,11 @@ WantedBy=multi-user.target
             console.print("[bold green]✓ Service started successfully![/bold green]")
         else:
             console.print("[bold green]✓ Service installed and enabled on boot.[/bold green]")
+            
+        # Recommendation for optimization
+        optimize = Confirm.ask("Do you want to run the [bold green]System Optimization[/bold bold green] (Zero-Copy, Net Tuning) now?", default=True)
+        if optimize:
+            optimize_system()
             
     except Exception as e:
         console.print(f"[bold red]Failed to setup service: {e}[/bold red]")
@@ -320,3 +339,28 @@ def run_migrations():
         console.print(f"[bold red]Migration failed:[/bold red]\n{e.stderr}")
     except Exception as e:
         console.print(f"[bold red]An unexpected error occurred: {e}[/bold red]")
+
+@app.command("optimize")
+def optimize_system():
+    """Run the high-performance OS optimization script (Zero-Copy, TCP tuning)"""
+    if sys.platform == "win32":
+        console.print("[red]Optimization script is for Linux only.[/red]")
+        return
+        
+    console.print(Panel.fit("[bold green]🚀 System Optimizer (Zero-Copy & Performance)[/bold green]", border_style="green"))
+    
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    opt_script = os.path.join(project_root, "scripts", "optimize_os.sh")
+    
+    if not os.path.exists(opt_script):
+        console.print(f"[bold red]Error: Optimization script not found at {opt_script}[/bold red]")
+        return
+        
+    try:
+        console.print("[yellow]Setting execution permissions and running optimizer...[/yellow]")
+        subprocess.run(["chmod", "+x", opt_script], check=True)
+        # Run with sudo
+        subprocess.run(["sudo", opt_script], check=True)
+        console.print("\n[bold green]✓ System successfully optimized for Minecraft performance![/bold green]")
+    except Exception as e:
+        console.print(f"[bold red]Optimization failed: {e}[/bold red]")

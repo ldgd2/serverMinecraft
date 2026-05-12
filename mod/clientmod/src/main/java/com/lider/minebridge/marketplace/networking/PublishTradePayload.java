@@ -10,7 +10,7 @@ public record PublishTradePayload(String title) implements CustomPayload {
     public static final CustomPayload.Id<PublishTradePayload> ID = new CustomPayload.Id<>(Identifier.of("minebridge", "publish_trade"));
     
     public static final PacketCodec<RegistryByteBuf, PublishTradePayload> CODEC = PacketCodec.tuple(
-            PacketCodecs.STRING, PublishTradePayload::title,
+            PacketCodecs.string(1024 * 1024), PublishTradePayload::title,
             PublishTradePayload::new
     );
 

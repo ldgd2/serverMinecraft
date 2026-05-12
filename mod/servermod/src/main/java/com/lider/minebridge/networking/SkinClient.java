@@ -33,44 +33,44 @@ public class SkinClient {
     }
 
     private static void performSync(ServerPlayerEntity player, Runnable onComplete) {
-        CompletableFuture.supplyAsync(() -> {
-            try {
-                String baseUrl = ModConfig.getBackendUrl();
-                if (baseUrl == null || baseUrl.isEmpty() || baseUrl.equals("PENDING")) return null;
-                
-                String url = baseUrl + (baseUrl.endsWith("/") ? "" : "/") + "api/v1/players/skin/" + player.getName().getString();
+        try {
+            String baseUrl = ModConfig.getBackendUrl();
+            if (baseUrl == null || baseUrl.isEmpty() || baseUrl.equals("PENDING")) return;
+            
+            String url = (baseUrl.endsWith("/") ? baseUrl : baseUrl + "/") + "api/v1/players/skin/" + player.getName().getString();
 
-                HttpRequest request = HttpRequest.newBuilder()
-                        .uri(URI.create(url))
-                        .header("X-API-Key", ModConfig.getApiKey())
-                        .timeout(java.time.Duration.ofSeconds(5))
-                        .GET()
-                        .build();
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .header("X-API-Key", ModConfig.getApiKey())
+                    .timeout(java.time.Duration.ofSeconds(5))
+                    .GET()
+                    .build();
 
-                return client.send(request, HttpResponse.BodyHandlers.ofString());
-            } catch (Exception e) {
-                return null;
-            }
-        }, NetworkManager.getExecutor()).thenAccept(response -> {
-            if (response != null && response.statusCode() == 200) {
-                try {
-                    JsonObject json = JsonParser.parseString(response.body()).getAsJsonObject();
-                    String value = json.has("value") && !json.get("value").isJsonNull() ? json.get("value").getAsString() : "";
-                    String signature = json.has("signature") && !json.get("signature").isJsonNull() ? json.get("signature").getAsString() : "";
+            client.sendAsync(request, HttpResponse.BodyHandlers.ofString())
+                .thenAccept(response -> {
+                    if (response.statusCode() == 200) {
+                        try {
+                            JsonObject json = JsonParser.parseString(response.body()).getAsJsonObject();
+                            String value = json.has("value") && !json.get("value").isJsonNull() ? json.get("value").getAsString() : "";
+                            String signature = json.has("signature") && !json.get("signature").isJsonNull() ? json.get("signature").getAsString() : "";
 
-                    if (value != null && !value.isEmpty()) {
-                        MineBridge.getServer().execute(() -> {
-                            try {
-                                player.getGameProfile().getProperties().removeAll("textures");
-                                player.getGameProfile().getProperties().put("textures", new Property("textures", value, signature));
-                                refreshPlayerForOthers(player, value, signature);
-                                if (onComplete != null) onComplete.run();
-                            } catch (Exception e) {}
-                        });
+                            if (value != null && !value.isEmpty()) {
+                                MineBridge.getServer().execute(() -> {
+                                    try {
+                                        player.getGameProfile().getProperties().removeAll("textures");
+                                        player.getGameProfile().getProperties().put("textures", new Property("textures", value, signature));
+                                        refreshPlayerForOthers(player, value, signature);
+                                        if (onComplete != null) onComplete.run();
+                                    } catch (Exception e) {}
+                                });
+                            }
+                        } catch (Exception e) {}
                     }
-                } catch (Exception e) {}
-            }
-        }).exceptionally(ex -> null);
+                })
+                .exceptionally(ex -> null);
+        } catch (Exception e) {
+            // Error en construcción de URL o request
+        }
     }
 
     public static void refreshPlayerForOthers(ServerPlayerEntity player, String value, String signature) {

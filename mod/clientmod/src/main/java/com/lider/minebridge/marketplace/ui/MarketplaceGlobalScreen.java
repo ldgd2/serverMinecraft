@@ -12,8 +12,11 @@ import net.minecraft.text.Text;
 public class MarketplaceGlobalScreen extends Screen {
     private JsonArray trades = new JsonArray();
     private boolean loading = true;
+    private boolean buttonsAdded = false;
     private static final int PANEL_WIDTH = 320;
     private static final int PANEL_HEIGHT = 220;
+    private static final int MAX_ROWS = 7;
+    private static final int ROW_HEIGHT = 24;
 
     public MarketplaceGlobalScreen() {
         super(Text.of("§6§lMERCADO GLOBAL"));
@@ -31,26 +34,64 @@ public class MarketplaceGlobalScreen extends Screen {
         int centerX = this.width / 2;
         int centerY = this.height / 2;
 
-        if (loading) {
+        // Botón de regreso siempre presente
+        this.addDrawableChild(ButtonWidget.builder(Text.of("§7← Volver"), button -> {
+            MinecraftClient.getInstance().setScreen(new com.lider.minebridge.client.ui.MainLauncherScreen());
+        }).dimensions(centerX - 40, centerY + 98, 80, 18).build());
+
+        // Botón de actualizar
+        this.addDrawableChild(ButtonWidget.builder(Text.of("§e↺"), button -> {
+            this.loading = true;
+            this.buttonsAdded = false;
+            this.clearChildren();
+            this.init();
+        }).dimensions(centerX + 145, centerY + 98, 18, 18).build());
+
+        if (!loading) {
+            addTradeButtons();
+        } else {
             TradeClient.getOpenTrades().thenAccept(data -> {
                 this.trades = data;
                 this.loading = false;
+                // Re-añadir botones en el hilo de render
+                MinecraftClient.getInstance().execute(() -> {
+                    clearChildren();
+                    init();
+                });
             }).exceptionally(ex -> {
                 this.loading = false;
                 return null;
             });
         }
+    }
 
-        this.addDrawableChild(ButtonWidget.builder(Text.of("§7Regresar"), button -> {
-            MinecraftClient.getInstance().setScreen(new com.lider.minebridge.client.ui.MainLauncherScreen());
-        }).dimensions(centerX - 40, centerY + 95, 80, 20).build());
+    private void addTradeButtons() {
+        if (buttonsAdded || trades == null) return;
+        buttonsAdded = true;
+        int centerX = this.width / 2;
+        int centerY = this.height / 2;
+        int x1 = centerX - (PANEL_WIDTH / 2);
+        int y1 = centerY - (PANEL_HEIGHT / 2);
+
+        int count = Math.min(trades.size(), MAX_ROWS);
+        for (int i = 0; i < count; i++) {
+            final JsonObject trade = trades.get(i).getAsJsonObject();
+            int rowY = y1 + 35 + (i * ROW_HEIGHT);
+
+            this.addDrawableChild(ButtonWidget.builder(Text.of("§a▶"), button -> {
+                MinecraftClient.getInstance().setScreen(new MarketplaceDetailScreen(trade));
+            }).dimensions(x1 + PANEL_WIDTH - 52, rowY + 3, 36, 16).build());
+        }
+    }
+
+    @Override
+    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta) {
+        com.lider.minebridge.ui.framework.UIBackgrounds.renderDark(context, this.width, this.height);
     }
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        // Fondo semi-transparente oscuro (Sólido, sin blur)
-        context.fill(0, 0, this.width, this.height, 0x99000000);
-        
+        super.render(context, mouseX, mouseY, delta);
         int centerX = this.width / 2;
         int centerY = this.height / 2;
         int x1 = centerX - (PANEL_WIDTH / 2);
@@ -58,11 +99,11 @@ public class MarketplaceGlobalScreen extends Screen {
         int x2 = centerX + (PANEL_WIDTH / 2);
         int y2 = centerY + (PANEL_HEIGHT / 2);
 
-        // Fondo y Borde Dorado
-        context.fill(x1 - 2, y1 - 2, x2 + 2, y2 + 2, 0xFFFFD700); 
-        context.fill(x1, y1, x2, y2, 0xFF121212);
+        // Panel premium central
+        com.lider.minebridge.ui.framework.UIBackgrounds.drawPanel(context, x1, y1, PANEL_WIDTH, PANEL_HEIGHT);
+        
         // Cabecera
-        context.fill(x1, y1, x2, y1 + 25, 0xFF2A2A2A);
+        context.fill(x1 + 1, y1 + 1, x2 - 1, y1 + 25, 0xFF2A2A2A);
         context.drawCenteredTextWithShadow(this.textRenderer, this.title, centerX, y1 + 8, 0xFFFFFF);
 
         if (loading) {
@@ -70,19 +111,21 @@ public class MarketplaceGlobalScreen extends Screen {
         } else if (trades == null || trades.size() == 0) {
             context.drawCenteredTextWithShadow(this.textRenderer, "§7No hay ofertas activas en este momento.", centerX, centerY, 0xAAAAAA);
         } else {
-            for (int i = 0; i < Math.min(trades.size(), 7); i++) {
+            int count = Math.min(trades.size(), MAX_ROWS);
+            for (int i = 0; i < count; i++) {
                 JsonObject trade = trades.get(i).getAsJsonObject();
-                String title = trade.get("title").getAsString();
-                String seller = trade.get("seller").getAsString();
-                int tradeId = trade.get("id").getAsInt();
+                String title = trade.has("title") ? trade.get("title").getAsString() : "Sin título";
+                String seller = trade.has("seller") ? trade.get("seller").getAsString() : "?";
 
-                int rowY = y1 + 35 + (i * 24);
-                context.fill(x1 + 8, rowY, x2 - 8, rowY + 22, 0xFF1E1E1E);
-                context.drawText(this.textRenderer, "§6" + title, x1 + 15, rowY + 7, 0xFFFFFF, false);
-                context.drawText(this.textRenderer, "§7por " + seller, x1 + 140, rowY + 7, 0xAAAAAA, false);
-                
-                // Botón Ver (Simulado con texto por ahora o añadir widget real en init)
-                context.drawText(this.textRenderer, "§a[VER]", x2 - 45, rowY + 7, 0x55FF55, false);
+                int rowY = y1 + 35 + (i * ROW_HEIGHT);
+                // Filas con efecto inset/hundido
+                com.lider.minebridge.ui.framework.UIBackgrounds.drawInset(context, x1 + 8, rowY, PANEL_WIDTH - 16, 22);
+                context.drawText(this.textRenderer, "§6" + title, x1 + 14, rowY + 7, 0xFFFFFF, false);
+                context.drawText(this.textRenderer, "§7" + seller, x1 + 140, rowY + 7, 0xAAAAAA, false);
+            }
+            if (trades.size() > MAX_ROWS) {
+                context.drawCenteredTextWithShadow(this.textRenderer,
+                    "§8... y " + (trades.size() - MAX_ROWS) + " más", centerX, y2 - 14, 0x888888);
             }
         }
 

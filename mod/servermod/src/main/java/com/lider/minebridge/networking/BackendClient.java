@@ -33,7 +33,7 @@ public class BackendClient {
             .thenApply(res -> {
                 try {
                     com.google.gson.JsonObject root = new com.google.gson.Gson().fromJson(res.body(), com.google.gson.JsonObject.class);
-                    if (root.has("data") && root.get("data").isJsonArray()) {
+                    if (root != null && root.has("data") && root.get("data").isJsonArray()) {
                         return root.getAsJsonArray("data");
                     }
                     return new com.google.gson.JsonArray();
@@ -108,24 +108,29 @@ public class BackendClient {
     }
 
     private void connectWebSocket() {
-        if (activeUrl == null || apiKey == null) return;
-        String wsUrl = activeUrl.replace("http", "ws") + "api/v1/ws/bridge";
-        httpClient.newWebSocketBuilder()
-            .header("X-API-Key", apiKey)
-            .buildAsync(URI.create(wsUrl), new WebSocketListener())
-            .thenAccept(ws -> {
-                this.webSocket = ws;
-                MineBridge.LOGGER.info("Connected to Backend WebSocket Bridge: " + activeUrl);
-                if (MineBridge.getServer() != null) {
-                    MineBridge.getServer().execute(() -> {
-                        MineBridge.LOGGER.info("§a[MineBridge] Conexión WebSocket establecida con éxito.");
-                    });
-                }
-            })
-            .exceptionally(t -> {
-                MineBridge.LOGGER.error("Failed to connect to WebSocket: " + t.getMessage());
-                return null;
-            });
+        try {
+            String wsBase = activeUrl.replace("http://", "ws://").replace("https://", "wss://");
+            String wsUrl = (wsBase.endsWith("/") ? wsBase : wsBase + "/") + "ws/admin";
+            
+            this.webSocket = httpClient.newWebSocketBuilder()
+                .header("X-API-Key", apiKey)
+                .buildAsync(URI.create(wsUrl), new WebSocketListener())
+                .thenAccept(ws -> {
+                    this.webSocket = ws;
+                    MineBridge.LOGGER.info("Connected to Backend WebSocket Bridge: " + activeUrl);
+                    if (MineBridge.getServer() != null) {
+                        MineBridge.getServer().execute(() -> {
+                            MineBridge.LOGGER.info("§a[MineBridge] Conexión WebSocket establecida con éxito.");
+                        });
+                    }
+                })
+                .exceptionally(t -> {
+                    MineBridge.LOGGER.error("Failed to connect to WebSocket: " + t.getMessage());
+                    return null;
+                });
+        } catch (Exception e) {
+            MineBridge.LOGGER.error("WebSocket construction failed: " + e.getMessage());
+        }
     }
 
     public void sendChatMessage(String player, String message) {
@@ -332,6 +337,25 @@ public class BackendClient {
                         executeCommand("pardon " + json.get("player").getAsString());
                     } else if ("unban-ip".equals(action)) {
                         executeCommand("pardon-ip " + json.get("ip").getAsString());
+                    } else if ("announcement".equals(action)) {
+                        String title = json.has("title") ? json.get("title").getAsString() : "AVISO";
+                        String desc = json.has("desc") ? json.get("desc").getAsString() : "";
+                        int color = json.has("color") ? json.get("color").getAsInt() : 0xFFFFCC00;
+                        int duration = json.has("duration") ? json.get("duration").getAsInt() : 10;
+                        
+                        var payload = new com.lider.minebridge.networking.payload.ShowAlertPayload(title, desc, color, duration);
+                        MineBridge.getServer().getPlayerManager().getPlayerList().forEach(p -> 
+                            net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(p, payload)
+                        );
+                    } else if ("notification".equals(action)) {
+                        String msg = json.has("message") ? json.get("message").getAsString() : "";
+                        String type = json.has("type") ? json.get("type").getAsString() : "info";
+                        int duration = json.has("duration") ? json.get("duration").getAsInt() : 5;
+                        
+                        var payload = new com.lider.minebridge.networking.payload.ShowNotificationPayload(msg, type, duration);
+                        MineBridge.getServer().getPlayerManager().getPlayerList().forEach(p -> 
+                            net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(p, payload)
+                        );
                     }
                 } catch (Exception e) {
                     MineBridge.LOGGER.error("Error processing WebSocket message: " + e.getMessage());

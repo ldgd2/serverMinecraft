@@ -23,7 +23,7 @@ public class AchievementClient {
         return url.endsWith("/") ? url : url + "/";
     }
 
-    private static void sendRequest(String endpoint, JsonObject payload) {
+    public static void sendRequest(String endpoint, JsonObject payload) {
         String base = getBaseUrl();
         if (base == null) return;
 

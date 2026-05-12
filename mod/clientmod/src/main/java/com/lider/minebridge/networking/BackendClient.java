@@ -31,7 +31,7 @@ public class BackendClient {
             .thenApply(res -> {
                 try {
                     JsonObject root = gson.fromJson(res.body(), JsonObject.class);
-                    if (root.has("data") && root.get("data").isJsonArray()) {
+                    if (root != null && root.has("data") && root.get("data").isJsonArray()) {
                         return root.getAsJsonArray("data");
                     }
                     return new JsonArray();
