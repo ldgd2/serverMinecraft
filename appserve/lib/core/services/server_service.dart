@@ -139,4 +139,39 @@ class ServerService {
     final res = await _client.get('/servers/$name/chat');
     return List<Map<String, dynamic>>.from(res.data['data'] ?? []);
   }
+
+  // --- Global Players ---
+
+  Future<List<Map<String, dynamic>>> getAllPlayers() async {
+    final res = await _client.get('/players/all');
+    return List<Map<String, dynamic>>.from(res.data);
+  }
+
+  // --- Rich Broadcasting ---
+
+  Future<void> sendRichAnnouncement({
+    required String title,
+    String description = "",
+    int color = 0xFFFFCC00,
+    int duration = 10,
+  }) async {
+    await _client.post('/bridge/broadcast/announcement', data: {
+      'title': title,
+      'description': description,
+      'color': color,
+      'duration': duration,
+    });
+  }
+
+  Future<void> sendRichNotification({
+    required String message,
+    String type = "info",
+    int duration = 5,
+  }) async {
+    await _client.post('/bridge/broadcast/notification', data: {
+      'message': message,
+      'type': type,
+      'duration': duration,
+    });
+  }
 }

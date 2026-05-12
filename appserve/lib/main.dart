@@ -12,6 +12,7 @@ import 'core/api/api_client.dart';
 import 'core/services/update_service.dart';
 import 'features/home/screens/home_screen.dart';
 import 'features/servers/screens/create_server_screen.dart';
+import 'features/servers/screens/players_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -81,6 +82,7 @@ class _MinecraftManagerAppState extends State<MinecraftManagerApp> {
         '/login': (_) => const LoginScreen(),
         '/': (_) => const HomeScreen(),
         '/servers/create': (_) => const CreateServerScreen(),
+        '/players': (_) => const PlayersScreen(),
       },
     );
   }

@@ -32,6 +32,25 @@ def get_server_by_name(db: Session, name: str):
 
 # ==================== Endpoints ====================
 
+@router.get("/all")
+def get_all_players(db: Session = Depends(get_db)):
+    """
+    Get all registered players across all servers
+    """
+    players = db.query(Player).all()
+    result = []
+    for p in players:
+        detail = p.detail
+        result.append({
+            "id": p.id,
+            "name": p.name,
+            "uuid": p.uuid,
+            "last_joined": detail.last_joined_at if detail else None,
+            "total_playtime": detail.total_playtime_seconds if detail else 0,
+            "server_id": p.server_id
+        })
+    return result
+
 @router.get("/{server_name}/list")
 def get_players(server_name: str, db: Session = Depends(get_db)):
     """

@@ -267,6 +267,8 @@ class _DashboardTab extends StatelessWidget {
         const SizedBox(width: 10),
         Expanded(child: McActionCard(icon: Icons.download_for_offline_outlined, label: 'Versions', color: AppColors.diamond, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const VersionManagerScreen())))),
         const SizedBox(width: 10),
+        Expanded(child: McActionCard(icon: Icons.people_outline, label: 'Community', color: AppColors.emerald, onTap: () => Navigator.pushNamed(context, '/players'))),
+        const SizedBox(width: 10),
         Expanded(child: McActionCard(icon: Icons.refresh, label: 'Refresh', color: AppColors.lapis, onTap: () => context.read<ServerProvider>().loadServers())),
       ],
     );

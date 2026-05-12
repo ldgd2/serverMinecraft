@@ -11,6 +11,7 @@ from rich.prompt import Prompt, Confirm
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
 from dev.system.env import run_universal_wizard, sync_public_ip, get_env_variable
+from dev.system.vps import optimize_system
 from dev.minecraft.properties import setup_skinrestorer_auto
 from setup_rcon import main as setup_rcon_logic
 
@@ -83,13 +84,19 @@ def run_ultimate_setup():
     console.print("\n[bold cyan]STEP 5: Mobile App Synchronization[/bold cyan]")
     console.print("[green]✓ Mobile App environment updated.[/green]")
 
+    # --- STEP 6: System Optimization (Performance) ---
+    console.print("\n[bold cyan]STEP 6: System Optimization (Performance)[/bold cyan]")
+    if Confirm.ask("Do you want to run the [bold green]System Optimization[/bold bold green] (Zero-Copy, Net Tuning) now?", default=True):
+        optimize_system()
+
     console.print("\n" + "="*60)
     console.print(Panel("[bold green]✨ ULTIMATE CONFIGURATION COMPLETE ✨[/bold green]\n\n"
                   "1. All dependencies installed.\n"
                   "2. EULA accepted for all instances.\n"
                   "3. RCON configured (Console enabled).\n"
                   "4. Skins & Mod synced with API.\n"
-                  "5. App linked to VPS IP.\n\n"
+                  "5. App linked to VPS IP.\n"
+                  "6. [bold green]System Optimized for Performance.[/bold green]\n\n"
                   "[bold yellow]Final Step:[/bold yellow] Restart the backend (Option 10) and then the Minecraft servers.", 
                   border_style="green"))
     console.print("="*60 + "\n")

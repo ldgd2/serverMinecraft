@@ -377,10 +377,33 @@ async def receive_batch(batch: dict, request: Request, db: Session = Depends(get
 async def get_cached_players(server_name: str, user: User = Depends(verify_bridge_auth)):
     players = server_player_cache.get(server_name, {})
     return {
-        "server": server_name,
-        "online": len(players),
         "players": [{"username": name, **data} for name, data in players.items()]
     }
+
+@router.post("/broadcast/announcement")
+async def broadcast_announcement(payload: dict, user: User = Depends(get_current_user)):
+    """
+    Triggers a rich announcement on all connected Minecraft servers for this user.
+    """
+    title = payload.get("title", "Announce")
+    desc = payload.get("description", "")
+    color = payload.get("color", 0xFFFFCC00) # Default Gold
+    duration = payload.get("duration", 10)
+    
+    await manager.send_announcement(user.username, title, desc, color, duration)
+    return {"status": "ok", "message": "Announcement broadcasted"}
+
+@router.post("/broadcast/notification")
+async def broadcast_notification(payload: dict, user: User = Depends(get_current_user)):
+    """
+    Triggers a floating notification on all connected Minecraft servers for this user.
+    """
+    message = payload.get("message", "")
+    type = payload.get("type", "info")
+    duration = payload.get("duration", 5)
+    
+    await manager.send_notification(user.username, message, type, duration)
+    return {"status": "ok", "message": "Notification broadcasted"}
 
 ws_router = APIRouter(prefix="/ws", tags=["Minecraft Bridge WS"])
 

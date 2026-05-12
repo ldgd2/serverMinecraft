@@ -110,6 +110,9 @@ class ServerProvider extends ChangeNotifier {
   List<Map<String, dynamic>> get onlinePlayers => _onlinePlayers;
   List<Map<String, dynamic>> get bannedUsers => _bannedUsers;
   List<Map<String, dynamic>> get installedMods => _installedMods;
+  
+  List<Map<String, dynamic>> _allPlayers = [];
+  List<Map<String, dynamic>> get allPlayers => _allPlayers;
 
   int get onlineCount => _servers.where((s) => s.isOnline).length;
   int get offlineCount => _servers.where((s) => s.isOffline).length;
@@ -282,6 +285,45 @@ class ServerProvider extends ChangeNotifier {
   Future<void> banPlayer(String serverName, String player, String reason, {String? expires}) async {
     await _serverService.banPlayer(serverName, player, reason: reason, expires: expires);
     await loadPlayers(serverName);
+  }
+
+  Future<void> loadAllPlayers() async {
+    _isLoading = true;
+    notifyListeners();
+    try {
+      _allPlayers = await _serverService.getAllPlayers();
+    } catch (e) {
+      debugPrint('Load All Players Error: $e');
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> sendRichAnnouncement({
+    required String title,
+    String description = "",
+    int color = 0xFFFFCC00,
+    int duration = 10,
+  }) async {
+    await _serverService.sendRichAnnouncement(
+      title: title,
+      description: description,
+      color: color,
+      duration: duration,
+    );
+  }
+
+  Future<void> sendRichNotification({
+    required String message,
+    String type = "info",
+    int duration = 5,
+  }) async {
+    await _serverService.sendRichNotification(
+      message: message,
+      type: type,
+      duration: duration,
+    );
   }
 
   // --- Mod Management ---

@@ -332,6 +332,8 @@ class _MessagingSectionState extends State<_MessagingSection> {
   final _titleCtrl = TextEditingController();
   final _descCtrl = TextEditingController();
   final _noteCtrl = TextEditingController();
+  Color _selectedColor = AppColors.gold;
+  double _duration = 10;
 
   @override
   void dispose() {
@@ -372,6 +374,28 @@ class _MessagingSectionState extends State<_MessagingSection> {
                 onChanged: (_) => setState(() {}),
               ),
               const SizedBox(height: 16),
+              // --- Color & Duration Selectors ---
+              Row(
+                children: [
+                  const Text('Color:', style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
+                  const SizedBox(width: 8),
+                  _ColorBox(color: AppColors.gold, isSelected: _selectedColor == AppColors.gold, onTap: () => setState(() => _selectedColor = AppColors.gold)),
+                  _ColorBox(color: AppColors.diamond, isSelected: _selectedColor == AppColors.diamond, onTap: () => setState(() => _selectedColor = AppColors.diamond)),
+                  _ColorBox(color: AppColors.offline, isSelected: _selectedColor == AppColors.offline, onTap: () => setState(() => _selectedColor = AppColors.offline)),
+                  _ColorBox(color: AppColors.emerald, isSelected: _selectedColor == AppColors.emerald, onTap: () => setState(() => _selectedColor = AppColors.emerald)),
+                  const Spacer(),
+                  const Icon(Icons.timer_outlined, size: 14, color: AppColors.textMuted),
+                  const SizedBox(width: 4),
+                  Text('${_duration.toInt()}s', style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
+                  Slider(
+                    value: _duration,
+                    min: 3, max: 60,
+                    activeColor: _selectedColor,
+                    onChanged: (v) => setState(() => _duration = v),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
               // --- Preview In-Game (Mimic) ---
               const Text('PREVIEW:', style: TextStyle(color: AppColors.textMuted, fontSize: 10, fontWeight: FontWeight.bold)),
               const SizedBox(height: 6),
@@ -387,11 +411,18 @@ class _MessagingSectionState extends State<_MessagingSection> {
                     final title = _titleCtrl.text.trim();
                     final desc = _descCtrl.text.trim();
                     if (title.isEmpty) return;
-                    context.read<ServerProvider>().sendCommand(widget.server.name, '!announce $title | $desc');
+                    
+                    context.read<ServerProvider>().sendRichAnnouncement(
+                      title: title,
+                      description: desc,
+                      color: _selectedColor.value,
+                      duration: _duration.toInt(),
+                    );
+                    
                     _titleCtrl.clear();
                     _descCtrl.clear();
                     setState(() {});
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Announcement sent!')));
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Rich Announcement sent!')));
                   },
                 ),
               ),
@@ -428,10 +459,16 @@ class _MessagingSectionState extends State<_MessagingSection> {
                     onPressed: () {
                       final msg = _noteCtrl.text.trim();
                       if (msg.isEmpty) return;
-                      context.read<ServerProvider>().sendCommand(widget.server.name, '!notify $msg');
+                      
+                      context.read<ServerProvider>().sendRichNotification(
+                        message: msg,
+                        type: 'info',
+                        duration: 5,
+                      );
+                      
                       _noteCtrl.clear();
                       setState(() {});
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Notification sent!')));
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Rich Notification sent!')));
                     },
                   ),
                 ],
@@ -456,11 +493,11 @@ class _MessagingSectionState extends State<_MessagingSection> {
       decoration: BoxDecoration(
         color: Colors.black.withOpacity(0.8),
         borderRadius: BorderRadius.circular(8),
-        border: const Border(
-          bottom: BorderSide(color: AppColors.gold, width: 2),
-          top: BorderSide(color: Colors.white24),
-          left: BorderSide(color: Colors.white24),
-          right: BorderSide(color: Colors.white24),
+        border: Border(
+          bottom: BorderSide(color: _selectedColor, width: 2),
+          top: const BorderSide(color: Colors.white24),
+          left: const BorderSide(color: Colors.white24),
+          right: const BorderSide(color: Colors.white24),
         ),
       ),
       child: Column(
@@ -468,7 +505,7 @@ class _MessagingSectionState extends State<_MessagingSection> {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.info, color: AppColors.gold, size: 14),
+              Icon(Icons.info, color: _selectedColor, size: 14),
               const SizedBox(width: 6),
               Text('AVISO: $title', style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
             ],
@@ -999,6 +1036,31 @@ class _ModsTabState extends State<_ModsTab> {
           ),
         );
       },
+    );
+  }
+}
+
+class _ColorBox extends StatelessWidget {
+  final Color color;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _ColorBox({required this.color, required this.isSelected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 24, height: 24,
+        margin: const EdgeInsets.only(right: 6),
+        decoration: BoxDecoration(
+          color: color,
+          shape: BoxShape.circle,
+          border: Border.all(color: isSelected ? Colors.white : Colors.transparent, width: 2),
+          boxShadow: isSelected ? [BoxShadow(color: color.withOpacity(0.5), blurRadius: 8)] : null,
+        ),
+      ),
     );
   }
 }
