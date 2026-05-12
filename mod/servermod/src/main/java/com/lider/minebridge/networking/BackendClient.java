@@ -112,7 +112,7 @@ public class BackendClient {
             String wsBase = activeUrl.replace("http://", "ws://").replace("https://", "wss://");
             String wsUrl = (wsBase.endsWith("/") ? wsBase : wsBase + "/") + "ws/admin";
             
-            this.webSocket = httpClient.newWebSocketBuilder()
+            httpClient.newWebSocketBuilder()
                 .header("X-API-Key", apiKey)
                 .buildAsync(URI.create(wsUrl), new WebSocketListener())
                 .thenAccept(ws -> {

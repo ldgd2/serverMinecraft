@@ -231,35 +231,35 @@ class MinecraftProcess:
             print(f"DEBUG: Process started with PID {self.process.pid}")
             
             # --- Set CPU Affinity (Smart Core Isolation) ---
-            try:
-                p = psutil.Process(self.process.pid)
-                total_cpus = psutil.cpu_count()
-                
-                if total_cpus > 1:
-                    # Usamos una variable de clase para rotar núcleos entre servidores
-                    if not hasattr(MinecraftProcess, "_last_assigned_core"):
-                        # Empezamos en el Núcleo 1, dejando el Núcleo 0 para el SO y tareas críticas
-                        MinecraftProcess._last_assigned_core = 0 
-                    
-                    cores_to_use = max(1, int(self.cpu_cores))
-                    assigned_cores = []
-                    
-                    for _ in range(cores_to_use):
-                        # Incrementar y rotar (saltando el 0 si hay suficientes núcleos)
-                        MinecraftProcess._last_assigned_core += 1
-                        if MinecraftProcess._last_assigned_core >= total_cpus:
-                            # Volver al 1 (siempre intentamos dejar el 0 libre)
-                            MinecraftProcess._last_assigned_core = 1 if total_cpus > 2 else 0
-                        
-                        assigned_cores.append(MinecraftProcess._last_assigned_core)
-                    
-                    p.cpu_affinity(assigned_cores)
-                    print(f"INFO: CPU Isolation for {self.name}: Bounded to Cores {assigned_cores} (Total CPUs: {total_cpus})")
-                else:
-                    print(f"INFO: Only 1 CPU available. No isolation possible for {self.name}")
-                    
-            except Exception as e:
-                print(f"WARN: Failed to set CPU affinity for {self.name}: {e}")
+            # try:
+            #     p = psutil.Process(self.process.pid)
+            #     total_cpus = psutil.cpu_count()
+            #     
+            #     if total_cpus > 1:
+            #         # Usamos una variable de clase para rotar núcleos entre servidores
+            #         if not hasattr(MinecraftProcess, "_last_assigned_core"):
+            #             # Empezamos en el Núcleo 1, dejando el Núcleo 0 para el SO y tareas críticas
+            #             MinecraftProcess._last_assigned_core = 0 
+            #         
+            #         cores_to_use = max(1, int(self.cpu_cores))
+            #         assigned_cores = []
+            #         
+            #         for _ in range(cores_to_use):
+            #             # Incrementar y rotar (saltando el 0 si hay suficientes núcleos)
+            #             MinecraftProcess._last_assigned_core += 1
+            #             if MinecraftProcess._last_assigned_core >= total_cpus:
+            #                 # Volver al 1 (siempre intentamos dejar el 0 libre)
+            #                 MinecraftProcess._last_assigned_core = 1 if total_cpus > 2 else 0
+            #             
+            #             assigned_cores.append(MinecraftProcess._last_assigned_core)
+            #         
+            #         p.cpu_affinity(assigned_cores)
+            #         print(f"INFO: CPU Isolation for {self.name}: Bounded to Cores {assigned_cores} (Total CPUs: {total_cpus})")
+            #     else:
+            #         print(f"INFO: Only 1 CPU available. No isolation possible for {self.name}")
+            #         
+            # except Exception as e:
+            #     print(f"WARN: Failed to set CPU affinity for {self.name}: {e}")
             
             # --- Persist PID ---
             pid_file = os.path.join(self.working_dir, "server.pid")

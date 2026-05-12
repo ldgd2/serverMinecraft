@@ -1,5 +1,6 @@
 package com.lider.minebridge.events.player;
 
+import com.lider.minebridge.MineBridge;
 import com.lider.minebridge.networking.AchievementClient;
 import net.fabricmc.fabric.api.message.v1.ServerMessageEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
@@ -67,7 +68,7 @@ public class PlayerLogic {
             com.lider.minebridge.networking.NetworkManager.getScheduler().schedule(() -> {
                 if (!verifiedPlayers.getOrDefault(name, false)) {
                     server.execute(() -> {
-                        if (player.networkHandler.isConnected()) {
+                        if (player.networkHandler.isConnectionOpen()) {
                             MineBridge.LOGGER.warn("[Security] Kicking " + name + " - Mod Handshake Timeout");
                             player.networkHandler.disconnect(Text.literal("§cAcceso Denegado:\n§7Debes usar el Launcher oficial con el Mod instalado."));
                         }

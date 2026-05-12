@@ -95,6 +95,13 @@ public class UIBackgrounds {
         drawPanelCustom(context, x, y, width, height, 0xFF000000, UIConstants.PANEL_DARK, UIConstants.PANEL_LIGHT);
     }
 
+    /**
+     * Alias para drawInset utilizado por componentes de contenedor.
+     */
+    public static void drawInsetPanel(DrawContext context, int x, int y, int width, int height) {
+        drawInset(context, x, y, width, height);
+    }
+
     // --- Compatibilidad ---
     
     @Deprecated

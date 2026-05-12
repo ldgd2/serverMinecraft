@@ -20,30 +20,15 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class MineBridge implements ModInitializer {
-    public static final String MOD_ID = "minebridge";
     public static final Logger LOGGER = LoggerFactory.getLogger("MineBridge");
     
-    private static MinecraftServer server;
+    private static MinecraftServer serverInstance;
     private static BackendClient backendClient;
-    private static long lastTickTime = System.currentTimeMillis();
 
     @Override
     public void onInitialize() {
-        // --- WATCHDOG: Monitoreo de Salud del Servidor (Zero-Copy Performance) ---
-        NetworkManager.getScheduler().scheduleAtFixedRate(() -> {
-            long now = System.currentTimeMillis();
-            long diff = now - lastTickTime;
-            if (diff > 5000 && server != null && server.isRunning()) {
-                LOGGER.warn("[Watchdog] SEVERO LAG DETECTADO: El servidor no ha tickeado en " + (diff / 1000) + "s. Posible bloqueo del hilo principal.");
-            }
-        }, 5, 2, java.util.concurrent.TimeUnit.SECONDS);
-
-        net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents.START_SERVER_TICK.register(srv -> {
-            lastTickTime = System.currentTimeMillis();
-        });
-
         ServerLifecycleEvents.SERVER_STARTING.register(srv -> {
-            server = srv;
+            serverInstance = srv;
         });
 
         // --- Carga de Módulos (Modularización Premium) ---
@@ -61,17 +46,11 @@ public class MineBridge implements ModInitializer {
         PayloadTypeRegistry.playS2C().register(com.lider.minebridge.networking.payload.ModHandshakePayload.ID, com.lider.minebridge.networking.payload.ModHandshakePayload.CODEC);
         PayloadTypeRegistry.playC2S().register(com.lider.minebridge.networking.payload.ModHandshakePayload.ID, com.lider.minebridge.networking.payload.ModHandshakePayload.CODEC);
 
-        ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
-            // Enviamos siempre la URL PÚBLICA a los jugadores.
-            // El localUrl es solo para que el mod del servidor hable con su backend local.
+        ServerPlayConnectionEvents.JOIN.register((handler, sender, srv) -> {
             String url = ModConfig.getBackendUrl();
             if (url != null && !url.contains("PENDING")) {
                 ServerPlayNetworking.send(handler.player, new SyncBackendUrlPayload(url));
             }
-        });
-
-        ServerLifecycleEvents.SERVER_STARTING.register(server -> {
-            serverInstance = server;
         });
 
         ModConfig.load();
