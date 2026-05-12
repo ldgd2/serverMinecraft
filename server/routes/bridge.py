@@ -25,6 +25,7 @@ from app.services.auth_service import SECRET_KEY, ALGORITHM
 from database.models.players.player_account import PlayerAccount
 from app.services.player_presence import player_presence
 from app.services.fast_audit_service import fast_audit
+from routes.auth import get_current_user
 
 router = APIRouter(prefix="/bridge", tags=["Minecraft Bridge"])
 logger = logging.getLogger("uvicorn")
