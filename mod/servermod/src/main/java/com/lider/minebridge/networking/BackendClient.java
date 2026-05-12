@@ -27,6 +27,8 @@ public class BackendClient {
     public static CompletableFuture<com.google.gson.JsonArray> getJsonArray(String url) {
         java.net.http.HttpRequest request = java.net.http.HttpRequest.newBuilder()
             .uri(java.net.URI.create(url))
+            .header("X-API-Key", MineBridge.getBackendClient().apiKey)
+            .timeout(java.time.Duration.ofSeconds(10))
             .GET()
             .build();
         return NetworkManager.getHttpClient().sendAsync(request, java.net.http.HttpResponse.BodyHandlers.ofString())
@@ -46,7 +48,9 @@ public class BackendClient {
     public static CompletableFuture<Boolean> postJson(String url, JsonObject data) {
         java.net.http.HttpRequest request = java.net.http.HttpRequest.newBuilder()
             .uri(java.net.URI.create(url))
+            .header("X-API-Key", MineBridge.getBackendClient().apiKey)
             .header("Content-Type", "application/json")
+            .timeout(java.time.Duration.ofSeconds(10))
             .POST(java.net.http.HttpRequest.BodyPublishers.ofString(data.toString()))
             .build();
         return NetworkManager.getHttpClient().sendAsync(request, java.net.http.HttpResponse.BodyHandlers.ofString())
@@ -107,16 +111,24 @@ public class BackendClient {
             });
     }
 
+    private boolean isConnecting = false;
+
     private void connectWebSocket() {
+        if (isConnecting || isWebSocketConnected()) return;
+        isConnecting = true;
+
         try {
             String wsBase = activeUrl.replace("http://", "ws://").replace("https://", "wss://");
-            String wsUrl = (wsBase.endsWith("/") ? wsBase : wsBase + "/") + "ws/admin";
+            String wsUrl = (wsBase.endsWith("/") ? wsBase : wsBase + "/") + "api/v1/ws/bridge";
             
+            MineBridge.LOGGER.info("Attempting to connect to WebSocket: " + wsUrl);
+
             httpClient.newWebSocketBuilder()
                 .header("X-API-Key", apiKey)
                 .buildAsync(URI.create(wsUrl), new WebSocketListener())
                 .thenAccept(ws -> {
                     this.webSocket = ws;
+                    this.isConnecting = false;
                     MineBridge.LOGGER.info("Connected to Backend WebSocket Bridge: " + activeUrl);
                     if (MineBridge.getServer() != null) {
                         MineBridge.getServer().execute(() -> {
@@ -125,10 +137,14 @@ public class BackendClient {
                     }
                 })
                 .exceptionally(t -> {
+                    this.isConnecting = false;
                     MineBridge.LOGGER.error("Failed to connect to WebSocket: " + t.getMessage());
+                    // Reintentar en 10 segundos para no saturar
+                    NetworkManager.getScheduler().schedule(this::connectWebSocket, 10, java.util.concurrent.TimeUnit.SECONDS);
                     return null;
                 });
         } catch (Exception e) {
+            this.isConnecting = false;
             MineBridge.LOGGER.error("WebSocket construction failed: " + e.getMessage());
         }
     }
@@ -185,6 +201,7 @@ public class BackendClient {
         HttpRequest request = HttpRequest.newBuilder()
             .uri(URI.create(activeUrl + "api/v1/bridge/test"))
             .header("X-API-Key", apiKey)
+            .timeout(java.time.Duration.ofSeconds(5))
             .GET()
             .build();
 
@@ -297,6 +314,19 @@ public class BackendClient {
         @Override
         public void onOpen(WebSocket webSocket) {
             webSocket.request(1);
+        }
+
+        @Override
+        public CompletionStage<?> onClose(WebSocket webSocket, int statusCode, String reason) {
+            MineBridge.LOGGER.warn("WebSocket closed (Code: " + statusCode + ", Reason: " + reason + "). Reconnecting...");
+            NetworkManager.getScheduler().schedule(BackendClient.this::connectWebSocket, 5, java.util.concurrent.TimeUnit.SECONDS);
+            return null;
+        }
+
+        @Override
+        public void onError(WebSocket webSocket, Throwable error) {
+            MineBridge.LOGGER.error("WebSocket Error: " + error.getMessage());
+            NetworkManager.getScheduler().schedule(BackendClient.this::connectWebSocket, 5, java.util.concurrent.TimeUnit.SECONDS);
         }
 
         @Override

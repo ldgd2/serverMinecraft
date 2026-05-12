@@ -18,8 +18,10 @@ public class AchievementClient {
     private static final java.util.Set<String> sentEventsSession = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
     private static String getBaseUrl() {
-        String url = ModConfig.getBackendUrl();
-        if (url == null || url.isEmpty() || url.equals("PENDING")) return null;
+        BackendClient bc = com.lider.minebridge.MineBridge.getBackendClient();
+        if (bc == null) return null;
+        String url = bc.getActiveUrl();
+        if (url == null || url.isEmpty() || url.equals("None")) return null;
         return url.endsWith("/") ? url : url + "/";
     }
 

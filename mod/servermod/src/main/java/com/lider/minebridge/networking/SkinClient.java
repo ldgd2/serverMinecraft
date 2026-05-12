@@ -35,8 +35,10 @@ public class SkinClient {
 
     private static void performSync(ServerPlayerEntity player, Runnable onComplete) {
         try {
-            String baseUrl = ModConfig.getBackendUrl();
-            if (baseUrl == null || baseUrl.isEmpty() || baseUrl.equals("PENDING")) return;
+            com.lider.minebridge.networking.BackendClient bc = MineBridge.getBackendClient();
+            if (bc == null) return;
+            String baseUrl = bc.getActiveUrl();
+            if (baseUrl == null || baseUrl.isEmpty() || baseUrl.equals("None")) return;
             
             String url = (baseUrl.endsWith("/") ? baseUrl : baseUrl + "/") + "api/v1/players/skin/" + player.getName().getString();
 

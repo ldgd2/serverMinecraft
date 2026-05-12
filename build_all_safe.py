@@ -305,7 +305,11 @@ def _force_set_version(cfg: dict, token: str, platform: str, version: str):
     try:
         with urllib.request.urlopen(req, timeout=15) as r:
             resp = json.loads(r.read())
-            print(f"  [---] {platform} apunta ahora a v{version}: {resp.get('message', 'OK')}")
+            resp_msg = resp.get('message', 'OK')
+            try:
+                print(f"  [---] {platform} apunta ahora a v{version}: {resp_msg}")
+            except UnicodeEncodeError:
+                print(f"  [---] {platform} apunta ahora a v{version}: {resp_msg.encode('ascii', 'ignore').decode('ascii')}")
     except urllib.error.HTTPError as e:
         # Si falla por 404 (versi--n no exist--a a--n), el upload ya lo registr--, ignorar
         body_err = e.read().decode('utf-8')
@@ -596,7 +600,10 @@ def build_mods(cfg: dict, token: str):
             _force_set_version(cfg, token, "modserver", new_v)
             
         except Exception as e:
-            print(f"  [X] Fall-- la subida de mods: {e}")
+            try:
+                print(f"  [X] Fall-- la subida de mods: {e}")
+            except UnicodeEncodeError:
+                print(f"  [X] Fall-- la subida de mods: {str(e).encode('ascii', 'ignore').decode('ascii')}")
         finally:
             # Limpiar ZIP temporal para no ensuciar el repo
             if client_package and os.path.exists(client_package):

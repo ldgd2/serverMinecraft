@@ -383,7 +383,7 @@ async def upload_version(
     old_pointer = data.get(platform, "ninguno")
     data[platform] = version
     _save(data)
-    print(f"[upload] Puntero {platform}: {old_pointer} → {version}")
+    print(f"[upload] Puntero {platform}: {old_pointer} -> {version}")
 
     # Auto-update task para el server mod
     if platform == "modserver":
@@ -421,7 +421,7 @@ def set_version(platform: str, body: SetVersionBody, user=Depends(get_current_us
     data[platform] = body.version
     _save(data)
     action = "actualizado" if old != body.version else "re-confirmado (mismo número, nuevo binario)"
-    return {"status": "ok", "message": f"Puntero {platform}: {old} → {body.version} ({action})", "data": data}
+    return {"status": "ok", "message": f"Puntero {platform}: {old} -> {body.version} ({action})", "data": data}
 
 
 @router.get("/list/{platform}", summary="Listar versiones disponibles (admin)")

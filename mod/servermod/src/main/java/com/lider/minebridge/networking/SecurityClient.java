@@ -22,6 +22,7 @@ public class SecurityClient {
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(activeUrl + "api/v1/bridge/verify-mod"))
                 .header("Content-Type", "application/json")
+                .timeout(java.time.Duration.ofSeconds(10))
                 .POST(HttpRequest.BodyPublishers.ofString(payload.toString()))
                 .build();
 

@@ -20,7 +20,7 @@ public class NetworkManager {
     static {
         // Determinamos el número de hilos óptimo (al menos 2, máximo 4 para no saturar si hay pocos núcleos)
         int cores = Runtime.getRuntime().availableProcessors();
-        int threads = Math.max(2, Math.min(cores, 4));
+        int threads = Math.max(4, Math.min(cores * 2, 12));
 
         ThreadFactory factory = new ThreadFactory() {
             private final AtomicInteger count = new AtomicInteger(1);
