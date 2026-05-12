@@ -9,6 +9,7 @@ import 'package:appserve/features/servers/screens/servers_screen.dart';
 import 'package:appserve/features/system/screens/system_screen.dart';
 import 'package:appserve/features/settings/screens/settings_screen.dart';
 import 'package:appserve/features/system/screens/version_manager_screen.dart';
+import 'package:appserve/features/servers/screens/server_detail_screen.dart';
 import 'package:appserve/shared/utils/mc_dialogs.dart';
 import 'package:appserve/shared/widgets/mc_cards.dart';
 import 'package:appserve/shared/widgets/player_head.dart';
@@ -261,17 +262,36 @@ class _DashboardTab extends StatelessWidget {
   }
 
   Widget _buildQuickActions(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(child: McActionCard(icon: Icons.add_circle_outline, label: 'New Server', color: AppColors.grassGreen, onTap: () => Navigator.pushNamed(context, '/servers/create'))),
-        const SizedBox(width: 10),
-        Expanded(child: McActionCard(icon: Icons.download_for_offline_outlined, label: 'Versions', color: AppColors.diamond, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const VersionManagerScreen())))),
-        const SizedBox(width: 10),
-        Expanded(child: McActionCard(icon: Icons.people_outline, label: 'Community', color: AppColors.emerald, onTap: () => Navigator.pushNamed(context, '/players'))),
-        const SizedBox(width: 10),
-        Expanded(child: McActionCard(icon: Icons.refresh, label: 'Refresh', color: AppColors.lapis, onTap: () => context.read<ServerProvider>().loadServers())),
-      ],
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          McActionCard(icon: Icons.add_circle_outline, label: 'New Server', color: AppColors.grassGreen, onTap: () => Navigator.pushNamed(context, '/servers/create')),
+          const SizedBox(width: 10),
+          McActionCard(icon: Icons.download_for_offline_outlined, label: 'Versions', color: AppColors.diamond, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const VersionManagerScreen()))),
+          const SizedBox(width: 10),
+          McActionCard(icon: Icons.campaign_outlined, label: 'Messaging', color: AppColors.gold, onTap: () => _showGlobalMessaging(context)),
+          const SizedBox(width: 10),
+          McActionCard(icon: Icons.people_outline, label: 'Community', color: AppColors.emerald, onTap: () => Navigator.pushNamed(context, '/players')),
+          const SizedBox(width: 10),
+          McActionCard(icon: Icons.refresh, label: 'Refresh', color: AppColors.lapis, onTap: () => context.read<ServerProvider>().loadServers()),
+        ],
+      ),
     );
+  }
+
+  void _showGlobalMessaging(BuildContext context) {
+    final sp = context.read<ServerProvider>();
+    if (sp.servers.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No servers available to message.')));
+      return;
+    }
+    
+    // Mostramos el primero disponible o abrimos un diálogo que permita elegir
+    // Por ahora, como es 'Global', lo enviamos al primero y el backend se encarga de rutearlo si es necesario,
+    // o simplemente abrimos el Detail de un servidor en la pestaña Cmds.
+    final firstServer = sp.servers.firstWhere((s) => s.isOnline, orElse: () => sp.servers.first);
+    Navigator.push(context, MaterialPageRoute(builder: (_) => ServerDetailScreen(server: firstServer, initialTab: 1)));
   }
 
   Widget _buildRecentServers(BuildContext context) {

@@ -17,12 +17,14 @@ public class AchievementModule {
     public static void initClient() {
         // Receptor de desbloqueo de logros
         ClientPlayNetworking.registerGlobalReceiver(AchievementUnlockPayload.ID, (payload, context) -> {
-            context.client().execute(() -> {
+            com.lider.minebridge.core.MineCore.sync(() -> {
                 currentToastTitle = payload.title();
                 toastStartTime = System.currentTimeMillis();
                 
                 // Sonido premium de logro
-                context.client().player.playSound(net.minecraft.sound.SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, 1.0f, 1.0f);
+                if (context.client().player != null) {
+                    context.client().player.playSound(net.minecraft.sound.SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, 1.0f, 1.0f);
+                }
             });
         });
 

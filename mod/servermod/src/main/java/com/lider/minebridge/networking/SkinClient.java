@@ -3,6 +3,7 @@ package com.lider.minebridge.networking;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.lider.minebridge.MineBridge;
+import com.lider.minebridge.core.MineCore;
 import com.lider.minebridge.config.ModConfig;
 import com.mojang.authlib.properties.Property;
 import net.minecraft.network.packet.s2c.play.PlayerListS2CPacket;
@@ -27,7 +28,7 @@ public class SkinClient {
     }
 
     public static void syncSkin(ServerPlayerEntity player, Runnable onComplete) {
-        NetworkManager.getExecutor().submit(() -> {
+        MineCore.async(() -> {
             performSync(player, onComplete);
         });
     }
@@ -55,10 +56,10 @@ public class SkinClient {
                             String signature = json.has("signature") && !json.get("signature").isJsonNull() ? json.get("signature").getAsString() : "";
 
                             if (value != null && !value.isEmpty()) {
-                                MineBridge.getServer().execute(() -> {
+                                MineCore.sync(() -> {
                                     try {
                                         player.getGameProfile().getProperties().removeAll("textures");
-                                        player.getGameProfile().getProperties().put("textures", new Property("textures", value, signature));
+                                        player.getGameProfile().getProperties().put("textures", new com.mojang.authlib.properties.Property("textures", value, signature));
                                         refreshPlayerForOthers(player, value, signature);
                                         if (onComplete != null) onComplete.run();
                                     } catch (Exception e) {}

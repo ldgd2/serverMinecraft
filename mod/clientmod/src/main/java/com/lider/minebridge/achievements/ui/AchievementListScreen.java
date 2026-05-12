@@ -15,6 +15,9 @@ public class AchievementListScreen extends Screen {
     private boolean loading = true;
     private static final int PANEL_WIDTH = 280;
     private static final int PANEL_HEIGHT = 200;
+    private double scrollAmount = 0;
+    private static final int ITEM_HEIGHT = 40;
+    private static final int ITEMS_PER_ROW = 2;
 
     public AchievementListScreen() {
         super(Text.of("§e§lMIS LOGROS"));
@@ -45,7 +48,13 @@ public class AchievementListScreen extends Screen {
 
         this.addDrawableChild(ButtonWidget.builder(Text.of("§cRegresar"), button -> {
             net.minecraft.client.MinecraftClient.getInstance().setScreen(new com.lider.minebridge.client.ui.MainLauncherScreen());
-        }).dimensions(centerX - 40, centerY + 80, 80, 20).build());
+        }).dimensions(centerX - 40, centerY + 85, 80, 18).build());
+    }
+
+    @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
+        this.scrollAmount = Math.max(0, this.scrollAmount - (verticalAmount * 15));
+        return true;
     }
 
     @Override
@@ -69,23 +78,44 @@ public class AchievementListScreen extends Screen {
         context.fill(x1, y1, x2, y1 + 25, 0xFF2A2A2A);
         context.drawCenteredTextWithShadow(this.textRenderer, this.title, centerX, y1 + 8, 0xFFFFFF);
 
-        // Dibujar lista de logros
+        // Área de recorte para scrolling
+        int listY1 = y1 + 28;
+        int listY2 = y2 - 25;
+        
+        context.enableScissor(x1 + 5, listY1, x2 - 5, listY2);
+
         if (loading) {
             context.drawCenteredTextWithShadow(this.textRenderer, "§eCargando logros...", centerX, centerY, 0xFFFFFF);
         } else if (data == null || data.size() == 0) {
             context.drawCenteredTextWithShadow(this.textRenderer, "§7No tienes logros aún...", centerX, centerY, 0xAAAAAA);
         } else {
-            for (int i = 0; i < Math.min(data.size(), 6); i++) {
-                JsonObject ach = data.get(i).getAsJsonObject();
-                String title = ach.get("title").getAsString();
-                String date = ach.get("unlocked_at").getAsString().split("T")[0];
+            int gridX = x1 + 8;
+            int colWidth = (PANEL_WIDTH - 20) / ITEMS_PER_ROW;
+            
+            for (int i = 0; i < data.size(); i++) {
+                int row = i / ITEMS_PER_ROW;
+                int col = i % ITEMS_PER_ROW;
                 
-                int rowY = y1 + 35 + (i * 22);
-                context.fill(x1 + 10, rowY, x2 - 10, rowY + 20, 0xFF252525);
-                context.drawText(this.textRenderer, "§e★ " + title, x1 + 15, rowY + 6, 0xFFFFFF, false);
-                context.drawText(this.textRenderer, "§7" + date, x2 - 80, rowY + 6, 0xAAAAAA, false);
+                int itemX = gridX + (col * colWidth);
+                int itemY = (int) (listY1 + 5 + (row * (ITEM_HEIGHT + 5)) - scrollAmount);
+
+                // Solo dibujar si está visible (optimización manual básica)
+                if (itemY + ITEM_HEIGHT > listY1 && itemY < listY2) {
+                    JsonObject ach = data.get(i).getAsJsonObject();
+                    String title = ach.has("title") ? ach.get("title").getAsString() : "Logro";
+                    String date = ach.has("unlocked_at") ? ach.get("unlocked_at").getAsString().split("T")[0] : "";
+
+                    // Card de logro
+                    context.fill(itemX, itemY, itemX + colWidth - 4, itemY + ITEM_HEIGHT, 0xFF252525);
+                    context.fill(itemX, itemY, itemX + 2, itemY + ITEM_HEIGHT, 0xFFFFD700); // Borde dorado lateral
+                    
+                    context.drawText(this.textRenderer, "§e" + title, itemX + 6, itemY + 6, 0xFFFFFF, false);
+                    context.drawText(this.textRenderer, "§7" + date, itemX + 6, itemY + 22, 0xAAAAAA, false);
+                }
             }
         }
+        
+        context.disableScissor();
 
         super.render(context, mouseX, mouseY, delta);
     }

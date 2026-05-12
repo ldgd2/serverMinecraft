@@ -10,7 +10,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 public class AchievementClient {
-    private static final Set<String> UNLOCKED_SESSION = new HashSet<>();
+    private static final Set<String> UNLOCKED_SESSION = java.util.Collections.newSetFromMap(new java.util.concurrent.ConcurrentHashMap<>());
 
     public static final int COLOR_COMMON = 0xAAAAAA;
     public static final int COLOR_UNCOMMON = 0x55FF55;
@@ -21,7 +21,7 @@ public class AchievementClient {
 
     public static void triggerAchievement(String achievementId, String title) {
         if (ClientPlayNetworking.canSend(AchievementUnlockPayload.ID)) {
-            ClientPlayNetworking.send(new AchievementUnlockPayload(achievementId, title));
+            com.lider.minebridge.core.MineCore.Network.send(new AchievementUnlockPayload(achievementId, title));
         }
     }
 
@@ -32,12 +32,14 @@ public class AchievementClient {
         // 1. Enviar al servidor
         triggerAchievement(key, title);
 
-        // 2. Mostrar Toast local
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client != null && client.getToastManager() != null) {
-            int color = getColorForKey(key);
-            client.getToastManager().add(new AchievementToast(Text.of(title), Text.of(description), color));
-        }
+        // 2. Mostrar Toast local (Sincronizado)
+        com.lider.minebridge.core.MineCore.sync(() -> {
+            MinecraftClient client = MinecraftClient.getInstance();
+            if (client != null && client.getToastManager() != null) {
+                int color = getColorForKey(key);
+                client.getToastManager().add(new AchievementToast(Text.of(title), Text.of(description), color));
+            }
+        });
     }
 
     public static java.util.concurrent.CompletableFuture<com.google.gson.JsonArray> getAchievements(String uuid) {

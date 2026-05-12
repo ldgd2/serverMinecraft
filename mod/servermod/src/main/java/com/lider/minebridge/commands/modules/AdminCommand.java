@@ -110,23 +110,27 @@ public class AdminCommand {
 
         try {
             MineBridge.getBackendClient().testConnection().thenAccept(result -> {
-                if (result == null) return;
-                switch (result) {
-                    case "SUCCESS":
-                        source.sendFeedback(() -> Text.literal("§a[MineBridge] ✅ ¡Conexión Exitosa!"), true);
-                        break;
-                    case "CONFIG_ERROR":
-                        source.sendError(Text.literal("§c[MineBridge] ❌ Error: Configuración incompleta."));
-                        break;
-                    case "UNAUTHORIZED":
-                        source.sendError(Text.literal("§c[MineBridge] ❌ Error 401: API Key inválida."));
-                        break;
-                    default:
-                        source.sendError(Text.literal("§c[MineBridge] ❌ Fallo en la conexión: " + result));
-                        break;
-                }
+                com.lider.minebridge.core.MineCore.sync(() -> {
+                    if (result == null) return;
+                    switch (result) {
+                        case "SUCCESS":
+                            source.sendFeedback(() -> Text.literal("§a[MineBridge] ✅ ¡Conexión Exitosa!"), true);
+                            break;
+                        case "CONFIG_ERROR":
+                            source.sendError(Text.literal("§c[MineBridge] ❌ Error: Configuración incompleta."));
+                            break;
+                        case "UNAUTHORIZED":
+                            source.sendError(Text.literal("§c[MineBridge] ❌ Error 401: API Key inválida."));
+                            break;
+                        default:
+                            source.sendError(Text.literal("§c[MineBridge] ❌ Fallo en la conexión: " + result));
+                            break;
+                    }
+                });
             }).exceptionally(ex -> {
-                source.sendError(Text.literal("§c[MineBridge] ❌ Error de red: " + ex.getMessage()));
+                com.lider.minebridge.core.MineCore.sync(() -> {
+                    source.sendError(Text.literal("§c[MineBridge] ❌ Error de red: " + ex.getMessage()));
+                });
                 return null;
             });
         } catch (Exception e) {

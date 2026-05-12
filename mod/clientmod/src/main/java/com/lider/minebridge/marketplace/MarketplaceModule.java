@@ -50,9 +50,13 @@ public class MarketplaceModule {
 
         // 3. Receptor de datos para el Mercado Global
         ClientPlayNetworking.registerGlobalReceiver(MarketplaceDataPayload.ID, (payload, context) -> {
-            com.google.gson.JsonArray trades = com.google.gson.JsonParser.parseString(payload.tradesJson()).getAsJsonArray();
-            context.client().execute(() -> {
-                context.client().setScreen(new MarketplaceGlobalScreen(trades));
+            // Procesamos el JSON en segundo plano (Núcleo aislado)
+            com.lider.minebridge.core.MineCore.Processor.run(() -> {
+                com.google.gson.JsonArray trades = com.google.gson.JsonParser.parseString(payload.tradesJson()).getAsJsonArray();
+                // Una vez procesado, abrimos la pantalla en el hilo de renderizado
+                com.lider.minebridge.core.MineCore.sync(() -> {
+                    context.client().setScreen(new com.lider.minebridge.marketplace.ui.MarketplaceGlobalScreen(trades));
+                });
             });
         });
     }

@@ -15,12 +15,21 @@ class PlayersScreen extends StatefulWidget {
 }
 
 class _PlayersScreenState extends State<PlayersScreen> {
+  final _searchCtrl = TextEditingController();
+  String _filter = '';
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<ServerProvider>().loadAllPlayers();
     });
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
   }
 
   @override
@@ -31,9 +40,43 @@ class _PlayersScreenState extends State<PlayersScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          const Text('Community', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 4),
-          Consumer<ServerProvider>(builder: (_, sp, __) => Text('${sp.allPlayers.length} Registered Players', style: const TextStyle(color: Colors.white70, fontSize: 14))),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Community', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+              Consumer<ServerProvider>(
+                builder: (_, sp, __) => Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text('${sp.allPlayers.length} Players', style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            height: 44,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.white24),
+            ),
+            child: TextField(
+              controller: _searchCtrl,
+              onChanged: (v) => setState(() => _filter = v.toLowerCase()),
+              style: const TextStyle(color: Colors.white, fontSize: 14),
+              decoration: const InputDecoration(
+                hintText: 'Search player by name...',
+                hintStyle: TextStyle(color: Colors.white38),
+                prefixIcon: Icon(Icons.search, color: Colors.white54, size: 20),
+                border: InputBorder.none,
+                contentPadding: EdgeInsets.symmetric(vertical: 10),
+              ),
+            ),
+          ),
         ],
       ),
       body: Consumer<ServerProvider>(
@@ -42,14 +85,20 @@ class _PlayersScreenState extends State<PlayersScreen> {
             return const Center(child: CircularProgressIndicator(color: AppColors.diamond));
           }
 
-          if (sp.allPlayers.isEmpty) {
+          final filteredPlayers = sp.allPlayers.where((p) {
+            final name = (p['name'] ?? '').toString().toLowerCase();
+            return name.contains(_filter);
+          }).toList();
+
+          if (filteredPlayers.isEmpty) {
             return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.people_outline, size: 64, color: AppColors.textMuted.withOpacity(0.5)),
+                  Icon(Icons.search_off, size: 64, color: AppColors.textMuted.withOpacity(0.5)),
                   const SizedBox(height: 16),
-                  const Text('No players found in database', style: TextStyle(color: AppColors.textMuted)),
+                  Text(_filter.isEmpty ? 'No players registered' : 'No players match "$_filter"', 
+                    style: const TextStyle(color: AppColors.textMuted)),
                 ],
               ),
             );
@@ -60,10 +109,10 @@ class _PlayersScreenState extends State<PlayersScreen> {
             color: AppColors.diamond,
             child: ListView.builder(
               padding: const EdgeInsets.all(16),
-              itemCount: sp.allPlayers.length,
+              itemCount: filteredPlayers.length,
               itemBuilder: (context, index) {
-                final player = sp.allPlayers[index];
-                return _PlayerCard(player: player).animate().fadeIn(delay: (index * 50).ms).slideX();
+                final player = filteredPlayers[index];
+                return _PlayerCard(player: player).animate().fadeIn(delay: (index * 30).ms).slideX(begin: 0.05);
               },
             ),
           );

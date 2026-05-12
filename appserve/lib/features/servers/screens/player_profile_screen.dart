@@ -505,21 +505,27 @@ class _AchievementsTab extends StatelessWidget {
       );
     }
 
-    return ListView.builder(
+    return GridView.builder(
       padding: const EdgeInsets.all(16),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        mainAxisExtent: 140, // Altura fija para que el grid sea uniforme
+      ),
       itemCount: achievements.length,
       itemBuilder: (context, i) {
         final ach = achievements[i] as Map<String, dynamic>;
-        return _AchievementCard(ach: ach, index: i);
+        return _AchievementGridCard(ach: ach, index: i);
       },
     );
   }
 }
 
-class _AchievementCard extends StatelessWidget {
+class _AchievementGridCard extends StatelessWidget {
   final Map<String, dynamic> ach;
   final int index;
-  const _AchievementCard({required this.ach, required this.index});
+  const _AchievementGridCard({required this.ach, required this.index});
 
   @override
   Widget build(BuildContext context) {
@@ -530,57 +536,67 @@ class _AchievementCard extends StatelessWidget {
     final date = unlocked.isNotEmpty ? unlocked.toString().substring(0, 10) : '';
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: AppColors.backgroundElevated,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.gold.withOpacity(0.3)),
-        boxShadow: [BoxShadow(color: AppColors.gold.withOpacity(0.05), blurRadius: 8)],
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.gold.withOpacity(0.2)),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 4, offset: const Offset(0, 2))],
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 48,
-            height: 48,
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: AppColors.gold.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Image.asset(
-              'assets/gui/sprites/advancements/challenge_frame_obtained.png',
-              filterQuality: FilterQuality.none,
-              fit: BoxFit.contain,
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: AppColors.gold.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.emoji_events, color: AppColors.gold, size: 16),
+              ),
+              const Spacer(),
+              if (date.isNotEmpty)
+                Text(date, style: const TextStyle(color: AppColors.textMuted, fontSize: 9)),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: AppColors.gold, fontWeight: FontWeight.bold, fontSize: 13),
+          ),
+          const SizedBox(height: 4),
+          Expanded(
+            child: Text(
+              desc,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(color: AppColors.textMuted, fontSize: 11, height: 1.2),
             ),
           ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          if (server.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Row(
               children: [
-                Text(name,
-                    style: const TextStyle(
-                        color: AppColors.gold, fontWeight: FontWeight.bold, fontSize: 14)),
-                if (desc.isNotEmpty)
-                  Text(desc, style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
-                const SizedBox(height: 4),
-                Row(children: [
-                  if (server.isNotEmpty) ...[
-                    const Icon(Icons.location_on, size: 12, color: AppColors.textMuted),
-                    const SizedBox(width: 2),
-                    Text(server, style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
-                    const SizedBox(width: 8),
-                  ],
-                  if (date.isNotEmpty)
-                    Text(date, style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
-                ]),
+                const Icon(Icons.dns, size: 10, color: AppColors.grassGreen),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    server,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: AppColors.grassGreen, fontSize: 9, fontWeight: FontWeight.bold),
+                  ),
+                ),
               ],
             ),
-          ),
+          ],
         ],
       ),
-    ).animate().fadeIn(delay: (index * 50).ms).slideX(begin: 0.1);
+    ).animate().fadeIn(delay: (index * 40).ms).scale(begin: const Offset(0.9, 0.9));
   }
 }
 

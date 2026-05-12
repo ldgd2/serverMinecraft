@@ -47,17 +47,30 @@ public class MarketplaceCommand {
             asking.addProperty("id", Registries.ITEM.getId(itemReq.getItem()).toString());
             asking.addProperty("count", count);
 
-            TradeClient.publishTrade(
-                player.getUuidAsString(),
-                player.getName().getString(),
-                "Oferta de " + hand.getName().getString(),
-                selling, asking
-            );
-            source.sendFeedback(() -> Text.of("§a¡Oferta publicada en el Marketplace!"), true);
+            final ItemStack handCopy = hand.copy();
+            hand.setCount(0); // Remover del jugador inmediatamente
+
+            com.lider.minebridge.core.MineCore.async(() -> {
+                TradeClient.publishTrade(
+                    player.getUuidAsString(),
+                    player.getName().getString(),
+                    "Oferta de " + handCopy.getName().getString(),
+                    selling, asking
+                ).thenAccept(success -> {
+                    com.lider.minebridge.core.MineCore.sync(() -> {
+                        if (success) {
+                            source.sendFeedback(() -> Text.of("§a¡Oferta publicada en el Marketplace!"), true);
+                        } else {
+                            player.getInventory().offerOrDrop(handCopy); // Devolver si falla
+                            source.sendError(Text.of("§cError al conectar con el Backend."));
+                        }
+                    });
+                });
+            });
             
             return 1;
         } catch (Exception e) {
-            source.sendError(Text.of("§cError al publicar la oferta."));
+            source.sendError(Text.of("§cError al procesar el comando."));
             return 0;
         }
     }

@@ -55,11 +55,9 @@ public class MineBridgeClient implements ClientModInitializer {
 
         ClientPlayNetworking.registerGlobalReceiver(com.lider.minebridge.networking.payload.ModHandshakePayload.ID, (payload, context) -> {
             // El servidor pide verificación. Respondemos con nuestro token.
-            // NOTA: El token debe haber sido inyectado previamente por el launcher o login.
             String token = context.client().getSession().getAccessToken();
-            context.client().execute(() -> {
-                ClientPlayNetworking.send(new com.lider.minebridge.networking.payload.ModHandshakePayload(token));
-            });
+            // Enviamos el token sin bloquear el renderizado del cliente
+            com.lider.minebridge.core.MineCore.Network.send(new com.lider.minebridge.networking.payload.ModHandshakePayload(token));
         });
 
         // --- Carga de Módulos ---

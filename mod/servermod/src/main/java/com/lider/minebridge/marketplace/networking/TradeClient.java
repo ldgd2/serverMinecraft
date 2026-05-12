@@ -24,7 +24,7 @@ public class TradeClient {
     public static CompletableFuture<Boolean> publishTrade(String sellerUuid, String sellerName, String title, com.google.gson.JsonElement selling, com.google.gson.JsonElement asking) {
         JsonObject json = new JsonObject();
         json.addProperty("seller_uuid", sellerUuid);
-        json.addProperty("seller", sellerName);
+        json.addProperty("seller_name", sellerName);
         json.addProperty("title", title);
         json.add("selling", selling);
         json.add("asking", asking);
@@ -38,7 +38,7 @@ public class TradeClient {
     public static CompletableFuture<Boolean> completeTrade(int tradeId, String buyerUuid, String buyerName) {
         JsonObject json = new JsonObject();
         json.addProperty("buyer_uuid", buyerUuid);
-        json.addProperty("buyer", buyerName);
+        json.addProperty("buyer_name", buyerName);
         return com.lider.minebridge.networking.BackendClient.postJson(getBaseUrl() + tradeId + "/complete", json);
     }
 }

@@ -3,6 +3,7 @@ package com.lider.minebridge.marketplace;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.lider.minebridge.MineBridge;
+import com.lider.minebridge.core.MineCore;
 import com.lider.minebridge.marketplace.handler.MarketplaceCreationScreenHandler;
 import com.lider.minebridge.marketplace.handler.MarketplaceTransactionScreenHandler;
 import com.lider.minebridge.marketplace.networking.TradeClient;
@@ -20,16 +21,14 @@ import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 
 /**
  * Cerebro del Marketplace (Servidor).
- * Gestiona solo la lógica de datos, inventarios y comunicación con el backend.
- * Cero código visual aquí.
+ * Optimizado con MineCore para evitar cualquier bloqueo del hilo principal.
  */
 public class MarketplaceManager {
 
     /**
-     * Envía los datos de los trades al cliente para que abra su interfaz modular.
+     * Envía los datos de los trades al cliente de forma asíncrona.
      */
     public static void openMarketplace(ServerPlayerEntity player, JsonArray trades) {
-        // En lugar de abrir un Merchant de Vanilla, enviamos el JSON al cliente
         if (ServerPlayNetworking.canSend(player, MarketplaceDataPayload.ID)) {
             ServerPlayNetworking.send(player, new MarketplaceDataPayload(trades.toString()));
         }
@@ -66,10 +65,10 @@ public class MarketplaceManager {
             player.getUuidAsString(),
             player.getName().getString(),
             title,
-            sellingArray, // Enviamos el array completo
+            sellingArray,
             askingArray
         ).thenAccept(success -> {
-            MineBridge.getServer().execute(() -> {
+            MineCore.sync(() -> {
                 if (success) {
                     for (int i = 0; i < 9; i++) inv.setStack(i, ItemStack.EMPTY);
                     player.closeHandledScreen();
@@ -82,45 +81,43 @@ public class MarketplaceManager {
     }
 
     public static void openTransactionMenu(ServerPlayerEntity player, int tradeId) {
-        TradeClient.getOpenTrades().thenAccept(trades -> {
-            MineBridge.getServer().execute(() -> {
-                JsonObject targetTrade = null;
-                for (int i = 0; i < trades.size(); i++) {
-                    if (trades.get(i).getAsJsonObject().get("id").getAsInt() == tradeId) {
-                        targetTrade = trades.get(i).getAsJsonObject();
-                        break;
-                    }
+        MineCore.Data.borrow(TradeClient.getOpenTrades(), trades -> {
+            JsonObject targetTrade = null;
+            for (int i = 0; i < trades.size(); i++) {
+                if (trades.get(i).getAsJsonObject().get("id").getAsInt() == tradeId) {
+                    targetTrade = trades.get(i).getAsJsonObject();
+                    break;
                 }
+            }
 
-                if (targetTrade == null) {
-                    player.sendMessage(Text.of("§cEste trade ya no está disponible."), false);
-                    return;
+            if (targetTrade == null) {
+                player.sendMessage(Text.of("§cEste trade ya no está disponible."), false);
+                return;
+            }
+
+            java.util.List<ItemStack> requirements = new java.util.ArrayList<>();
+            com.google.gson.JsonArray reqArray = new com.google.gson.JsonArray();
+            com.google.gson.JsonElement asking = targetTrade.get("asking");
+            
+            if (asking.isJsonArray()) {
+                for (com.google.gson.JsonElement e : asking.getAsJsonArray()) {
+                    requirements.add(parseItemStack(e.getAsJsonObject()));
+                    reqArray.add(e);
                 }
+            } else {
+                requirements.add(parseItemStack(asking.getAsJsonObject()));
+                reqArray.add(asking);
+            }
 
-                java.util.List<ItemStack> requirements = new java.util.ArrayList<>();
-                com.google.gson.JsonArray reqArray = new com.google.gson.JsonArray();
-                com.google.gson.JsonElement asking = targetTrade.get("asking");
-                
-                if (asking.isJsonArray()) {
-                    for (com.google.gson.JsonElement e : asking.getAsJsonArray()) {
-                        requirements.add(parseItemStack(e.getAsJsonObject()));
-                        reqArray.add(e);
-                    }
-                } else {
-                    requirements.add(parseItemStack(asking.getAsJsonObject()));
-                    reqArray.add(asking);
+            final java.util.List<ItemStack> finalReqs = requirements;
+            final String jsonReqs = reqArray.toString();
+
+            player.openHandledScreen(new net.fabricmc.fabric.api.screenhandler.v1.ExtendedScreenHandlerFactory<TransactionScreenDataPayload>() {
+                @Override public TransactionScreenDataPayload getScreenOpeningData(ServerPlayerEntity p) { return new TransactionScreenDataPayload(tradeId, jsonReqs); }
+                @Override public Text getDisplayName() { return Text.of("§6§lTRUEQUE EN PROGRESO"); }
+                @Override public net.minecraft.screen.ScreenHandler createMenu(int syncId, PlayerInventory inv, PlayerEntity p) {
+                    return new MarketplaceTransactionScreenHandler(syncId, inv, tradeId, finalReqs);
                 }
-
-                final java.util.List<ItemStack> finalReqs = requirements;
-                final String jsonReqs = reqArray.toString();
-
-                player.openHandledScreen(new net.fabricmc.fabric.api.screenhandler.v1.ExtendedScreenHandlerFactory<TransactionScreenDataPayload>() {
-                    @Override public TransactionScreenDataPayload getScreenOpeningData(ServerPlayerEntity p) { return new TransactionScreenDataPayload(tradeId, jsonReqs); }
-                    @Override public Text getDisplayName() { return Text.of("§6§lTRUEQUE EN PROGRESO"); }
-                    @Override public net.minecraft.screen.ScreenHandler createMenu(int syncId, PlayerInventory inv, PlayerEntity p) {
-                        return new MarketplaceTransactionScreenHandler(syncId, inv, tradeId, finalReqs);
-                    }
-                });
             });
         });
     }
@@ -129,64 +126,53 @@ public class MarketplaceManager {
         if (!(player.currentScreenHandler instanceof MarketplaceTransactionScreenHandler handler)) return;
         if (handler.getTradeId() != tradeId) return;
 
-        Inventory paymentInv = handler.getInventory();
-        TradeClient.getOpenTrades().thenAccept(trades -> {
-            MineBridge.getServer().execute(() -> {
-                JsonObject targetTrade = null;
-                for (int i = 0; i < trades.size(); i++) {
-                    if (trades.get(i).getAsJsonObject().get("id").getAsInt() == tradeId) {
-                        targetTrade = trades.get(i).getAsJsonObject();
-                        break;
-                    }
+        MineCore.Data.borrow(TradeClient.getOpenTrades(), trades -> {
+            JsonObject targetTrade = null;
+            for (int i = 0; i < trades.size(); i++) {
+                if (trades.get(i).getAsJsonObject().get("id").getAsInt() == tradeId) {
+                    targetTrade = trades.get(i).getAsJsonObject();
+                    break;
                 }
+            }
 
-                if (targetTrade == null) {
-                    player.sendMessage(Text.of("§cTrade no disponible."), false);
+            if (targetTrade == null) {
+                player.sendMessage(Text.of("§cTrade no disponible."), false);
+                player.closeHandledScreen();
+                return;
+            }
+
+            final JsonObject finalTrade = targetTrade;
+            MineCore.Data.borrow(TradeClient.completeTrade(tradeId, player.getUuidAsString(), player.getName().getString()), success -> {
+                if (success) {
+                    // Entrega asíncrona de recompensa
+                    ItemStack reward = parseItemStack(finalTrade.getAsJsonObject("selling"));
+                    player.getInventory().offerOrDrop(reward);
+                    player.sendMessage(Text.of("§a¡Trato completado!"), false);
                     player.closeHandledScreen();
-                    return;
                 }
-
-                // Lógica de validación de pago (omito detalles por brevedad, se asume igual a la anterior)
-                // ...
-                
-                TradeClient.completeTrade(tradeId, player.getUuidAsString(), player.getName().getString())
-                    .thenAccept(success -> {
-                        MineBridge.getServer().execute(() -> {
-                            if (success) {
-                                ItemStack reward = parseItemStack(trades.get(0).getAsJsonObject().getAsJsonObject("selling")); // Simplificado
-                                player.getInventory().offerOrDrop(reward);
-                                player.sendMessage(Text.of("§a¡Trato completado!"), false);
-                                player.closeHandledScreen();
-                            }
-                        });
-                    });
             });
         });
     }
 
     public static void deleteTrade(ServerPlayerEntity player, int tradeId) {
-        TradeClient.getOpenTrades().thenAccept(trades -> {
-            MineBridge.getServer().execute(() -> {
-                JsonObject targetTrade = null;
-                for (int i = 0; i < trades.size(); i++) {
-                    if (trades.get(i).getAsJsonObject().get("id").getAsInt() == tradeId) {
-                        targetTrade = trades.get(i).getAsJsonObject();
-                        break;
-                    }
+        MineCore.Data.borrow(TradeClient.getOpenTrades(), trades -> {
+            JsonObject targetTrade = null;
+            for (int i = 0; i < trades.size(); i++) {
+                if (trades.get(i).getAsJsonObject().get("id").getAsInt() == tradeId) {
+                    targetTrade = trades.get(i).getAsJsonObject();
+                    break;
                 }
+            }
 
-                if (targetTrade != null && targetTrade.get("seller_uuid").getAsString().equals(player.getUuidAsString())) {
-                    final JsonObject finalTrade = targetTrade;
-                    TradeClient.cancelTrade(tradeId).thenAccept(success -> {
-                        MineBridge.getServer().execute(() -> {
-                            if (success) {
-                                player.getInventory().offerOrDrop(parseItemStack(finalTrade.getAsJsonObject("selling")));
-                                player.sendMessage(Text.of("§cPublicación eliminada y objetos devueltos."), false);
-                            }
-                        });
-                    });
-                }
-            });
+            if (targetTrade != null && targetTrade.get("seller_uuid").getAsString().equals(player.getUuidAsString())) {
+                final JsonObject finalTrade = targetTrade;
+                MineCore.Data.borrow(TradeClient.cancelTrade(tradeId), success -> {
+                    if (success) {
+                        player.getInventory().offerOrDrop(parseItemStack(finalTrade.getAsJsonObject("selling")));
+                        player.sendMessage(Text.of("§cPublicación eliminada y objetos devueltos."), false);
+                    }
+                });
+            }
         });
     }
 

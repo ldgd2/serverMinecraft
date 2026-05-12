@@ -15,7 +15,7 @@ public class AchievementModule {
         PayloadTypeRegistry.playS2C().register(AchievementUnlockPayload.ID, AchievementUnlockPayload.CODEC);
         
         ServerPlayNetworking.registerGlobalReceiver(AchievementUnlockPayload.ID, (payload, context) -> {
-            context.server().execute(() -> {
+            com.lider.minebridge.core.MineCore.sync(() -> {
                 String key = payload.achievementId();
                 String title = payload.title();
                 String playerName = context.player().getName().getString();
@@ -27,11 +27,13 @@ public class AchievementModule {
                 );
 
                 if (MineBridge.getBackendClient() != null) {
-                    com.lider.minebridge.networking.AchievementClient.sendEvent(
-                        context.player().getUuidAsString(),
-                        key,
-                        1
-                    );
+                    com.lider.minebridge.core.MineCore.async(() -> {
+                        com.lider.minebridge.networking.AchievementClient.sendEvent(
+                            context.player().getUuidAsString(),
+                            key,
+                            1
+                        );
+                    });
                 }
             });
         });
