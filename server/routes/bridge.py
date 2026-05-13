@@ -125,10 +125,10 @@ async def test_connection(user: User = Depends(verify_bridge_auth)):
 
 @router.post("/events")
 async def receive_event(event: dict, request: Request, user: User = Depends(verify_bridge_auth)):
-    player_name = event.get("player", "Unknown")
+    player_name = event.get("player") or event.get("username") or event.get("name") or "Unknown"
     player_uuid = event.get("uuid") or event.get("player_uuid")
     event_type = event.get("type", "unknown")
-    server_name = event.get("server_name")
+    server_name = event.get("server_name") or event.get("server")
     
     with SessionLocal() as db:
         server = db.query(Server).filter(Server.name == server_name).first()
@@ -281,13 +281,21 @@ async def receive_heartbeat(payload: dict, user: User = Depends(verify_bridge_au
     # Reemplazar la caché de este servidor con la lista actual
     server_player_cache[server_name] = {}
     for p in players:
-        username = p.get("name")
+        username = p.get("player") or p.get("name")
         if username:
             server_player_cache[server_name][username] = {
-                "uuid": p.get("uuid", "unknown"),
-                "ip": p.get("ip", "unknown"),
+                "uuid": p.get("player_uuid") or p.get("uuid", "unknown"),
+                "ip": p.get("player_ip") or p.get("ip", "unknown"),
                 "joined_at": datetime.datetime.utcnow().isoformat()
             }
+    
+    # ACTUALIZAR ESTADO EN DB para la App
+    with SessionLocal() as db:
+        server = db.query(Server).filter(Server.name == server_name).first()
+        if server:
+            server.status = "RUNNING"
+            server.current_players = len(players)
+            db.commit()
     
     return {"status": "ok", "online": len(players)}
     
@@ -313,10 +321,10 @@ async def trigger_notification(payload: dict, user: User = Depends(verify_bridge
 
 @router.post("/chat")
 async def receive_chat(chat: dict, db: Session = Depends(get_db), user: User = Depends(verify_bridge_auth)):
-    player_name = chat.get("player", "Unknown")
+    player_name = chat.get("player") or chat.get("username") or chat.get("name") or "Unknown"
     player_uuid = chat.get("uuid") or chat.get("player_uuid")
     message = chat.get("message", "")
-    server_name = chat.get("server_name")
+    server_name = chat.get("server_name") or chat.get("server")
     chat_type = chat.get("type", "chat")
     
     server = db.query(Server).filter(Server.name == server_name).first()

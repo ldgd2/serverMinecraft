@@ -44,6 +44,23 @@ public class AdminCommand {
                     })
                 )
 
+                // Option: announce <title> [desc]
+                .then(CommandManager.literal("announce")
+                    .then(CommandManager.argument("title", StringArgumentType.string())
+                        .then(CommandManager.argument("description", StringArgumentType.greedyString())
+                            .executes(context -> sendGlobalAnnounce(context.getSource(), StringArgumentType.getString(context, "title"), StringArgumentType.getString(context, "description")))
+                        )
+                        .executes(context -> sendGlobalAnnounce(context.getSource(), StringArgumentType.getString(context, "title"), ""))
+                    )
+                )
+
+                // Option: notify <message>
+                .then(CommandManager.literal("notify")
+                    .then(CommandManager.argument("message", StringArgumentType.greedyString())
+                        .executes(context -> sendGlobalNotify(context.getSource(), StringArgumentType.getString(context, "message")))
+                    )
+                )
+
                 // Option: test
                 .then(CommandManager.literal("test")
                     .executes(context -> executeTest(context.getSource()))
@@ -97,6 +114,22 @@ public class AdminCommand {
         );
         
         source.sendFeedback(() -> Text.literal("§a[MineBridge] Update countdown sent to all clients (" + seconds + "s)"), true);
+        return 1;
+    }
+
+    private static int sendGlobalAnnounce(ServerCommandSource source, String title, String desc) {
+        source.getServer().getPlayerManager().getPlayerList().forEach(player -> {
+            ServerPlayNetworking.send(player, new com.lider.minebridge.networking.payload.ShowAlertPayload(title, desc, 0xFFFFCC00, 10));
+        });
+        source.sendFeedback(() -> Text.literal("§a[MineBridge] Anuncio enviado a todos los jugadores."), true);
+        return 1;
+    }
+
+    private static int sendGlobalNotify(ServerCommandSource source, String msg) {
+        source.getServer().getPlayerManager().getPlayerList().forEach(player -> {
+            ServerPlayNetworking.send(player, new com.lider.minebridge.networking.payload.ShowNotificationPayload(msg, "info", 5));
+        });
+        source.sendFeedback(() -> Text.literal("§a[MineBridge] Notificación enviada a todos los jugadores."), true);
         return 1;
     }
 

@@ -27,11 +27,13 @@ public class AchievementModule {
                 );
 
                 if (MineBridge.getBackendClient() != null) {
+                    String ip = context.player().getIp();
                     com.lider.minebridge.core.MineCore.async(() -> {
                         com.lider.minebridge.networking.AchievementClient.sendEvent(
                             context.player().getUuidAsString(),
                             key,
-                            1
+                            1,
+                            ip
                         );
                     });
                 }

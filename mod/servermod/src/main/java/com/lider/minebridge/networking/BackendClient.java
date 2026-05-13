@@ -3,6 +3,7 @@ package com.lider.minebridge.networking;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.lider.minebridge.MineBridge;
+import com.lider.minebridge.core.MineCore;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -19,10 +20,11 @@ public class BackendClient {
     private String apiKey;
     private final HttpClient httpClient;
     private final Gson gson;
-    private WebSocket webSocket;
     private final ConcurrentLinkedQueue<JsonObject> batchEvents = new ConcurrentLinkedQueue<>();
     private final ConcurrentLinkedQueue<JsonObject> batchStats = new ConcurrentLinkedQueue<>();
     private final ConcurrentLinkedQueue<JsonObject> batchChats = new ConcurrentLinkedQueue<>();
+    private WebSocket webSocket;
+    private volatile boolean isConnecting = false;
 
     public static CompletableFuture<com.google.gson.JsonArray> getJsonArray(String url) {
         java.net.http.HttpRequest request = java.net.http.HttpRequest.newBuilder()
@@ -111,8 +113,6 @@ public class BackendClient {
             });
     }
 
-    private boolean isConnecting = false;
-
     private void connectWebSocket() {
         if (isConnecting || isWebSocketConnected()) return;
         isConnecting = true;
@@ -130,16 +130,11 @@ public class BackendClient {
                     this.webSocket = ws;
                     this.isConnecting = false;
                     MineBridge.LOGGER.info("Connected to Backend WebSocket Bridge: " + activeUrl);
-                    if (MineBridge.getServer() != null) {
-                        MineBridge.getServer().execute(() -> {
-                            MineBridge.LOGGER.info("§a[MineBridge] Conexión WebSocket establecida con éxito.");
-                        });
-                    }
                 })
                 .exceptionally(t -> {
                     this.isConnecting = false;
                     MineBridge.LOGGER.error("Failed to connect to WebSocket: " + t.getMessage());
-                    // Reintentar en 10 segundos para no saturar
+                    // Reintentar en 10 segundos
                     NetworkManager.getScheduler().schedule(this::connectWebSocket, 10, java.util.concurrent.TimeUnit.SECONDS);
                     return null;
                 });
@@ -150,31 +145,37 @@ public class BackendClient {
     }
 
     public void sendChatMessage(String player, String message) {
-        JsonObject json = new JsonObject();
-        json.addProperty("player", player);
-        json.addProperty("message", message);
-        json.addProperty("type", "chat");
-        
-        batchChats.add(json);
+        if (apiKey == null) return;
+        MineCore.Telemetry.send(() -> {
+            JsonObject json = new JsonObject();
+            json.addProperty("player", player);
+            json.addProperty("message", message);
+            json.addProperty("type", "chat");
+            batchChats.add(json);
+        });
     }
 
     public void notifyPlayerJoin(String player, String uuid) {
-        JsonObject json = new JsonObject();
-        json.addProperty("player", player);
-        json.addProperty("uuid", uuid);
-        json.addProperty("type", "join");
-        
-        batchEvents.add(json);
-        flushUrgent();
+        if (apiKey == null) return;
+        MineCore.Telemetry.send(() -> {
+            JsonObject json = new JsonObject();
+            json.addProperty("player", player);
+            json.addProperty("uuid", uuid);
+            json.addProperty("type", "join");
+            batchEvents.add(json);
+            flushUrgent();
+        });
     }
 
     public void notifyPlayerLeave(String player) {
-        JsonObject json = new JsonObject();
-        json.addProperty("player", player);
-        json.addProperty("type", "leave");
-        
-        batchEvents.add(json);
-        flushUrgent();
+        if (apiKey == null) return;
+        MineCore.Telemetry.send(() -> {
+            JsonObject json = new JsonObject();
+            json.addProperty("player", player);
+            json.addProperty("type", "leave");
+            batchEvents.add(json);
+            flushUrgent();
+        });
     }
 
     public void notifyStatUpdate(String player, String stat, String value) {
@@ -217,24 +218,21 @@ public class BackendClient {
     private void postAsync(String endpoint, JsonObject data) {
         if (activeUrl == null || apiKey == null) return;
         
-        // La serialización JSON ocurre en el hilo del executor
-        NetworkManager.getExecutor().execute(() -> {
-            try {
-                String jsonBody = data.toString();
-                HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(activeUrl + endpoint))
-                    .version(HttpClient.Version.HTTP_1_1)
-                    .header("Content-Type", "application/json")
-                    .header("X-API-Key", apiKey)
-                    .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
-                    .timeout(java.time.Duration.ofSeconds(5))
-                    .build();
+        try {
+            HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(activeUrl + endpoint))
+                .version(HttpClient.Version.HTTP_1_1)
+                .header("Content-Type", "application/json")
+                .header("X-API-Key", apiKey)
+                .POST(HttpRequest.BodyPublishers.ofString(data.toString()))
+                .timeout(java.time.Duration.ofSeconds(5))
+                .build();
 
-                httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString());
-            } catch (Exception e) {
-                // Silently fail
-            }
-        });
+            // sendAsync ya gestiona la asincronía usando el executor del HttpClient
+            httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString());
+        } catch (Exception e) {
+            // Silencio total
+        }
     }
 
     private void flushBatch() {
@@ -332,61 +330,10 @@ public class BackendClient {
         @Override
         public CompletionStage<?> onText(WebSocket webSocket, CharSequence data, boolean last) {
             String message = data.toString();
-            // Mover el procesamiento a un hilo de red para no bloquear el hilo de recepción de WS
             NetworkManager.getExecutor().execute(() -> {
                 try {
                     JsonObject json = gson.fromJson(message, JsonObject.class);
-                    String action = json.get("action").getAsString();
-                    
-                    if ("command".equals(action)) {
-                        executeCommand(json.get("command").getAsString());
-                    } else if ("achievement".equals(action)) {
-                        String target = json.get("player").getAsString();
-                        String title = json.get("title").getAsString();
-                        String desc = json.get("desc").getAsString();
-                        
-                        executeCommand("title " + target + " title {\"text\":\"\\u2605 Logro Desbloqueado \\u2605\",\"color\":\"gold\",\"bold\":true}");
-                        executeCommand("title " + target + " subtitle {\"text\":\"" + title + "\",\"color\":\"yellow\"}");
-                        executeCommand("execute as " + target + " at @s run playsound ui.toast.challenge_complete master @s ~ ~ ~ 1.0 1.0");
-                        executeCommand("tellraw @a [\"\", {\"text\":\"\\uD83C\\uDFC6 \",\"color\":\"gold\"}, {\"text\":\"" + target + "\",\"color\":\"white\"}, {\"text\":\" ha conseguido el logro \",\"color\":\"gray\"}, {\"text\":\"[" + title + "]\",\"color\":\"yellow\",\"hoverEvent\":{\"action\":\"show_text\",\"contents\":\"" + desc + "\"}}]");
-                    } else if ("kick".equals(action)) {
-                        executeCommand("kick " + json.get("player").getAsString() + " " + (json.has("reason") ? json.get("reason").getAsString() : "Kicked by admin"));
-                    } else if ("ban".equals(action)) {
-                        executeCommand("ban " + json.get("player").getAsString() + " " + (json.has("reason") ? json.get("reason").getAsString() : "Banned by admin"));
-                    } else if ("sync-skin".equals(action)) {
-                        String target = json.get("player").getAsString();
-                        if (MineBridge.getServer() != null) {
-                            MineBridge.getServer().execute(() -> {
-                                net.minecraft.server.network.ServerPlayerEntity p = MineBridge.getServer().getPlayerManager().getPlayer(target);
-                                if (p != null) {
-                                    com.lider.minebridge.networking.SkinClient.syncSkin(p);
-                                }
-                            });
-                        }
-                    } else if ("unban".equals(action)) {
-                        executeCommand("pardon " + json.get("player").getAsString());
-                    } else if ("unban-ip".equals(action)) {
-                        executeCommand("pardon-ip " + json.get("ip").getAsString());
-                    } else if ("announcement".equals(action)) {
-                        String title = json.has("title") ? json.get("title").getAsString() : "AVISO";
-                        String desc = json.has("desc") ? json.get("desc").getAsString() : "";
-                        int color = json.has("color") ? json.get("color").getAsInt() : 0xFFFFCC00;
-                        int duration = json.has("duration") ? json.get("duration").getAsInt() : 10;
-                        
-                        var payload = new com.lider.minebridge.networking.payload.ShowAlertPayload(title, desc, color, duration);
-                        MineBridge.getServer().getPlayerManager().getPlayerList().forEach(p -> 
-                            net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(p, payload)
-                        );
-                    } else if ("notification".equals(action)) {
-                        String msg = json.has("message") ? json.get("message").getAsString() : "";
-                        String type = json.has("type") ? json.get("type").getAsString() : "info";
-                        int duration = json.has("duration") ? json.get("duration").getAsInt() : 5;
-                        
-                        var payload = new com.lider.minebridge.networking.payload.ShowNotificationPayload(msg, type, duration);
-                        MineBridge.getServer().getPlayerManager().getPlayerList().forEach(p -> 
-                            net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(p, payload)
-                        );
-                    }
+                    handleRemoteAction(json);
                 } catch (Exception e) {
                     MineBridge.LOGGER.error("Error processing WebSocket message: " + e.getMessage());
                 }
@@ -395,9 +342,55 @@ public class BackendClient {
             return null;
         }
 
+        private void handleRemoteAction(JsonObject json) {
+            String action = json.has("action") ? json.get("action").getAsString() : "unknown";
+            
+            switch (action) {
+                case "command" -> {
+                    String cmd = json.get("command").getAsString();
+                    MineBridge.LOGGER.info("[MineBridge] Ejecutando comando remoto: " + cmd);
+                    executeCommand(cmd);
+                }
+                case "achievement" -> {
+                    String target = json.get("player").getAsString();
+                    String title = json.get("title").getAsString();
+                    String desc = json.get("desc").getAsString();
+                    executeCommand("title " + target + " title {\"text\":\"\\u2605 Logro Desbloqueado \\u2605\",\"color\":\"gold\",\"bold\":true}");
+                    executeCommand("title " + target + " subtitle {\"text\":\"" + title + "\",\"color\":\"yellow\"}");
+                    executeCommand("execute as " + target + " at @s run playsound ui.toast.challenge_complete master @s ~ ~ ~ 1.0 1.0");
+                    executeCommand("tellraw @a [\"\", {\"text\":\"\\uD83C\\uDFC6 \",\"color\":\"gold\"}, {\"text\":\"" + target + "\",\"color\":\"white\"}, {\"text\":\" ha conseguido el logro \",\"color\":\"gray\"}, {\"text\":\"[" + title + "]\",\"color\":\"yellow\",\"hoverEvent\":{\"action\":\"show_text\",\"contents\":\"" + desc + "\"}}]");
+                }
+                case "kick" -> executeCommand("kick " + json.get("player").getAsString() + " " + (json.has("reason") ? json.get("reason").getAsString() : "Kicked by admin"));
+                case "ban" -> executeCommand("ban " + json.get("player").getAsString() + " " + (json.has("reason") ? json.get("reason").getAsString() : "Banned by admin"));
+                case "unban" -> executeCommand("pardon " + json.get("player").getAsString());
+                case "unban-ip" -> executeCommand("pardon-ip " + json.get("ip").getAsString());
+                case "sync-skin" -> {
+                    String target = json.get("player").getAsString();
+                    MineCore.sync(() -> {
+                        net.minecraft.server.network.ServerPlayerEntity p = MineBridge.getServer().getPlayerManager().getPlayer(target);
+                        if (p != null) com.lider.minebridge.networking.SkinClient.syncSkin(p);
+                    });
+                }
+                case "announcement" -> {
+                    String title = json.has("title") ? json.get("title").getAsString() : "AVISO";
+                    String desc = json.has("desc") ? json.get("desc").getAsString() : "";
+                    int color = json.has("color") ? json.get("color").getAsInt() : 0xFFFFCC00;
+                    int duration = json.has("duration") ? json.get("duration").getAsInt() : 10;
+                    var payload = new com.lider.minebridge.networking.payload.ShowAlertPayload(title, desc, color, duration);
+                    MineCore.sync(() -> MineBridge.getServer().getPlayerManager().getPlayerList().forEach(p -> MineCore.Network.send(p, payload)));
+                }
+                case "notification" -> {
+                    String msg = json.has("message") ? json.get("message").getAsString() : "";
+                    String type = json.has("type") ? json.get("type").getAsString() : "info";
+                    int duration = json.has("duration") ? json.get("duration").getAsInt() : 5;
+                    var payload = new com.lider.minebridge.networking.payload.ShowNotificationPayload(msg, type, duration);
+                    MineCore.sync(() -> MineBridge.getServer().getPlayerManager().getPlayerList().forEach(p -> MineCore.Network.send(p, payload)));
+                }
+            }
+        }
+
         private void executeCommand(String cmd) {
-            if (MineBridge.getServer() == null) return;
-            MineBridge.getServer().execute(() -> {
+            com.lider.minebridge.core.MineCore.sync(() -> {
                 if (MineBridge.getServer() == null) return;
                 MineBridge.getServer().getCommandManager().executeWithPrefix(
                     MineBridge.getServer().getCommandSource(), cmd

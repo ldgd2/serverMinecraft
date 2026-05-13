@@ -38,6 +38,9 @@ public class MineCore {
     /**
      * SISTEMA DE DATOS (DATA): Ideal para "pedir prestado" datos al backend sin lag.
      */
+    /**
+     * SISTEMA DE DATOS (DATA): Ideal para "pedir prestado" datos al backend sin lag.
+     */
     public static class Data {
         /**
          * Pide datos al BACKEND/RED y vuelve al hilo principal.
@@ -53,12 +56,21 @@ public class MineCore {
 
         /**
          * CAPTURA datos del JUEGO y los procesa en SEGUNDO PLANO.
+         * Optimizado: Si ya estamos en el Main Tick, captura de inmediato.
          */
         public static <T> void snapshot(java.util.function.Supplier<T> capture, java.util.function.Consumer<T> processor) {
-            sync(() -> {
+            MinecraftServer s = MineBridge.getServer();
+            if (s != null && s.isOnThread()) {
+                // Ya estamos en el hilo correcto, capturamos sin esperar al siguiente tick
                 T data = capture.get();
                 async(() -> processor.accept(data));
-            });
+            } else {
+                // Estamos en otro hilo, programamos la captura para el próximo tick
+                sync(() -> {
+                    T data = capture.get();
+                    async(() -> processor.accept(data));
+                });
+            }
         }
     }
 
@@ -92,6 +104,17 @@ public class MineCore {
     }
 
     /**
+     * SISTEMA DE TELEMETRÍA (TELEMETRY): Despacho de datos hacia el backend.
+     * Diseñado para que el juego "suelte" los datos y se olvide.
+     */
+    public static class Telemetry {
+        public static void send(Runnable buildAndSendTask) {
+            // El juego no construye el JSON, solo programa la construcción asíncrona
+            async(buildAndSendTask);
+        }
+    }
+
+    /**
      * TAREA REPETITIVA ASINCRONA.
      */
     public static void repeating(Runnable task, long initialDelay, long period, TimeUnit unit) {
@@ -100,11 +123,16 @@ public class MineCore {
 
     /**
      * RETORNO SEGURO al hilo principal.
+     * Optimizado: Si ya estamos en el hilo principal, ejecuta de inmediato.
      */
     public static void sync(Runnable task) {
         MinecraftServer s = MineBridge.getServer();
         if (s != null) {
-            s.execute(task);
+            if (s.isOnThread()) {
+                task.run();
+            } else {
+                s.execute(task);
+            }
         }
     }
 

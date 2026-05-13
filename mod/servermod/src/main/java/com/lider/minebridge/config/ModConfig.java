@@ -45,18 +45,25 @@ public class ModConfig {
         }
     }
 
-    public static void save() {
-        try (FileWriter writer = new FileWriter(CONFIG_PATH.toFile())) {
-            JsonObject json = new JsonObject();
-            json.addProperty("backend_url", backendUrl);
-            json.addProperty("local_url", localUrl);
-            json.addProperty("api_key", apiKey);
-            json.addProperty("server_ip", serverIp);
-            json.addProperty("server_name", serverName);
-            GSON.toJson(json, writer);
-        } catch (Exception e) {
-            MineBridge.LOGGER.error("Failed to save config: " + e.getMessage());
-        }
+    public static synchronized void save() {
+        // Clonamos los datos actuales para evitar problemas de concurrencia al serializar
+        JsonObject json = new JsonObject();
+        json.addProperty("backend_url", backendUrl);
+        json.addProperty("local_url", localUrl);
+        json.addProperty("api_key", apiKey);
+        json.addProperty("server_ip", serverIp);
+        json.addProperty("server_name", serverName);
+
+        // Guardado asíncrono para no bloquear el hilo que llamó (ej. el hilo del servidor en un comando)
+        com.lider.minebridge.networking.NetworkManager.getExecutor().execute(() -> {
+            synchronized (ModConfig.class) {
+                try (FileWriter writer = new FileWriter(CONFIG_PATH.toFile())) {
+                    GSON.toJson(json, writer);
+                } catch (Exception e) {
+                    MineBridge.LOGGER.error("Failed to save config: " + e.getMessage());
+                }
+            }
+        });
     }
 
     public static String getBackendUrl() { 

@@ -22,13 +22,16 @@ public class TradeClient {
     }
 
     public static CompletableFuture<Boolean> publishTrade(String sellerUuid, String sellerName, String title, com.google.gson.JsonElement selling, com.google.gson.JsonElement asking) {
-        JsonObject json = new JsonObject();
-        json.addProperty("seller_uuid", sellerUuid);
-        json.addProperty("seller_name", sellerName);
-        json.addProperty("title", title);
-        json.add("selling", selling);
-        json.add("asking", asking);
-        return com.lider.minebridge.networking.BackendClient.postJson(getBaseUrl() + "publish", json);
+        return CompletableFuture.supplyAsync(() -> {
+            JsonObject json = new JsonObject();
+            json.addProperty("seller_uuid", sellerUuid);
+            json.addProperty("seller_name", sellerName);
+            json.addProperty("title", title);
+            json.add("selling", selling);
+            json.add("asking", asking);
+            return json;
+        }, com.lider.minebridge.networking.NetworkManager.getExecutor())
+        .thenCompose(json -> com.lider.minebridge.networking.BackendClient.postJson(getBaseUrl() + "publish", json));
     }
 
     public static CompletableFuture<Boolean> cancelTrade(int tradeId) {
@@ -36,9 +39,12 @@ public class TradeClient {
     }
 
     public static CompletableFuture<Boolean> completeTrade(int tradeId, String buyerUuid, String buyerName) {
-        JsonObject json = new JsonObject();
-        json.addProperty("buyer_uuid", buyerUuid);
-        json.addProperty("buyer_name", buyerName);
-        return com.lider.minebridge.networking.BackendClient.postJson(getBaseUrl() + tradeId + "/complete", json);
+        return CompletableFuture.supplyAsync(() -> {
+            JsonObject json = new JsonObject();
+            json.addProperty("buyer_uuid", buyerUuid);
+            json.addProperty("buyer_name", buyerName);
+            return json;
+        }, com.lider.minebridge.networking.NetworkManager.getExecutor())
+        .thenCompose(json -> com.lider.minebridge.networking.BackendClient.postJson(getBaseUrl() + tradeId + "/complete", json));
     }
 }

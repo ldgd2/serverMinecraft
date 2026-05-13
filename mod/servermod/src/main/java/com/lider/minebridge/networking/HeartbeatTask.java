@@ -22,11 +22,17 @@ public class HeartbeatTask {
         trigger();
     }
 
+    private static long lastTrigger = 0;
+    private static final long COOLDOWN_MS = 2000;
+
     /**
      * Disparador manual para momentos CRÍTICOS (Join/Leave).
      * Evita pedir datos como desquiciado; solo cuando realmente cambia algo.
      */
     public static void trigger() {
+        long now = System.currentTimeMillis();
+        if (now - lastTrigger < COOLDOWN_MS) return;
+        lastTrigger = now;
         run();
     }
 
@@ -34,33 +40,43 @@ public class HeartbeatTask {
         MinecraftServer server = MineBridge.getServer();
         if (server == null) return;
 
-        // CAPTURA: Copiamos lo que necesitamos del hilo principal muy rápido
+        // CAPTURA MÍNIMA: Solo lo que vive en el servidor y cambia
         MineCore.Data.snapshot(() -> {
-            JsonObject data = new JsonObject();
-            data.addProperty("online_count", server.getCurrentPlayerCount());
-            data.addProperty("max_players", server.getMaxPlayerCount());
-            data.addProperty("server_name", com.lider.minebridge.config.ModConfig.getServerName());
+            int online = server.getCurrentPlayerCount();
+            int max = server.getMaxPlayerCount();
+            String name = com.lider.minebridge.config.ModConfig.getServerName();
+            java.util.List<ServerPlayerEntity> players = new java.util.ArrayList<>(server.getPlayerManager().getPlayerList());
+            return new RawData(online, max, name, players);
+        }, raw -> {
+            // PROCESAMIENTO PESADO: Construcción de JSON fuera del hilo principal
+            JsonObject payload = new JsonObject();
+            payload.addProperty("online_count", raw.online);
+            payload.addProperty("max_players", raw.max);
             
-            java.util.List<ServerPlayerEntity> playersList = new java.util.ArrayList<>(server.getPlayerManager().getPlayerList());
-            return new SnapshotData(data, playersList);
-        }, snapshot -> {
-            // PROCESAMIENTO: Armamos el JSON pesado en un núcleo aislado
-            JsonObject payload = snapshot.baseData;
-            JsonArray players = new JsonArray();
-            
-            for (ServerPlayerEntity player : snapshot.players) {
-                JsonObject p = new JsonObject();
-                p.addProperty("name", player.getName().getString());
-                p.addProperty("uuid", player.getUuidAsString());
-                p.addProperty("ip", player.getIp());
-                players.add(p);
+            JsonArray playersArray = new JsonArray();
+            for (ServerPlayerEntity player : raw.players) {
+                try {
+                    JsonObject p = new JsonObject();
+                    // Usamos 'player' y 'name' para máxima compatibilidad con Backend y App
+                    p.addProperty("player", player.getName().getString());
+                    p.addProperty("name", player.getName().getString());
+                    p.addProperty("player_uuid", player.getUuidAsString());
+                    p.addProperty("uuid", player.getUuidAsString());
+                    p.addProperty("ip", player.getIp());
+                    p.addProperty("player_ip", player.getIp());
+                    playersArray.add(p);
+                } catch (Exception e) {}
             }
-            payload.add("players", players);
+            
+            payload.add("players", playersArray);
+            payload.addProperty("server_name", raw.name);
+            payload.addProperty("server", raw.name);
+            payload.addProperty("status", "RUNNING");
 
-            // ENVÍO: Fuera del hilo principal
+            // Enviar heartbeat a la ruta estandarizada
             AchievementClient.sendRequest("api/v1/bridge/heartbeat", payload);
         });
     }
 
-    private record SnapshotData(JsonObject baseData, java.util.List<ServerPlayerEntity> players) {}
+    private record RawData(int online, int max, String name, java.util.List<ServerPlayerEntity> players) {}
 }

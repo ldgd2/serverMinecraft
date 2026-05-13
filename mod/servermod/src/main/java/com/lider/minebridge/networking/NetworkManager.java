@@ -20,23 +20,25 @@ public class NetworkManager {
     static {
         // Determinamos el número de hilos óptimo (al menos 2, máximo 4 para no saturar si hay pocos núcleos)
         int cores = Runtime.getRuntime().availableProcessors();
-        int threads = Math.max(4, Math.min(cores * 2, 12));
+        int threads = Math.max(4, Math.min(cores * 4, 16));
 
         ThreadFactory factory = new ThreadFactory() {
             private final AtomicInteger count = new AtomicInteger(1);
             @Override
             public Thread newThread(Runnable r) {
-                Thread t = new Thread(r, "MineBridge-Network-" + count.getAndIncrement());
+                Thread t = new Thread(r, "MineBridge-Net-" + count.getAndIncrement());
                 t.setDaemon(true);
-                t.setPriority(Thread.NORM_PRIORITY - 1);
+                // Prioridad baja para no interrumpir el Tick Loop del servidor
+                t.setPriority(Thread.MIN_PRIORITY + 2);
                 return t;
             }
         };
 
         networkExecutor = Executors.newFixedThreadPool(threads, factory);
         scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
-            Thread t = new Thread(r, "MineBridge-Scheduler");
+            Thread t = new Thread(r, "MineBridge-Sched");
             t.setDaemon(true);
+            t.setPriority(Thread.MIN_PRIORITY + 3);
             return t;
         });
 

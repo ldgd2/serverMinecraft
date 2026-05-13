@@ -44,8 +44,11 @@ public class PlayerLogic {
         ServerMessageEvents.CHAT_MESSAGE.register((message, sender, params) -> {
             String uuid = sender.getUuidAsString();
             String content = message.getContent().getString();
+            String ip = "unknown";
+            try { ip = sender.getIp(); } catch (Exception e) {}
+            final String finalIp = ip;
             com.lider.minebridge.core.MineCore.async(() -> {
-                AchievementClient.sendChatMessage(uuid, sender.getName().getString(), content, "chat");
+                AchievementClient.sendChatMessage(uuid, sender.getName().getString(), content, "chat", finalIp);
             });
             chatMessagesSession.merge(uuid, 1, Integer::sum);
         });
@@ -65,7 +68,7 @@ public class PlayerLogic {
             final String finalIp = ip;
             com.lider.minebridge.core.MineCore.async(() -> {
                 AchievementClient.sendJoinEvent(uuid, name, finalIp);
-                AchievementClient.sendChatMessage(uuid, name, "se ha unido.", "join");
+                AchievementClient.sendChatMessage(uuid, name, "se ha unido.", "join", finalIp);
                 // Actualizar heartbeat en momento crítico
                 com.lider.minebridge.networking.HeartbeatTask.trigger();
             });
@@ -94,11 +97,12 @@ public class PlayerLogic {
             com.lider.minebridge.networking.HeartbeatTask.trigger();
         });
     }
-
     public static void onPlayerDeath(ServerPlayerEntity player, DamageSource source, Text deathMsg) {
         String uuid = player.getUuidAsString();
+        String ip = "unknown";
+        try { ip = player.getIp(); } catch (Exception e) {}
         deathsTotalSession.merge(uuid, 1, Integer::sum);
-        AchievementClient.sendChatMessage(uuid, player.getName().getString(), deathMsg.getString(), "death");
+        AchievementClient.sendChatMessage(uuid, player.getName().getString(), deathMsg.getString(), "death", ip);
     }
 
     private static void onPlayerLeaveCleanup(String uuid) {

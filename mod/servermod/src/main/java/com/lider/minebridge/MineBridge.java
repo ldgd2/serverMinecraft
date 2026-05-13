@@ -31,8 +31,16 @@ public class MineBridge implements ModInitializer {
             serverInstance = srv;
         });
 
-        ServerLifecycleEvents.SERVER_STOPPED.register(srv -> {
+        ServerLifecycleEvents.SERVER_STARTED.register(srv -> {
             com.lider.minebridge.networking.HeartbeatTask.trigger();
+        });
+
+        ServerLifecycleEvents.SERVER_STOPPING.register(srv -> {
+            com.lider.minebridge.networking.HeartbeatTask.trigger();
+        });
+
+        ServerLifecycleEvents.SERVER_STOPPED.register(srv -> {
+            serverInstance = null;
         });
 
         // --- Carga de Módulos (Modularización Premium) ---

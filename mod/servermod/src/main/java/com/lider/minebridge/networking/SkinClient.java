@@ -80,6 +80,7 @@ public class SkinClient {
         var playerManager = MineBridge.getServer().getPlayerManager();
         if (playerManager == null) return;
 
+        // Construir paquetes una sola vez
         net.minecraft.network.packet.s2c.play.PlayerRemoveS2CPacket removePacket = 
             new net.minecraft.network.packet.s2c.play.PlayerRemoveS2CPacket(java.util.List.of(player.getUuid()));
             
@@ -89,10 +90,12 @@ public class SkinClient {
         com.lider.minebridge.networking.payload.SyncSkinPayload payload = 
             new com.lider.minebridge.networking.payload.SyncSkinPayload(player.getUuid(), value, signature);
 
+        // Envío masivo optimizado
         for (ServerPlayerEntity other : playerManager.getPlayerList()) {
             if (net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.canSend(other, com.lider.minebridge.networking.payload.SyncSkinPayload.ID)) {
-                net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(other, payload);
+                MineCore.Network.send(other, payload);
             } else {
+                // Fallback para clientes sin el mod (si los hubiera)
                 other.networkHandler.sendPacket(removePacket);
                 other.networkHandler.sendPacket(addPacket);
             }

@@ -174,13 +174,19 @@ class ServerController:
         # Intercept Special "Premium" Commands from CMD
         clean_cmd = command.lstrip('/')
         
-        if clean_cmd.startswith("!announce "):
-            parts = clean_cmd[10:].split("|", 1)
+        # --- ANNOUNCEMENTS (Rich Alerts) ---
+        if clean_cmd.startswith("!announce ") or clean_cmd.startswith("!announcement ") or clean_cmd.startswith("!aviso "):
+            # Get content after the trigger
+            content = ""
+            if clean_cmd.startswith("!announce "): content = clean_cmd[10:].strip()
+            elif clean_cmd.startswith("!announcement "): content = clean_cmd[14:].strip()
+            elif clean_cmd.startswith("!aviso "): content = clean_cmd[7:].strip()
+            
+            parts = content.split("|", 1)
             title = parts[0].strip()
             desc = parts[1].strip() if len(parts) > 1 else ""
             
             from routes.bridge import manager
-            # We don't have the user object here easily, but we can try to find who owns this server
             from database.connection import SessionLocal
             from database.models import User
             with SessionLocal() as db:
@@ -191,8 +197,13 @@ class ServerController:
                     BitacoraService.add_log_background(user_obj.username, "SERVER_ANNOUNCE", f"Sent announcement to {name}: {title}")
                     return True
         
-        elif clean_cmd.startswith("!notify "):
-            msg = clean_cmd[8:].strip()
+        # --- NOTIFICATIONS (Small messages) ---
+        elif clean_cmd.startswith("!notify ") or clean_cmd.startswith("!notification ") or clean_cmd.startswith("!msg "):
+            msg = ""
+            if clean_cmd.startswith("!notify "): msg = clean_cmd[8:].strip()
+            elif clean_cmd.startswith("!notification "): msg = clean_cmd[14:].strip()
+            elif clean_cmd.startswith("!msg "): msg = clean_cmd[5:].strip()
+            
             from routes.bridge import manager
             from database.connection import SessionLocal
             from database.models import User
