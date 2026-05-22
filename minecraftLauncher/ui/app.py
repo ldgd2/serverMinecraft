@@ -16,6 +16,7 @@ from ui.views.skins     import SkinsView
 from ui.views.downloads import DownloadsView
 from ui.views.profile   import ProfileView
 from ui.views.updates   import UpdatesView
+from ui.views.server    import ServerView
 
 
 class LauncherApp(tk.Tk):
@@ -49,6 +50,7 @@ class LauncherApp(tk.Tk):
         self.updates_view   = UpdatesView(  self.container, app=self)
         self.downloads_view = DownloadsView(self.container, app=self,
                                              on_download_complete=self.home_view.sync_launch_settings)
+        self.server_view    = ServerView(   self.container, app=self)
 
         self.current_view: tk.Frame | None = None
 
@@ -166,6 +168,10 @@ class LauncherApp(tk.Tk):
     def show_updates_view(self, **_):
         self.show_view(self.updates_view, "updates")
         self.after(300, lambda: self.updates_view.on_show() if hasattr(self.updates_view, 'on_show') else None)
+
+    def show_server_view(self, **_):
+        self.show_view(self.server_view, "server")
+        self.after(300, lambda: self.server_view.on_show() if hasattr(self.server_view, 'on_show') else None)
 
     def on_launcher_update_detected(self, latest, url):
         """Llamado desde el updater en background cuando hay una nueva versión."""

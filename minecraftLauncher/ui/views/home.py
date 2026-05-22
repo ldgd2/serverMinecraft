@@ -126,6 +126,13 @@ class HomeView(tk.Frame):
         )
         self._quit_btn.place(relx=0.5, rely=base_y + 0.36, x=(half_w//2 + 5), anchor="n")
 
+        self._admin_btn = MinecraftButton(
+            self.panorama, text="Server",
+            width=btn_w, height=btn_h, font_size=12,
+            command=self._go_server, bg=Colors.DARK
+        )
+        self._admin_btn.place(relx=0.5, rely=base_y + 0.44, anchor="n")
+
         # 4. Bottom Left Info (Version & Loader)
         self.info_frame = tk.Frame(self.panorama, bg=Colors.DARK)
         self.info_frame.place(relx=0.02, rely=0.98, anchor="sw")
@@ -311,6 +318,10 @@ class HomeView(tk.Frame):
     def _show_profile(self):
         if self.app:
             self.app.show_profile_view()
+
+    def _go_server(self):
+        if self.app:
+            self.app.show_server_view()
 
     # ── Public update methods ─────────────────────────────────────────────────
 

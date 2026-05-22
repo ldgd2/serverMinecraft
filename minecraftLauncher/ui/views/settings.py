@@ -432,6 +432,16 @@ class SettingsView(tk.Frame):
         self._create_toggle(frame, "discord_rpc", "Activar Discord RPC", "Muestra a tus amigos de Discord a qué estás jugando.")
         self._create_toggle(frame, "close_launcher_on_start", "Cerrar Launcher al Iniciar", "Cierra esta ventana al entrar al juego para liberar RAM en tu equipo.")
 
+        # --- ADMIN API KEY ---
+        tk.Label(frame, text="Acceso de Administrador", font=mc_font(10, bold=True), fg=Colors.PREMIUM_GREEN, bg=Colors.PANEL_DARK, anchor="w").pack(fill="x", pady=(15, 5))
+        self.inputs["api_url"] = SettingsRow(frame, "URL del Servidor", "Ej: http://192.168.1.5/api", config.get("api_url") or "http://127.0.0.1:8000/api/v1")
+        self.inputs["api_url"].pack(fill="x", pady=5)
+        self.inputs["admin_api_key"] = SettingsRow(frame, "Admin API Key", "Desbloquea la gestión completa de servidores en el launcher", config.get("admin_api_key") or "")
+        self.inputs["admin_api_key"].pack(fill="x", pady=5)
+        
+        btn_download = MinecraftButton(frame, text="Descargar Mundo del Servidor", width=340, height=36, font_size=11, command=self._download_world_backup)
+        btn_download.pack(anchor="w", pady=(10, 5))
+
         if acc_type in ["premium", "server"]:
             auto_lbl = tk.Label(frame, text="Conexión Automática (Al Entrar)", font=mc_font(10, bold=True), fg=Colors.WHITE, bg=Colors.PANEL_DARK, anchor="w")
             auto_lbl.pack(fill="x", pady=(15, 5))
@@ -449,16 +459,10 @@ class SettingsView(tk.Frame):
             self.inputs["server_ip"] = SettingsRow(frame, "IP Servidor Skins", "Ej: 192.168.1.5", config.get("server_ip") or "")
             self.inputs["server_ip"].pack(fill="x", pady=5)
             
-            self.inputs["api_url"] = SettingsRow(frame, "URL API Skins", "Ej: http://192.168.1.5/api", config.get("api_url") or "")
-            self.inputs["api_url"].pack(fill="x", pady=5)
-            
             self._create_toggle(frame, "enable_custom_auth", "Autenticación Custom", "Valida tu sesión pirata usango Authlib Injector contra la base de datos del servidor.")
             
             self.inputs["auth_api_url"] = SettingsRow(frame, "URL Auth API", "Ej: http://auth.server.local", config.get("auth_api_url") or "")
             self.inputs["auth_api_url"].pack(fill="x", pady=5)
-
-            btn_download = MinecraftButton(frame, text="Descargar Mundo del Servidor", width=340, height=36, font_size=11, command=self._download_world_backup)
-            btn_download.pack(anchor="w", pady=(10, 5))
 
 
     def update_ram_label(self, val):
@@ -494,7 +498,7 @@ class SettingsView(tk.Frame):
             config.set("minecraft_dir", self.inputs["minecraft_dir"].get())
             
             # Save Advanced Tab
-            for k in ["server_ip", "api_url", "auth_api_url", "auto_join_ip"]:
+            for k in ["server_ip", "api_url", "auth_api_url", "auto_join_ip", "admin_api_key"]:
                 if k in self.inputs:
                     config.set(k, self.inputs[k].get())
             for k, v in self.toggles.items():

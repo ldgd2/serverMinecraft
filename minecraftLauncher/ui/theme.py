@@ -106,6 +106,14 @@ class Assets:
     ICON_WARN    = _g("sprites", "world_list", "warning.png")
     ICON_SEARCH  = _g("sprites", "icon", "search.png")
     ICON_SETTINGS = _g("sprites", "icon", "accessibility.png")
+    ICON_START   = _g("sprites", "world_list", "join.png")
+    ICON_STOP    = _g("sprites", "widget", "cross_button.png")
+    ICON_RESTART = _g("sprites", "transferable_list", "move_up.png")
+    ICON_CREATE  = _g("sprites", "world_list", "marked_join.png")
+    ICON_TP      = _g("sprites", "spectator", "teleport_to_player.png")
+    ICON_KICK    = _g("sprites", "transferable_list", "unselect.png")
+    ICON_BAN     = _g("sprites", "social_interactions", "report_button.png")
+    ICON_REFRESH = _g("sprites", "icon", "language.png")
 
     # Separator
     HEADER_SEP  = _g("header_separator.png")

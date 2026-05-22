@@ -32,6 +32,13 @@ async def get_current_user(request: Request, db: Session = Depends(get_db)):
         match = re.match(r"^Bearer\s+(.+)$", auth_header, re.IGNORECASE)
         if match:
             token = match.group(1)
+            import hashlib
+            hashed_received = hashlib.sha256(token.encode()).hexdigest()
+            # Buscar usuario con este hash que sea admin
+            admin = db.query(User).filter(User.api_key_hashed == hashed_received, User.is_admin == True).first()
+            if admin:
+                return admin
+
             credentials = HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
             try:
                 # Usar la función de verificación oficial para máxima compatibilidad
