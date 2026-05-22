@@ -40,12 +40,17 @@ public class HeartbeatTask {
         MinecraftServer server = MineBridge.getServer();
         if (server == null) return;
 
-        // CAPTURA MÍNIMA: Solo lo que vive en el servidor y cambia
+        // CAPTURA MÍNIMA: Solo lo que vive en el servidor
         MineCore.Data.snapshot(() -> {
             int online = server.getCurrentPlayerCount();
             int max = server.getMaxPlayerCount();
             String name = com.lider.minebridge.config.ModConfig.getServerName();
-            java.util.List<ServerPlayerEntity> players = new java.util.ArrayList<>(server.getPlayerManager().getPlayerList());
+            
+            // Capturamos solo los datos necesarios como strings para no tocar objetos del juego en el hilo async
+            java.util.List<PlayerData> players = server.getPlayerManager().getPlayerList().stream()
+                .map(p -> new PlayerData(p.getName().getString(), p.getUuidAsString(), p.getIp()))
+                .toList();
+                
             return new RawData(online, max, name, players);
         }, raw -> {
             // PROCESAMIENTO PESADO: Construcción de JSON fuera del hilo principal
@@ -54,18 +59,15 @@ public class HeartbeatTask {
             payload.addProperty("max_players", raw.max);
             
             JsonArray playersArray = new JsonArray();
-            for (ServerPlayerEntity player : raw.players) {
-                try {
-                    JsonObject p = new JsonObject();
-                    // Usamos 'player' y 'name' para máxima compatibilidad con Backend y App
-                    p.addProperty("player", player.getName().getString());
-                    p.addProperty("name", player.getName().getString());
-                    p.addProperty("player_uuid", player.getUuidAsString());
-                    p.addProperty("uuid", player.getUuidAsString());
-                    p.addProperty("ip", player.getIp());
-                    p.addProperty("player_ip", player.getIp());
-                    playersArray.add(p);
-                } catch (Exception e) {}
+            for (PlayerData pData : raw.players) {
+                JsonObject p = new JsonObject();
+                p.addProperty("player", pData.name);
+                p.addProperty("name", pData.name);
+                p.addProperty("player_uuid", pData.uuid);
+                p.addProperty("uuid", pData.uuid);
+                p.addProperty("ip", pData.ip);
+                p.addProperty("player_ip", pData.ip);
+                playersArray.add(p);
             }
             
             payload.add("players", playersArray);
@@ -78,5 +80,6 @@ public class HeartbeatTask {
         });
     }
 
-    private record RawData(int online, int max, String name, java.util.List<ServerPlayerEntity> players) {}
+    private record PlayerData(String name, String uuid, String ip) {}
+    private record RawData(int online, int max, String name, java.util.List<PlayerData> players) {}
 }

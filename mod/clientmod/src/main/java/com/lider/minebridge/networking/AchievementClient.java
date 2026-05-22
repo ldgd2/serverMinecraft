@@ -26,8 +26,8 @@ public class AchievementClient {
     }
 
     public static void triggerAchievement(String key, String title, String description) {
-        if (UNLOCKED_SESSION.contains(key)) return;
-        UNLOCKED_SESSION.add(key);
+        if (com.lider.minebridge.achievements.AchievementStorage.isUnlocked(key)) return;
+        com.lider.minebridge.achievements.AchievementStorage.unlock(key);
 
         // 1. Enviar al servidor
         triggerAchievement(key, title);

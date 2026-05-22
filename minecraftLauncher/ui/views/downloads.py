@@ -16,11 +16,12 @@ from core.versions import (
     get_available_fabric_versions,
 )
 
-TAB_NAMES = ["Vanilla", "Fabric", "Forge"]
+TAB_NAMES = ["Vanilla", "Fabric", "Forge", "Backups"]
 TAB_COLORS = {
     "Vanilla": "#1a5c1a",
     "Fabric":  "#1a3a6b",
     "Forge":   "#7a4a1a",
+    "Backups": "#4a1a6b",
 }
 
 
@@ -110,6 +111,8 @@ class DownloadsView(tk.Frame):
             self._build_fabric_filter()
         elif name == "Forge":
             self._build_forge_filter()
+        elif name == "Backups":
+            self._build_backups_filter()
 
         self._refresh_active()
 
@@ -146,6 +149,11 @@ class DownloadsView(tk.Frame):
         MinecraftButton(self._filter_frame, text="Buscar Forge", width=150, height=28,
                          font_size=9, command=self._load_forge).pack(side="left", padx=4)
 
+    def _build_backups_filter(self):
+        tk.Label(self._filter_frame,
+                 text="Descarga backups de los mundos de los servidores disponibles.",
+                 fg=Colors.GRAY_TEXT, bg=Colors.DARK, font=mc_font(9)).pack(side="left")
+
     # ── Refresh / Load ─────────────────────────────────────────────────────────
 
     def _refresh_active(self):
@@ -155,6 +163,8 @@ class DownloadsView(tk.Frame):
             self._load_fabric()
         elif self._active_tab == "Forge":
             self._load_forge()
+        elif self._active_tab == "Backups":
+            self._load_backups()
 
     def _load_vanilla(self):
         self._clear_list()
@@ -242,6 +252,36 @@ class DownloadsView(tk.Frame):
 
         threading.Thread(target=fetch, daemon=True).start()
 
+    def _load_backups(self):
+        self._clear_list()
+        self._status_var.set("Obteniendo servidores disponibles...")
+
+        def fetch():
+            try:
+                from core.auth import AuthController
+                auth = AuthController()
+                token = config.get("player_token")
+                if not token:
+                    raise Exception("No estás autenticado.")
+
+                headers = {"Authorization": f"Bearer {token}"}
+                url = f"{auth.api_url}/player-auth/servers"
+                resp = requests.get(url, headers=headers, timeout=10)
+                resp.raise_for_status()
+                data = resp.json()
+                
+                if data.get("status") == "success":
+                    servers = data.get("data", [])
+                else:
+                    servers = []
+            except Exception as e:
+                servers = []
+                self.after(0, lambda: self._status_var.set(f"Error: {e}"))
+
+            self.after(0, lambda: self._populate_backups_list(servers))
+
+        threading.Thread(target=fetch, daemon=True).start()
+
     # ── Populate ───────────────────────────────────────────────────────────────
 
     def _populate_list(self, versions, installed, loader_type, mc_ver=None):
@@ -265,6 +305,21 @@ class DownloadsView(tk.Frame):
         color = TAB_COLORS["Forge"]
         for version_id, label in versions:
             self._add_version_row(version_id, version_id in installed, "Forge", None, color, display=label)
+
+    def _populate_backups_list(self, servers):
+        self._clear_list()
+        if not servers:
+            self._status_var.set("No se encontraron servidores o hubo un error.")
+            return
+
+        self._status_var.set(f"{len(servers)} servidores disponibles para descarga de mundo.")
+        color = TAB_COLORS["Backups"]
+
+        for s in servers:
+            name = s.get("name", "Unknown")
+            version = s.get("version", "??")
+            status = s.get("status", "OFFLINE")
+            self._add_backup_row(name, version, status, color)
 
     def _add_version_row(self, version_id, is_installed, loader_type, mc_ver, color, display=None):
         row = tk.Frame(self._list_frame, bg=color,
@@ -293,6 +348,29 @@ class DownloadsView(tk.Frame):
         inst_btn.bind("<ButtonRelease-1>",
                        lambda e, v=version_id, b=inst_btn, pv=prog_var,
                               lt=loader_type, mcv=mc_ver: self._install(v, b, pv, lt, mcv))
+
+    def _add_backup_row(self, server_name, version, status, color):
+        row = tk.Frame(self._list_frame, bg=color,
+                        highlightthickness=1, highlightbackground=Colors.PANEL_BORDER)
+        row.pack(fill="x", pady=2)
+
+        tk.Frame(row, bg=Colors.PANEL_BORDER, width=4).pack(side="left", fill="y")
+
+        display = f"{server_name} (v{version}) - {status}"
+        tk.Label(row, text=display, fg=Colors.WHITE, bg=color,
+                 font=mc_font(10), width=40, anchor="w").pack(side="left", padx=10, pady=7)
+
+        prog_var = tk.StringVar(value="")
+        self._prog_vars = getattr(self, "_prog_vars", {})
+        self._prog_vars[server_name] = prog_var
+        
+        tk.Label(row, textvariable=prog_var,
+                 fg=Colors.YELLOW,
+                 bg=color, font=mc_font(9), width=24).pack(side="left")
+
+        btn = MinecraftButton(row, text="Descargar", width=110, height=28, font_size=9)
+        btn.pack(side="right", padx=10, pady=5)
+        btn.bind("<ButtonRelease-1>", lambda e, s=server_name, b=btn, pv=prog_var: self._download_backup(s, b, pv))
 
     # ── Install ────────────────────────────────────────────────────────────────
 
@@ -366,6 +444,67 @@ class DownloadsView(tk.Frame):
                 self.on_download_complete()
         else:
             prog_var.set(f"Error: {err[:36]}")
+
+    def _download_backup(self, server_name, btn, prog_var):
+        from tkinter import filedialog
+        import os
+        
+        save_path = filedialog.asksaveasfilename(
+            defaultextension=".zip",
+            initialfile=f"{server_name}_world.zip",
+            title=f"Guardar Backup de {server_name}",
+            filetypes=[("Archivos ZIP", "*.zip")]
+        )
+        
+        if not save_path:
+            return
+            
+        if getattr(self, "_downloading_backup", False):
+            prog_var.set("Ya hay una descarga en curso...")
+            return
+            
+        self._downloading_backup = True
+        btn.configure_state(True)
+        prog_var.set("Iniciando descarga...")
+
+        def do_download():
+            try:
+                from core.auth import AuthController
+                auth = AuthController()
+                token = config.get("player_token")
+                headers = {"Authorization": f"Bearer {token}"}
+                url = f"{auth.api_url}/player-auth/servers/{server_name}/world/download"
+                
+                prog_var.set("Descargando...")
+                with requests.get(url, headers=headers, stream=True, timeout=30) as r:
+                    r.raise_for_status()
+                    total_length = r.headers.get('content-length')
+                    
+                    with open(save_path, 'wb') as f:
+                        if total_length is None:
+                            f.write(r.content)
+                        else:
+                            dl = 0
+                            total_length = int(total_length)
+                            for data in r.iter_content(chunk_size=4096):
+                                dl += len(data)
+                                f.write(data)
+                                done = int(100 * dl / total_length)
+                                self.after(0, lambda d=done: prog_var.set(f"Descargando... {d}%"))
+
+                self.after(0, lambda: self._on_backup_done(server_name, btn, prog_var, True, f"Guardado"))
+            except Exception as e:
+                self.after(0, lambda err=str(e): self._on_backup_done(server_name, btn, prog_var, False, err))
+
+        threading.Thread(target=do_download, daemon=True).start()
+        
+    def _on_backup_done(self, server_name, btn, prog_var, success, msg):
+        self._downloading_backup = False
+        btn.configure_state(False)
+        if success:
+            prog_var.set("[OK] " + msg)
+        else:
+            prog_var.set(f"Error: {msg[:36]}")
 
     def _go_home(self):
         if self.app:

@@ -92,17 +92,24 @@ public class PlayerLogic {
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
             String name = handler.getPlayer().getName().getString();
             verifiedPlayers.remove(name);
-            onPlayerLeaveCleanup(handler.getPlayer().getUuidAsString());
-            // Actualizar heartbeat al salir (momento crítico)
-            com.lider.minebridge.networking.HeartbeatTask.trigger();
+            String uuid = handler.getPlayer().getUuidAsString();
+            com.lider.minebridge.core.MineCore.async(() -> {
+                onPlayerLeaveCleanup(uuid);
+                // Actualizar heartbeat al salir (momento crítico)
+                com.lider.minebridge.networking.HeartbeatTask.trigger();
+            });
         });
     }
     public static void onPlayerDeath(ServerPlayerEntity player, DamageSource source, Text deathMsg) {
         String uuid = player.getUuidAsString();
+        String name = player.getName().getString();
         String ip = "unknown";
         try { ip = player.getIp(); } catch (Exception e) {}
+        final String finalIp = ip;
         deathsTotalSession.merge(uuid, 1, Integer::sum);
-        AchievementClient.sendChatMessage(uuid, player.getName().getString(), deathMsg.getString(), "death", ip);
+        com.lider.minebridge.core.MineCore.async(() -> {
+            AchievementClient.sendChatMessage(uuid, name, deathMsg.getString(), "death", finalIp);
+        });
     }
 
     private static void onPlayerLeaveCleanup(String uuid) {

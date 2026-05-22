@@ -28,8 +28,8 @@ public class NetworkManager {
             public Thread newThread(Runnable r) {
                 Thread t = new Thread(r, "MineBridge-Net-" + count.getAndIncrement());
                 t.setDaemon(true);
-                // Prioridad baja para no interrumpir el Tick Loop del servidor
-                t.setPriority(Thread.MIN_PRIORITY + 2);
+                // Prioridad mínima para que Minecraft siempre tenga preferencia de CPU
+                t.setPriority(Thread.MIN_PRIORITY);
                 return t;
             }
         };

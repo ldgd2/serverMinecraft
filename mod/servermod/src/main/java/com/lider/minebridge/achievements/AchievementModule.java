@@ -11,16 +11,26 @@ import com.lider.minebridge.MineBridge;
 public class AchievementModule {
 
     public static void initCommon() {
+        AchievementPersistence.load();
         PayloadTypeRegistry.playC2S().register(AchievementUnlockPayload.ID, AchievementUnlockPayload.CODEC);
         PayloadTypeRegistry.playS2C().register(AchievementUnlockPayload.ID, AchievementUnlockPayload.CODEC);
         
         ServerPlayNetworking.registerGlobalReceiver(AchievementUnlockPayload.ID, (payload, context) -> {
+            String key = payload.achievementId();
+            String uuid = context.player().getUuidAsString();
+            
+            // Si ya está desbloqueado, ignorar totalmente
+            if (AchievementPersistence.hasUnlocked(uuid, key)) return;
+
             com.lider.minebridge.core.MineCore.sync(() -> {
-                String key = payload.achievementId();
+                // Doble verificación dentro del hilo principal por seguridad
+                if (AchievementPersistence.hasUnlocked(uuid, key)) return;
+                
+                AchievementPersistence.unlock(uuid, key);
                 String title = payload.title();
                 String playerName = context.player().getName().getString();
                 
-                // Anuncio global
+                // Anuncio global (solo la primera vez)
                 context.server().getPlayerManager().broadcast(
                     net.minecraft.text.Text.of("§6[Logro] §f" + playerName + " ha desbloqueado: §e" + title),
                     false
@@ -30,7 +40,7 @@ public class AchievementModule {
                     String ip = context.player().getIp();
                     com.lider.minebridge.core.MineCore.async(() -> {
                         com.lider.minebridge.networking.AchievementClient.sendEvent(
-                            context.player().getUuidAsString(),
+                            uuid,
                             key,
                             1,
                             ip

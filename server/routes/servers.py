@@ -772,3 +772,20 @@ async def get_chat_history(name: str, db: Session = Depends(get_db), current_use
     # Reverse to get chronological order
     mapped = [m.to_dict() for m in reversed(messages)]
     return APIResponse(status="success", message="Chat history retrieved", data=mapped)
+
+
+@router.get("/{name}/world/export")
+async def export_server_world(name: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    try:
+        zip_path = await server_controller.export_world(db, name)
+        return FileResponse(
+            path=zip_path,
+            filename=f"{name}_world.zip",
+            media_type="application/zip",
+            background=None
+        )
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Server or world not found")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Export failed: {str(e)}")
+

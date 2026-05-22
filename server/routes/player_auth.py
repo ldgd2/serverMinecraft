@@ -20,6 +20,7 @@ from database.models.players.player_achievement import PlayerAchievement
 from app.services.auth_service import get_password_hash, verify_password, create_access_token, generate_offline_uuid
 from app.services.player_presence import player_presence
 from core.responses import APIResponse
+from fastapi.responses import FileResponse
 
 router = APIRouter(prefix="/player-auth", tags=["Player Auth"])
 
@@ -726,3 +727,34 @@ def _check_and_grant_achievements(account: PlayerAccount, server_name: str, db: 
                 server_name=server_name,
             ))
     db.commit()
+
+@router.get("/servers", tags=["Launcher Backups"])
+def list_servers_for_launcher(current_player: PlayerAccount = Depends(get_current_player), db: Session = Depends(get_db)):
+    """List all servers so the launcher can choose which world backup to download."""
+    servers = db.query(Server).all()
+    return APIResponse(status="success", message="Servers listed", data=[
+        {
+            "name": s.name,
+            "version": s.version,
+            "mod_loader": s.mod_loader,
+            "status": s.status,
+            "motd": s.motd
+        } for s in servers
+    ])
+
+@router.get("/servers/{server_name}/world/download", tags=["Launcher Backups"])
+async def download_server_world_backup(server_name: str, current_player: PlayerAccount = Depends(get_current_player), db: Session = Depends(get_db)):
+    """Download the world backup for a specific server."""
+    from app.controllers.server_controller import ServerController
+    server_controller = ServerController()
+    try:
+        zip_path = await server_controller.export_world(db, server_name)
+        return FileResponse(
+            path=zip_path,
+            filename=f"{server_name}_world.zip",
+            media_type="application/zip"
+        )
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Server or world not found")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Backup download failed: {str(e)}")

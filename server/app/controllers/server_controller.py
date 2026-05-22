@@ -228,6 +228,9 @@ class ServerController:
             return process.subscribe_logs()
         return None
     
+    async def export_world(self, db: Session, name: str) -> str:
+        return await server_service.export_world(db, name)
+
     async def export_server(self, db: Session, name: str) -> str:
         """Export a server as a ZIP file"""
         return await server_service.export_server(db, name)

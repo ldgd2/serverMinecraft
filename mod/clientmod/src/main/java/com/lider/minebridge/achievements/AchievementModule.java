@@ -15,6 +15,7 @@ public class AchievementModule {
     private static final long TOAST_DURATION = 5000; // 5 segundos
 
     public static void initClient() {
+        AchievementStorage.load();
         // Receptor de desbloqueo de logros
         ClientPlayNetworking.registerGlobalReceiver(AchievementUnlockPayload.ID, (payload, context) -> {
             com.lider.minebridge.core.MineCore.sync(() -> {
