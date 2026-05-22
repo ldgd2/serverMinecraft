@@ -359,6 +359,7 @@ class ServerService:
     async def export_world(self, db: Session, name: str) -> str:
         import zipfile
         import tempfile
+        import asyncio
         server = db.query(Server).filter(Server.name == name).first()
         if not server: raise FileNotFoundError(f"Server '{name}' not found")
         server_dir = os.path.join(self.base_dir, name)
@@ -374,14 +375,20 @@ class ServerService:
                             break
             world_dir = os.path.join(server_dir, level_name)
             if not os.path.exists(world_dir): raise FileNotFoundError(f"World directory not found for server: {name}")
+        
         temp_zip = tempfile.NamedTemporaryFile(delete=False, suffix='.zip', prefix=f'{name}_world_')
-        try:
+        
+        def _zip_folder():
             with zipfile.ZipFile(temp_zip.name, 'w', zipfile.ZIP_DEFLATED) as zipf:
                 for root, dirs, files in os.walk(world_dir):
                     for file in files:
                         file_path = os.path.join(root, file)
                         arcname = os.path.relpath(file_path, world_dir)
                         zipf.write(file_path, arcname)
+
+        try:
+            # Run the blocking zip operation in a separate thread
+            await asyncio.to_thread(_zip_folder)
             return temp_zip.name
         except Exception as e:
             if os.path.exists(temp_zip.name): os.remove(temp_zip.name)

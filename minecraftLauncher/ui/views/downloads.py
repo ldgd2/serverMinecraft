@@ -475,11 +475,12 @@ class DownloadsView(tk.Frame):
                 headers = {"Authorization": f"Bearer {token}"}
                 url = f"{auth.api_url}/player-auth/servers/{server_name}/world/download"
                 
-                prog_var.set("Descargando...")
-                with requests.get(url, headers=headers, stream=True, timeout=30) as r:
+                self.after(0, lambda: prog_var.set("Comprimiendo mundo en el servidor... (Puede tardar)"))
+                with requests.get(url, headers=headers, stream=True, timeout=None) as r:
                     r.raise_for_status()
                     total_length = r.headers.get('content-length')
                     
+                    self.after(0, lambda: prog_var.set("Descargando..."))
                     with open(save_path, 'wb') as f:
                         if total_length is None:
                             f.write(r.content)
